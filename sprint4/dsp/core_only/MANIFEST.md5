@@ -1,0 +1,14 @@
+# core_only 传输 md5 清单  (生成 2026-06-02, Linux host)
+# Windows 端解包后 md5 逐行核对;★ 两行核文件必须与 host 验过的逐字节一致
+
+1e88479385c8de7d3107b8c3a34e840a  src/tree_filterbank.c   ★核-verbatim
+7397ff0e02b9f9bd917c3093bc2b2912  src/tree_filterbank.h   ★核-verbatim
+8d2c8228b371fdefcf76e41d1d94253d  src/tfb_8ch.c
+5039ef42d67c6ec37f5de3a44b370995  src/tfb_8ch.h
+7e7805b2cf039c790e380846caf2b2dc  include/fir_coeffs_hb63.h
+2b1793de853a3051c3b377b1793fb604  cces/dsp_main_core_only.c
+137cb30b4228edf148753a5769c7e834  host/gen_hb63.c
+524492a4ff32d179da3d3b625996c563  host/host_bitexact.c
+cedd031104157f171c0569a15d6245f9  Makefile
+65a3a514293355329a835f43d1a17e2d  S0S1_report.md
+32bfd08641c0c440b5f51ecad84f8633  CROSS_BUILD_NOTES.md
