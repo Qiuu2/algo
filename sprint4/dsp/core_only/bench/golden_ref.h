@@ -2,6 +2,8 @@
  * @file    golden_ref.h
  * @brief   内存向量法独立 golden（host 计算冻结，on-target 比对）—— 勿手改
  *
+ * （2026-06-02 R14 修复：gen_golden 改读冻结 chirp_input.h；CRC 不变 0x90556BC7，
+ *   证明冻结输入 ≡ 原 host chirp，golden 无需更新。详见 R14_bitexact_rootcause.md。）
  * 由 bench/gen_golden.c 在 host 跑参考单通道链（tree_verify 同源路径）导出：
  *   - GOLDEN_CRC32：全 65536 样本 int32 Q31 的 CRC32(IEEE 802.3)
  *   - GOLDEN_SPOT[64]：stride=1024 的逐位 spot 子集（紧凑覆盖，省 L1）

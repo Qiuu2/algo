@@ -15,26 +15,16 @@
 #include "fir_coeffs_hb63.h"
 #include "bench_harness.h"
 #include "golden_ref.h"
+#include "chirp_input.h"   /* 冻结 chirp 输入（host 64-bit double 预算，消 -double-size-32 分叉） */
 #include <string.h>
-#include <math.h>
 #include <stdint.h>
+/* ⚠️ 不再 include <math.h>/不再运行期算 chirp：冻结输入后 bit-exact 路径
+ *   零 double/pow/sin → host 与 target（-double-size-32）逐位一致（R14 根因修复）。*/
 
-#ifndef M_PI   /* -std=c99 严格 / SHARC cc21k 可能未定义 */
-#define M_PI 3.14159265358979323846
-#endif
-
-/* ---- chirp 输入：与 gen_golden.c / tree_verify.c 同源（确定性，内存生成） ---- */
-static int32_t s_x[BENCH_FS/BENCH_FS * (BENCH_FRAME*BENCH_NFR)]; /* = 65536 */
+/* ---- 输入 = 冻结 chirp（CHIRP_INPUT[]，算法直接读，无运行期 double） ---- */
+typedef char chirp_len_check[(CHIRP_INPUT_N == BENCH_FRAME*BENCH_NFR) ? 1 : -1]; /* 编译期校验长度 */
 static int32_t s_y[BENCH_FRAME*BENCH_NFR];
 static int32_t s_in8[TFB8_NCH][TFB8_FRAME];
-
-static int32_t to_q31(double v){double s=v*2147483648.0;if(s>2147483647.0)s=2147483647.0;if(s<-2147483648.0)s=-2147483648.0;return (int32_t)s;}
-
-static void gen_input(void){
-    const int N = BENCH_FRAME*BENCH_NFR;
-    for(int i=0;i<N;i++){double t=(double)i/BENCH_FS,T=(double)N/BENCH_FS,f0=20,f1=11000;
-        double K=pow(f1/f0,t/T);double ph=2*M_PI*f0*T/log(f1/f0)*(K-1);s_x[i]=to_q31(0.289*sin(ph));}
-}
 
 /* CRC32 IEEE 802.3（与 gen_golden.c 同算法） */
 static uint32_t crc32_buf(const int32_t *d,int n){uint32_t c=0xFFFFFFFFu;
@@ -59,7 +49,7 @@ int bench_run(BenchResult *r){
     memset(r,0,sizeof(*r));
     r->cyc_valid = BENCH_CYC_VALID;
     tfb_set_coeffs(g_hb63_q15, FIR_HB63_NTAPS);   /* hb63，禁 437（NTAPS 守） */
-    gen_input();
+    /* 输入已冻结（CHIRP_INPUT[]，host 预算），无运行期生成 → 无 double 分叉 */
 
     /* ---- S2 bit-exact：单通道链 → 输出 → CRC32 + spot vs golden_ref.h ---- */
     {
@@ -68,7 +58,7 @@ int bench_run(BenchResult *r){
         tfb_channel_init(&ana); tfb_channel_init(&syn);
         uint32_t c0a=BENCH_CYC(); /* 顺带量首帧 analyze（cycle 用稳态见下） */
         for(int f=0; f<BENCH_NFR; f++){
-            tfb_analyze(&ana, &s_x[f*BENCH_FRAME], BENCH_FRAME, sb0,sb1,sb2,sb3);
+            tfb_analyze(&ana, &CHIRP_INPUT[f*BENCH_FRAME], BENCH_FRAME, sb0,sb1,sb2,sb3);
             tfb_synthesize(&syn, sb0,sb1,sb2,sb3, BENCH_FRAME, &s_y[f*BENCH_FRAME]);
         }
         (void)c0a;
@@ -87,16 +77,16 @@ int bench_run(BenchResult *r){
         int32_t out1[BENCH_FRAME];
         tfb_channel_init(&ana); tfb_channel_init(&syn); tfb8_init(&st8);
         /* 热身 4 帧（预热 cache/状态） */
-        for(int f=0; f<4; f++){ tfb_analyze(&ana,&s_x[f*BENCH_FRAME],BENCH_FRAME,sb0,sb1,sb2,sb3);
+        for(int f=0; f<4; f++){ tfb_analyze(&ana,&CHIRP_INPUT[f*BENCH_FRAME],BENCH_FRAME,sb0,sb1,sb2,sb3);
             tfb_synthesize(&syn,sb0,sb1,sb2,sb3,BENCH_FRAME,out1); }
         /* 单通道 analyze 稳态 */
         uint32_t t0=BENCH_CYC();
-        tfb_analyze(&ana,&s_x[4*BENCH_FRAME],BENCH_FRAME,sb0,sb1,sb2,sb3);
+        tfb_analyze(&ana,&CHIRP_INPUT[4*BENCH_FRAME],BENCH_FRAME,sb0,sb1,sb2,sb3);
         uint32_t t1=BENCH_CYC();
         tfb_synthesize(&syn,sb0,sb1,sb2,sb3,BENCH_FRAME,out1);
         uint32_t t2=BENCH_CYC();
         /* 8ch 满负载（sat 激励：8 路同信号 → ~8x 触饱和，WCET 路径） */
-        for(int i=0;i<BENCH_FRAME;i++) for(int c=0;c<TFB8_NCH;c++) s_in8[c][i]=s_x[4*BENCH_FRAME+i];
+        for(int i=0;i<BENCH_FRAME;i++) for(int c=0;c<TFB8_NCH;c++) s_in8[c][i]=CHIRP_INPUT[4*BENCH_FRAME+i];
         int32_t out8[BENCH_FRAME];
         uint32_t t3=BENCH_CYC();
         tfb8_process(&st8, s_in8, BENCH_FRAME, out8);

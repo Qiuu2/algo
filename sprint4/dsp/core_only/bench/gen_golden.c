@@ -14,6 +14,7 @@
  */
 #include "tree_filterbank.h"
 #include "fir_coeffs_hb63.h"
+#include "chirp_input.h"   /* 冻结 chirp 输入（与 bench_harness 同一份）→ golden 基于冻结输入 */
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -64,9 +65,9 @@ static uint32_t crc32_buf(const int32_t *d, int n){
 int main(void){
     if(FIR_HB63_NTAPS!=63||TFB_HB_TAPS!=63){fprintf(stderr,"NTAPS!=63\n");return 2;}
     make_hb(); tfb_set_coeffs(g_hb63_q15, FIR_HB63_NTAPS);
-    /* chirp 同 host_bitexact.c / tree_verify.c */
-    for(int i=0;i<N_TOTAL;i++){double t=(double)i/FS,T=(double)N_TOTAL/FS,f0=20,f1=11000;
-        double K=pow(f1/f0,t/T);double ph=2*M_PI*f0*T/log(f1/f0)*(K-1);x[i]=to_q31(0.289*sin(ph));}
+    /* 输入 = 冻结 chirp（CHIRP_INPUT[]）→ golden 证明基于冻结输入算（与 bench_harness 同源） */
+    if(CHIRP_INPUT_N != N_TOTAL){fprintf(stderr,"CHIRP_INPUT_N!=N_TOTAL\n");return 2;}
+    for(int i=0;i<N_TOTAL;i++) x[i]=CHIRP_INPUT[i];
     TreeChannelState ana,syn; int32_t sb0[FRAME/8],sb1[FRAME/4],sb2[FRAME/2],sb3[FRAME];
     tfb_channel_init(&ana); tfb_channel_init(&syn);
     for(int f=0;f<N_FRAMES;f++){tfb_analyze(&ana,&x[f*FRAME],FRAME,sb0,sb1,sb2,sb3);
