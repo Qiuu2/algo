@@ -23,7 +23,7 @@
 `bench_harness.c/.h` + 独立 golden `golden_ref.h`（host 冻结）：
 - **输入内存生成**：chirp（同 tree_verify/gen_golden，确定性，0.289=-6dBFS+headroom），无文件 I/O。
 - **S2 bit-exact**：单通道链输出 → **CRC32(全65536) + 64 spot 逐位 vs golden_ref.h**，容差 0；sat+unsat 双套。
-  - ⚠️ **诚实标注**：0.289 单通道**不触发饱和** → **SAT≡UNSAT**（CRC 均 `0x90556BC7`，gen_golden 两 build 实测一致）；故双套比同一 golden=两 build 都复现核路径 bit-exact。饱和原语 bit-exact 不被此输入覆盖（GAP-SAT，低优先：钳位简单+S0-S1 已验，台架反汇编确认钳位指令即可）。
+  - ⚠️ **诚实标注**：0.289 单通道**不触发饱和** → **SAT≡UNSAT**（CRC 均 `0x90556BC7`，gen_golden 两 build 实测一致）；故双套比同一 golden=两 build 都复现核路径 bit-exact。饱和原语 bit-exact 不被此输入覆盖（**GAP-SAT 已正式登记**：decisions_log「关联覆盖缺口 GAP-SAT」，挂 R14、暂不阻塞 R1；台架处置见 BENCH_OPS_CARD **13b** 反汇编饱和钳位：无分支→不影响 R1 算力 / 是分支→补满载 WCET）。
 - **S3-S5 cycle**：CCNT（host=clock 占位 cyc_valid=0；**target 待回填真 CCNT**=1 [L1/EZKIT]）；量 analyze/synth/8ch 每帧 cycle；换算 `MCPS_8ch=cyc8×750/1e6`、`MCPS_16ch=(cyc8+8×analyze)×750/1e6`（Fs48k/FRAME64/帧周期1.333ms）。
 - **R1 判据**（写死，实测待台架）：满负载 16ch WCET<1.333ms 且 裕量×=预算/实测MCPS≥10× 且 满 PF-1。
 
