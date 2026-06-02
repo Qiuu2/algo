@@ -19,6 +19,10 @@
 #include <math.h>
 #include <stdint.h>
 
+#ifndef M_PI   /* -std=c99 严格 / SHARC cc21k 可能未定义（与 bench_harness.c 一致） */
+#define M_PI 3.14159265358979323846
+#endif
+
 #define FS 48000
 #define FRAME 64
 #define N_FRAMES 1024
