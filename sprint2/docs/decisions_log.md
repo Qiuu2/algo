@@ -615,8 +615,22 @@
 | F1 模式/格式 | ✅ | Legacy 锁定 + Path B 运行时 FixedPointEnable(SIGNED)（DOC-S4-FIRA-F1-01；G1 闭合归档 legacy 头）|
 | **F2 FIRA 冒烟** | ✅ **管路 PASS [L1/EZKIT 2026-06-03]** | 板上 `g_fira_f2_rc=0` + `g_FIRTaskDoneCount=1`：FIRA Legacy 全生命周期跑通、ALL_CHANNEL_DONE 回调进 1 次。**注：管路 PASS ≠ G2 闭合**——`FixedPointEnable(SIGNED)` 不报错只证调用通（源码：非 RUNNING 必返 SUCCESS、与 config 无关），**SIGNED 正确性 = F4 bit-exact 验**；**G2 仍 open** |
 | F3 接真系数 | 🟡 **草案就绪·待台架**（commit 9139de3，critic PASS）| 真系数 g_hb63_q15 符号扩展 32-bit（DP-01 假设，F4 验）+ DP-01 5 步核内 postscale（80-bit 重组/>>15/×2/decimate/sat）+ 输出 buffer ×3。板上 DoD：rc=0/done=1/buffer 不越界/postscale 非垃圾（不要求 bit-exact）|
-| F4-F8 | 🔴 待台架 | **F4 单通道 bit-exact（R14 命门 = G2 真闭合，postscale gate 内迭代）** → F5 8ch+抽取 → F6 全链 crc==0x90556BC7（R14 闭合）→ F7 cycle 含开销+裕量 |
-> 🔒 **C9/铁律八维持**：FIRA 算力收益在 **F6 crc 闭合前不进选型/裕量结论**。
+| **F4 单通道 bit-exact** | 🟢 **放行·待台架**（F4a 预检完成 commit 5e55212）| **R14 命门 = 单通道 0x90556BC7 闭合**（DEC-S4-R14-GRANULARITY）。F4a：harness 自检桌面实跑 `crc_core=0x90556BC7` ✅ + 核并行逐样比首失配 dump（`g_f4_mismatch_idx/core_val/fira_val`）。F4 PASS 语义 = 证 **postscale 4/5 步（重组/>>15/×2/decimate）**；sat 归 GAP-SAT 不在 F4。失配 gate 内调 postscale，仅结构性才停 |
+| F5 | 🔴 待台架 | 扩 8ch + 抽取；据 GAP-SAT 定要否生成 8ch 过载 golden；**R14 完整闭合定义 F5 再定** |
+| ~~F6 全链 0x90556BC7~~ | ⚠️ **原定义作废** | 真 8ch golden 不存在（golden_ref.h 是单通道）；0x90556BC7 = 单通道全链（DEC-S4-R14-GRANULARITY）|
+| F7 cycle | 🔴 待台架 | R14 闭合后才测 FIRA cycle（含开销）+ 裕量重算 |
+> 🔒 **C9/铁律八维持**：FIRA 算力收益在 **R14（单通道 0x90556BC7）闭合前不进选型/裕量结论**。
+
+---
+
+## DEC-S4-R14-GRANULARITY：R14 闭合粒度 = 单通道 0x90556BC7（2026-06-03，CTO 拍板）
+- **决策内容**：**R14 闭合判据 = 单通道全链 bit-exact（FIRA+postscale 单通道输出 crc==`0x90556BC7`）**。
+- **证据**：`golden_ref.h`（⚠️ 自述"单通道链"）+ `gen_golden.c:71-75`（单一 `TreeChannelState` 跑 `tfb_analyze`+`tfb_synthesize` 全 4 子带链 → 0x90556BC7）。**0x90556BC7 = 单通道全链 CRC，非 8ch**。
+- **原"F6=全链 0x90556BC7"作废**：真 8ch golden 不存在；F5 扩 8ch 后据 GAP-SAT 决定要否生成 8ch 过载 golden，**R14 完整闭合定义 F5 再定**。
+- **GAP-SAT 处置**：饱和原语 bit-exact 不被单通道 golden 覆盖（0.289 chirp 不饱和）→ **维持低优先 tracked → F5 复议**；既定方案（sat=钳位；host S0-S1 已验 + on-target 反汇编确认钳位指令）。**F4 PASS 语义 = postscale 4/5 步（重组/>>15/×2/decimate），sat 不在 F4 覆盖。**
+- **可逆性**：判据粒度定义，可逆（F5 可扩展为 8ch）。
+- **挂接**：R14 / DEC-S4-DSP-01 / GAP-SAT（本文档 R14 块）/ DOC-S4-FIRA-F4-01 / DOC-S4-FIRA-DP-01。
+- **决策时间**：2026-06-03 | **状态**：✅ APPROVED（R14 闭合=单通道 0x90556BC7）
 
 ---
 
@@ -660,6 +674,7 @@
 | **DEC-S3-HWDOC-01** | 硬件输入文档归档 KB-HW-001；WO-S3-001 6 项未知量 1/6→6/6 文档级闭环（U1模拟/U2 16·55/U3 7.4Ω·15Ω·ACM3128A/U4 TDM/U5主芯片含DSP/U6数模分地单点）；转接板 PO 闸门技术可解锁，待正式签署 + 5 精度追问 pending | ✅ 归档（文档级闭环）|
 | **DEC-S4-DSP-01** | bit-exact 迁移基准 = C golden vector(`tree_io_sat/unsat.csv`) + numpy；G1 MATLAB 独立参考【推后不补】（前置 grep 两否：铁律七泛指独立双轨非字面 MATLAB + 已有三路独立核；JY/T 不强制 MATLAB）| ✅ LOCKED |
 | **DEC-S4-R1-8CH-01** | R1 WCET/裕量判据 16ch→**8ch**（硬件 8 路 A/B 驱 16 单元、DAC 用 8ch 无 16 独立通道，DOC-S4-IO-01）；R1 绑定 `cyc_8ch_frame=1,006,935`[L1/EZKIT] 裕量 1.32×（按1GHz，CCLK待实测）；旧 16ch est 降参考；R1 未闭合(1.32×<10×)靠 FIRA/优化 | ✅ APPROVED |
+| **DEC-S4-R14-GRANULARITY** | R14 闭合粒度=**单通道全链 crc 0x90556BC7**（证据 gen_golden.c:71-75 单 TreeChannelState 全4子带链；非8ch）；原"F6=全链"作废（真8ch golden 不存在）；GAP-SAT 低优先 tracked→F5；R14 完整闭合定义 F5 再定 | ✅ APPROVED |
 
 ### 锁定基线一览（2026-05-29 几何统一修正后更新）
 > **自研基线（单一，d=55 统一，DEC-S3-GEOM-01）**：N = 16 / d = 55mm / L = 825mm / Dolph-Chebyshev -20dB（d=30 已撤销 ⚠️PF-8；自研与竞品几何统一，受 SC-S3-GEOM-01 永久边界约束）
