@@ -26,6 +26,11 @@ typedef char chirp_len_check[(CHIRP_INPUT_N == BENCH_FRAME*BENCH_NFR) ? 1 : -1];
 static int32_t s_y[BENCH_FRAME*BENCH_NFR];
 static int32_t s_in8[TFB8_NCH][TFB8_FRAME];
 
+/* Expose this single existing frozen chirp (fira_regression references it to avoid a 2nd 256KB copy
+ * -> prevents L1/L2 li1040 overflow). chirp_input.h is `static const` (per-TU copy); this accessor
+ * lets other TUs reuse the one copy held here. ASCII-only (CCES). */
+const int32_t *bench_chirp_input(void) { return CHIRP_INPUT; }
+
 /* CRC32 IEEE 802.3（与 gen_golden.c 同算法） */
 static uint32_t crc32_buf(const int32_t *d,int n){uint32_t c=0xFFFFFFFFu;
     for(int i=0;i<n;i++){uint32_t v=(uint32_t)d[i];for(int b=0;b<4;b++){uint8_t by=(uint8_t)(v>>(8*b));c^=by;
