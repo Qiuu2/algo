@@ -20,6 +20,12 @@
 #include "fir_coeffs_q31.h"   /* F3: real 63-tap Q15-sign-extended FIRA coeffs g_hb63_fira32 (DP-01) */
 #include <string.h>
 #include <stdint.h>
+#ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+#include <sys/cache.h>        /* A5: CCES SHARC cache builtins (flush_data_buffer). CCES path
+                               * SHARC/include/sys/cache.h, evidenced in 21569 .d files
+                               * (knowledge_base/ezkit/vendor_docs/cces_examples dotd files).
+                               * Guarded: desktop/#else host has no such header -> NOT pulled. */
+#endif
 
 /* ============================================================
  * Core-side fixed-point primitives (Split-Task core side)
@@ -401,10 +407,14 @@ int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
                      int32_t *out_q31, uint16_t out_count)
 {
     /* out3 scratch: WINDOWSIZE x 3 int32 (80-bit/3-word writeback, DP-01). align 32 (MCP.c:82).
-     * D-scratch (fix 2026-06-03): shared static across all 9 segments x 1024 frames -- must
-     * memset to 0 each call so that any samples FIRA does NOT write (partial block edge case) do
-     * not carry residue from a prior segment/frame into fira_postscale (which reads all out_count*3
-     * words unconditionally).  The memset is safe before DMA launch (FIRA writes after QueueTask). */
+     * D-scratch (A5 fix 2026-06-03, approach B): shared static across all 9 segments x 1024 frames.
+     * The earlier per-call memset(s_seg_out3,0,out_count*3) was BELT-AND-SUSPENDERS only: under
+     * ratio=1 fira_postscale reads EXACTLY out_count*3 words (loop s=0..out_count-1, stride 3, 3 words
+     * each = the FIRA write span), so no unwritten slot is ever read -> no stale residue can leak.
+     * The memset is now REMOVED so that no core write dirties these cache lines; this makes the
+     * post-DMA flush_data_buffer(...,1) below effectively invalidate-only (no dirty line to write
+     * back over the FIRA DMA data) -> the flush-back hazard is eliminated at the source, not papered
+     * over by ordering.  s_seg_out3 is only ever written by FIRA DMA and only ever read by postscale. */
     #pragma align 32
     static int32_t s_seg_out3[FIRA_MAXWINDOW * 3u];
     #pragma align 32
@@ -415,9 +425,9 @@ int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
     if (s_hFir == 0 || g_hb_fira == 0 || in == 0 || out_q31 == 0) { return -2; }
     if (out_count > FIRA_MAXWINDOW) { return -3; }   /* scratch overrun guard */
 
-    /* D-scratch memset (fix 2026-06-03): clear only the portion FIRA will write (out_count*3 words)
-     * to eliminate stale residue.  Full FIRA_MAXWINDOW*3 clear is also safe but wastes cycles. */
-    memset(s_seg_out3, 0, (uint32_t)out_count * 3u * sizeof(int32_t));
+    /* (A5 approach B) NO memset here: see the s_seg_out3 declaration note above. Clearing would
+     * dirty the cache lines and reintroduce the post-DMA flush-back hazard; postscale reads exactly
+     * the FIRA write span (out_count*3 words) under ratio=1, so there is nothing to pre-clear. */
 
     /* (1) channel info on already-open device (fira_tree_setup did Open + RegisterCallback).
      * in_count: caller (fira_tfb_analyze/synthesize) now passes the CORRECTED count
@@ -439,40 +449,48 @@ int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
     r = adi_fir_QueueTask(hTask);                           if (r != ADI_FIR_RESULT_SUCCESS) return 5;
     while (g_FIRTaskDoneCount < 1u) { /* spin; bench can switch to idle/event wait */ }
 
-    /* IO1d cache coherence (A5 HARD GATE, real-call wired 2026-06-03): s_seg_out3 is written by FIRA
-     * DMA (not by the core).  The core L1 data cache may still hold stale lines for that region, so the
-     * core MUST invalidate them AFTER the FIRA task completes (g_FIRTaskDoneCount spin above) and BEFORE
+    /* IO1d cache coherence (A5 HARD GATE, REAL symbol wired 2026-06-03): s_seg_out3 is written by FIRA
+     * DMA (not by the core).  The core L1 data cache may still hold lines for that region, so the core
+     * MUST invalidate them AFTER the FIRA task completes (g_FIRTaskDoneCount spin above) and BEFORE
      * fira_postscale() reads s_seg_out3 (next statement).  Range = exactly the bytes FIRA wrote =
-     * out_count*3 int32 words (DP-01 3-word/sample writeback), the same span memset above.
+     * out_count*3 int32 words (DP-01 3-word/sample writeback) = the exact span postscale reads (ratio=1).
+     *
+     * REAL SYMBOL (A5, repo-evidenced): the prior draft used adi_cache_invalidate(), an SC5xx-ARM
+     * service name that does NOT exist in the SHARC BSP -> li1021 unresolved + cc0223 implicit decl.
+     * The documented CCES SHARC builtin (header <sys/cache.h>, linked as flush_data_buffer_ba in 21569
+     * SHARC linker logs: knowledge_base/ezkit/vendor_docs/cces_examples/.../21569/sharc/.../linker_log.xml)
+     * is:  void flush_data_buffer(void *start, void *end, int enInv);
+     * It writes back dirty lines covering [start,end) and, when enInv!=0, also invalidates them.
+     *
+     * HAZARD-FREE because of approach B (no memset): flush_data_buffer is flush-AND-(optionally-)invalidate;
+     * there is no pure-invalidate builtin.  Since we removed the memset, the core NEVER dirties s_seg_out3
+     * (only FIRA DMA writes it, only postscale reads it).  So at this point any core-cached lines are
+     * CLEAN (read-fills from a prior frame at most) -> the flush part writes back nothing, and enInv=1
+     * invalidates them so the following postscale read misses and fetches the fresh FIRA DMA data.
+     * There is thus no path where stale core data overwrites the FIRA output. s_seg_out3 is #pragma
+     * align 32 (whole cache lines) so the op never touches an unrelated dirty line.
+     *
+     * Between this call and the postscale read only the g_FIRTaskDoneCount spin (already completed) and
+     * local control flow run -- nothing writes s_seg_out3 -- so no line is re-dirtied before the read.
      *
      * NOTE on driver auto-invalidate (FIRA_IMPL.md L35/L155, DOC-S4-FIRA-IMPL-01): when the FIR config
      * header has ADI_CACHE_MANAGEMENT=1 AND the output buffer is ADI_CACHE_ALIGN'd, the Legacy driver
-     * already invalidates the output region inside QueueTask completion.  This explicit call is the
-     * defensive belt-and-suspenders invalidate for the case where cache management is off / the region
-     * is not driver-tracked; with both the driver invalidate and this call active the result is still
-     * correct (invalidating an already-clean region is idempotent).  s_seg_out3 is #pragma align 32 above
-     * (cache-line aligned) so the region is whole cache lines -> no partial-line writeback hazard.
+     * may already invalidate the output region at QueueTask completion.  This explicit call is then
+     * idempotent (invalidating an already-clean region is harmless), kept as defense for the
+     * cache-management-off / region-not-driver-tracked case.
      *
-     * SEMANTICS (critic round-A5, IMPORTANT): the required op is INVALIDATE-ONLY (discard the core's
-     * cached lines so the next read fetches the FIRA-DMA-written memory).  A flush-AND-invalidate is a
-     * HAZARD here: the memset(s_seg_out3,0,...) above dirties these lines; on a write-back D-cache a
-     * flush-first would write those stale zeros back OVER the FIRA DMA data before invalidating, and
-     * fira_postscale would read zeros.  So the primary call below uses invalidate-only.  s_seg_out3 is
-     * #pragma align 32 (whole cache lines) so invalidation never discards an unrelated dirty line.
+     * END-POINTER CONVENTION (ADI-documented, now prototype-checked by <sys/cache.h>): `end` points
+     * one past the last byte of the region (half-open [start,end)), matching the ADI cache primitive
+     * convention.  end = s_seg_out3 + out_count*3 (int32* arithmetic = one past last written word).
      *
-     * [ASSUME A5: exact symbol/header per installed EZKIT BSP -- MUST compile+link on the board before
-     *   flashing; if the symbol differs, swap the name.  Not verifiable on this host.]
-     *   Symbol assumed: adi_cache_invalidate(void *start, uint32_t bytes) -- the BSP cache service
-     *   INVALIDATE-ONLY entry for the SHARC+ core L1 D-cache (header: the installed BSP cache service,
-     *   e.g. <services/cache/adi_cache.h> on the EZKIT; name may be adi_cache_invalidate_region on some
-     *   BSP revisions -- swap if so, keep the SAME range).  Range = out_count*3 int32 = the exact bytes
-     *   FIRA wrote (DP-01 3-word/sample) = the span memset above.
-     *   FALLBACK (CCES SHARC <cache.h> builtin, if the BSP service is absent): flush_data_buffer(start,
-     *   end_inclusive_word, enInv).  If you use it, you MUST resolve the flush-back hazard above -- the
-     *   safe form is to flush+invalidate the region BEFORE adi_fir_QueueTask (so the memset lines are
-     *   clean when DMA writes), then this post-DMA call is a pure invalidate.  Board R14 g_f4 dump will
-     *   show zeros/stale data if A5 semantics are wrong. [L1/EZKIT] */
-    adi_cache_invalidate((void *)s_seg_out3, (uint32_t)out_count * 3u * sizeof(int32_t));
+     * [ASSUME A5: still board-link-locked -- MUST compile+link on the board (CCES 2.12.1, -proc
+     *   ADSP-21569) before flashing. flush_data_buffer is now a real SHARC-BSP symbol so it SHOULD
+     *   resolve; the included header prototype-checks the arg type/count (wrong call now compile-caught,
+     *   not silent). Board R14 g_f4 dump still shows zeros/stale if any A5 assumption is wrong.
+     *   NOT verifiable on this host. [L1/EZKIT] */
+    flush_data_buffer((void *)s_seg_out3,
+                      (void *)(s_seg_out3 + (uint32_t)out_count * 3u),
+                      1 /*enInv: also invalidate after (no dirty lines under approach B)*/);
 
     /* (5) postscale: 80-bit 3-word -> Q31.
      * D2 fix (2026-06-03): FIRA DECIMATION mode already produced `out_count` DECIMATED output samples
