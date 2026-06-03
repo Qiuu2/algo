@@ -19,19 +19,24 @@
 #include "main.h"                 /* ADI LED 例程头（adi_gpio / adi_initComponents 声明） */
 #include "bench_harness.h"
 #include <stdint.h>
+#include <time.h>                 /* clock() —— CCES SHARC 上返回 CCLK 周期数 */
 
 /* harness 结果落已知内存，供 emulator / 后续部署读取（volatile 防优化掉） */
 volatile BenchResult g_bench_result;
+volatile uint32_t    g_ccnt_selftest;   /* CCNT 自检结果（已知循环 cycle，emulator 查） */
 
-/* ---- target CCNT 读取（【待 CTO 台架回填】） ----
- * 21569 SHARC+ 自由运行 cycle 计数器。依 SHARC+ Core Programming Reference 实际寄存器/内建：
- *   候选：__builtin_emuclk()  或  读 EMUCLK/CCNT 寄存器（def21569.h）。
- * 回填前返回 0 → bench_harness 标 cyc_valid=1 但数值待确认；台架确认寄存器名后实现此函数。 */
+/* ---- target CCNT 读取（真 CCLK 周期） ----
+ * 出处：ADI 官方 ADSP-21569 例程 FIR_Throughput_21569.c:18-20,42,86-89 用标准 C `clock()`
+ *   量 CCLK cycles（注释 line 4 "measure the number of CCLK cycles ... on ADSP-21569"）；
+ *   Pipelined / *_Driver_Benchmark 例程一致用 clock()。底层 = REGF_EMUCLK 32-bit 核周期
+ *   计数器（SHARC+ Core Programming Reference §29，用户空间只读，计核时钟周期）。
+ * 位宽/回绕：clock_t 32-bit（例程以 %d 打印）；@1GHz 约 4.29s 回绕。per-frame 测量(<2ms,
+ *   ~1.3M cycles) 远不回绕；bench_harness 用无符号差 end-start，单次回绕自动正确。长累计测量
+ *   需 EMUCLK2（与 EMUCLK 合成 64-bit）或逐帧累加——本 harness 逐帧小区间，无需。 */
 #ifdef TARGET_SHARC
 uint32_t bench_cyc_target(void)
 {
-    /* TODO[台架回填]: return (uint32_t)__builtin_emuclk();  // 或读 *pREG_..._CCNT */
-    return 0u;   /* 占位：回填真 CCNT 前 cycle 数无效 */
+    return (uint32_t)clock();   /* CCES SHARC：clock() = CCLK 周期（同 ADI 21569 例程口径） */
 }
 #endif
 
@@ -44,6 +49,17 @@ void main(void)
     adi_gpio_SetDirection(ADI_GPIO_PORT_C, ADI_GPIO_PIN_1, ADI_GPIO_DIRECTION_OUTPUT);
     adi_gpio_SetDirection(ADI_GPIO_PORT_C, ADI_GPIO_PIN_2, ADI_GPIO_DIRECTION_OUTPUT);
     adi_gpio_SetDirection(ADI_GPIO_PORT_C, ADI_GPIO_PIN_3, ADI_GPIO_DIRECTION_OUTPUT);
+
+    /* ---- CCNT 自检（验证 clock() 读真周期；已知 1,000,000 次 volatile 循环对照） ----
+     * emulator 查 g_ccnt_selftest：应 >0 且 ≈ 1e6 × 每迭代周期（量级数 M cycles）；
+     * =0 或乱跳 → clock() 未读到真 CCNT，先排查再信 cyc_8ch_frame。 */
+    {
+        volatile uint32_t k; uint32_t a, b;
+        a = bench_cyc_target();
+        for (k = 0u; k < 1000000u; k++) { }
+        b = bench_cyc_target();
+        g_ccnt_selftest = b - a;   /* 已知循环 cycle 对照 */
+    }
 
     /* ---- 我方算法嫁接：跑 core-only S2-S5 harness ---- */
     bench_run((BenchResult *)&g_bench_result);
