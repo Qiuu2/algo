@@ -615,7 +615,7 @@
 | F1 模式/格式 | ✅ | Legacy 锁定 + Path B 运行时 FixedPointEnable(SIGNED)（DOC-S4-FIRA-F1-01；G1 闭合归档 legacy 头）|
 | **F2 FIRA 冒烟** | ✅ **管路 PASS [L1/EZKIT 2026-06-03]** | 板上 `g_fira_f2_rc=0` + `g_FIRTaskDoneCount=1`：FIRA Legacy 全生命周期跑通、ALL_CHANNEL_DONE 回调进 1 次。**注：管路 PASS ≠ G2 闭合**——`FixedPointEnable(SIGNED)` 不报错只证调用通（源码：非 RUNNING 必返 SUCCESS、与 config 无关），**SIGNED 正确性 = F4 bit-exact 验**；**G2 仍 open** |
 | F3 接真系数 | 🟡 **草案就绪·待台架**（commit 9139de3，critic PASS）| 真系数 g_hb63_q15 符号扩展 32-bit（DP-01 假设，F4 验）+ DP-01 5 步核内 postscale（80-bit 重组/>>15/×2/decimate/sat）+ 输出 buffer ×3。板上 DoD：rc=0/done=1/buffer 不越界/postscale 非垃圾（不要求 bit-exact）|
-| **F4 单通道 bit-exact** | 🔴 **假绿回退（caught false-green，2026-06-03）** | 板上读 pass=1/crc=0x90556BC7，但**自查抓出假绿**：`fira_tfb_*` 是占位（FIRA 段 memset 0、`fira_postscale` 从未调），输出 `out=in`；核 golden 是 PR telescoping `out=in` → **两者撞 golden,零真 FIRA**（桌面铁证:占位 fira out crc=0x90556BC7 / out==in）。**端到端单通道 CRC 只验 telescoping+定点算术，与滤波系数无关（PF-4 Sub-1 已注"PR 与系数精度无关"），验不了 FIRA 段。R14 退回 F4-真实现 + 验证改中间层（子带 sb0-3）。** 详见下「R14 假绿回退 + 中间层验证」|
+| **F4 单通道 bit-exact** | 🟡 **真活已接线·待板验**（commit 604a1f7，critic 7/7 PASS；中间层子带验证）｜ 历:🔴假绿回退 | 板上读 pass=1/crc=0x90556BC7，但**自查抓出假绿**：`fira_tfb_*` 是占位（FIRA 段 memset 0、`fira_postscale` 从未调），输出 `out=in`；核 golden 是 PR telescoping `out=in` → **两者撞 golden,零真 FIRA**（桌面铁证:占位 fira out crc=0x90556BC7 / out==in）。**端到端单通道 CRC 只验 telescoping+定点算术，与滤波系数无关（PF-4 Sub-1 已注"PR 与系数精度无关"），验不了 FIRA 段。R14 退回 F4-真实现 + 验证改中间层（子带 sb0-3）。** 详见下「R14 假绿回退 + 中间层验证」|
 | F5 | 🔴 待台架 | 扩 8ch + 抽取；据 GAP-SAT 定要否生成 8ch 过载 golden；**R14 完整闭合定义 F5 再定** |
 | ~~F6 全链 0x90556BC7~~ | ⚠️ **原定义作废** | 真 8ch golden 不存在（golden_ref.h 是单通道）；0x90556BC7 = 单通道全链（DEC-S4-R14-GRANULARITY）|
 | F7 cycle | 🔴 待台架 | R14 闭合后才测 FIRA cycle（含开销）+ 裕量重算 |
