@@ -99,7 +99,13 @@
 
 ## 5. R14 Q 格式转换点（逐条，bit 偏差高发，必上板逐位）
 
-**总命门**：我方核 = **有符号分数 Q15 系数 × Q31 状态 → Q46(int64) 累加 → `>>15` 回 Q31 + 饱和钳位**（`tree_filterbank.c:6,99,104`）。FIRA 定点 = 32×32→80-bit MR，输入格式枚举只有 **UNSIGNED_INTEGER / SIGNED_INTEGER**（legacy 头:42-43，无 signed-fractional）。
+**总命门**：我方核 = **有符号分数 Q15 系数 × Q31 状态 → Q46(int64) 累加 → `>>15` 回 Q31 + 饱和钳位**（`tree_filterbank.c:6,99,104`）。FIRA 定点 = 32×32→80-bit MR。
+
+> 🔬 **数据通路已 HW 手册实证（DOC-S4-FIRA-DP-01，HW Reference §38-10 / line 75713-75724）——修正前期假设**：
+> - FIRA 做**精确整数 MAC → 80-bit 结果，无内建右移**（"MAC does not right shift"）→ **`>>15` 全部核内做**（同 golden 算术右移截断）。
+> - **输出 80-bit 以 3×32-bit 写回（LSW/MSW/16-bit overflow），WINDOWSIZE = WINDOWSIZE×3** → 核内须**从 3 字提取 80-bit**（结构性数据布局，前期表未含，新增）。
+> - HW 支持 unsigned-int / unsigned-fractional / **signed-int**；**signed-fractional 可用但须"×2 缩放 + decimate 输出"**（NOTE）——非"枚举里没有"，是后处理实现（driver 枚举只暴露 int 两种）。
+> - **🎯 利好**：MAC 是**精确整数**（非有损 rounding）→ 核内"80-bit 提取 + >>15 + ×2 + decimate"做对即 **bit-exact 可达**；失配只在后处理对齐（gate 内调参，非算法/结构变更，见 DOC-S4-FIRA-DP-01 §5）。
 
 | # | 转换点 | 我方核 | FIRA 侧 | 偏差级别 | 代码落点 | 必上板逐位 |
 |---|--------|--------|---------|---------|---------|-----------|
