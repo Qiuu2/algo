@@ -231,7 +231,7 @@
 
 | 风险ID | 等级 | 描述 | Sprint 3 闭环路径 |
 |--------|------|------|------------------|
-| **R1** | P0（进行中，**L1 翻盘·FIRA 转必需**） | ~~27× 裕量依赖未落地树形~~ → P0-2 树形 C 落地 → ~~桌面 [L2] **33×(8ch)/17×(16ch)**~~ **被板上 [L1] 推翻**（见右） | **🔴 EZKIT [L1/EZKIT] 实测翻盘（2026-06-03）**：`cyc_8ch_frame=`**1,006,935 cycle** → 8ch 裕量仅 **1.32×**（帧预算 1.333M cycle@1GHz）、16ch **超 deadline 1.46×（非实时）**。**桌面 [L2] 33×/17× 高估约 25×**（MMAC 计数未计真实 ~30-50 cycle/MAC + cache/中断）→ **纯核不足，FIRA 从可选转必需**。`core-only` 板上 bit-exact 已 **PASS**（crc=0x90556BC7,[L1/EZKIT]；冻结输入修复 DOC-S4-R14-RC-01）。**R1 闭合现 gating 于 R14 板上 bit-exact（FIRA 版 crc==0x90556BC7）+ FIRA cycle 达标**（草案 DOC-S4-FIRA-IMPL-01 critic PASS，待台架 F1-F8）。✅ 制度 gating 生效：[L2] 全程未锁选型（DEC-S3-PROC-01 采购冻结待 EZKIT），25× 高估未污染不可逆决策——铁律/分级制度实战兑现。 |
+| **R1** | P0（进行中，**L1 翻盘·FIRA 转必需**） | ~~27× 裕量依赖未落地树形~~ → P0-2 树形 C 落地 → ~~桌面 [L2] **33×(8ch)/17×(16ch)**~~ **被板上 [L1] 推翻**（见右） | **🔴 EZKIT [L1/EZKIT] 实测翻盘（2026-06-03）**：`cyc_8ch_frame=`**1,006,935 cycle** → **8ch 裕量 1.32×**（帧预算 1.333M cycle@1GHz；**R1 绑定 8ch**，DEC-S4-R1-8CH-01：硬件 8 路 A/B 驱动 16 单元、DAC 用 8ch 无 16 独立通道；旧 16ch est **降为参考**）。**桌面 [L2] 33×/17× 高估约 25×**（MMAC 计数未计真实 ~30-50 cycle/MAC + cache/中断）→ **纯核不足，FIRA 从可选转必需**。`core-only` 板上 bit-exact 已 **PASS**（crc=0x90556BC7,[L1/EZKIT]；冻结输入修复 DOC-S4-R14-RC-01）。**R1 闭合现 gating 于 R14 板上 bit-exact（FIRA 版 crc==0x90556BC7）+ FIRA cycle 达标**（草案 DOC-S4-FIRA-IMPL-01 critic PASS，待台架 F1-F8）。✅ 制度 gating 生效：[L2] 全程未锁选型（DEC-S3-PROC-01 采购冻结待 EZKIT），25× 高估未污染不可逆决策——铁律/分级制度实战兑现。 |
 | ~~**R2**~~ | ✅ 已关闭 | ~~群延迟逼近 <5ms~~ → 端到端 12.53ms（scipy 解析/仿真，**非硬件实测**）；规格放宽至 <30ms（DEC-S2-012），R2 解除 | 由规格变更关闭（待市场对齐生效） |
 | **R3** | 中 | 绝对 SPL 盲区（竞品 0° 106-111dB），本品扬声器单元未定 | 选定扬声器单元后消声室实测 SPL，对标竞品 |
 | ~~**R4**~~ | ✅ 已关闭（PF-8） | ~~N=16/d=30/Dolph-20 BW@2k≤30°~~ → **d=30 几何已撤销（DEC-S3-GEOM-01）**，d=30 的 BW@2k=26.8° 已 **moot（失去意义）**；自研基线统一 d=55，BW@2k=14.5° [L2] 余量极大 | 由几何撤销关闭（PF-8） |
@@ -593,6 +593,20 @@
 
 ---
 
+## R1 WCET 判据修正：16ch → 8ch（2026-06-03，CTO 拍板）
+
+### DEC-S4-R1-8CH-01：R1 算力判据绑定 8ch（非 16ch）
+- **决策内容**：**R1 WCET/裕量判据从 16ch 修正为 8ch**。R1 绑定数 = **`cyc_8ch_frame`（板上实测 1,006,935 cycle，裕量 1.32×）**；旧 16ch 判据（`mcps_16ch_est`）**降为参考，不作 R1 绑定**。
+- **决策依据**：`DOC-S4-IO-01`（音频 I/O 拓扑，硬件 L1 确认）——**8 路 A/B 串联驱动 16 单元**，输出 DAC **ADAU1962A 用 8 通道，无 16 独立通道**（拆机 KB-HW-001：转接板 16ch 实为 8 路驱动）。故 DSP 算力按 **8ch** 绑定。
+- **数据出处/来源等级**：`cyc_8ch_frame=1,006,935 cycle` **[L1/EZKIT 板上实测]**（core-only，clock()/REGF_EMUCLK，DOC-S4-CCNT-01）；通道数 **[L1/硬件]**（DOC-S4-IO-01 + 拆机）。
+- **裕量口径（诚实）**：1.32× = 帧预算 1.333M cycle / 1.006M，**按 1GHz 算**；**CCLK 仍待实测确认（不假设 1GHz）**——若实测 CCLK≠1GHz，裕量按实测 CCLK 重算。
+- **R1 状态**：**未闭合**（8ch 1.32× < ≥10× 目标；虽 WCET<帧周期=实时可行，但裕量不足）→ **靠 FIRA / 留核优化提升裕量**（DOC-S4-FIRA-IMPL-01，gating 于 R14 板上 bit-exact）。
+- **可逆性影响**：判据修正（绑定通道数），可逆；不锁选型（FIRA 收益未实测前不进选型，铁律八/C9）。
+- **挂接**：R1 / DEC-S4-DSP-01 / DOC-S4-IO-01 / DOC-S4-FIRA-IMPL-01 / DOC-S4-CCNT-01。
+- **决策时间**：2026-06-03 | **状态**：✅ APPROVED（R1 判据绑定 8ch）
+
+---
+
 ## 决策状态汇总
 
 | 决策ID | 内容摘要 | 状态 |
@@ -632,6 +646,7 @@
 | **WO-PF4-NODE1-SAT** | 节点① 半带 MAC 回量化无饱和缺陷（Σ\|h\|=1.73 溢出），CTO 批立即桌面修复 | ✅ APPROVED（P1，上板前修）|
 | **DEC-S3-HWDOC-01** | 硬件输入文档归档 KB-HW-001；WO-S3-001 6 项未知量 1/6→6/6 文档级闭环（U1模拟/U2 16·55/U3 7.4Ω·15Ω·ACM3128A/U4 TDM/U5主芯片含DSP/U6数模分地单点）；转接板 PO 闸门技术可解锁，待正式签署 + 5 精度追问 pending | ✅ 归档（文档级闭环）|
 | **DEC-S4-DSP-01** | bit-exact 迁移基准 = C golden vector(`tree_io_sat/unsat.csv`) + numpy；G1 MATLAB 独立参考【推后不补】（前置 grep 两否：铁律七泛指独立双轨非字面 MATLAB + 已有三路独立核；JY/T 不强制 MATLAB）| ✅ LOCKED |
+| **DEC-S4-R1-8CH-01** | R1 WCET/裕量判据 16ch→**8ch**（硬件 8 路 A/B 驱 16 单元、DAC 用 8ch 无 16 独立通道，DOC-S4-IO-01）；R1 绑定 `cyc_8ch_frame=1,006,935`[L1/EZKIT] 裕量 1.32×（按1GHz，CCLK待实测）；旧 16ch est 降参考；R1 未闭合(1.32×<10×)靠 FIRA/优化 | ✅ APPROVED |
 
 ### 锁定基线一览（2026-05-29 几何统一修正后更新）
 > **自研基线（单一，d=55 统一，DEC-S3-GEOM-01）**：N = 16 / d = 55mm / L = 825mm / Dolph-Chebyshev -20dB（d=30 已撤销 ⚠️PF-8；自研与竞品几何统一，受 SC-S3-GEOM-01 永久边界约束）
