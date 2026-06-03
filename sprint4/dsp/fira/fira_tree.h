@@ -117,6 +117,20 @@ int fira_single_channel_template(const int32_t *in, uint16_t in_count,
                                  int32_t *out, uint16_t out_count, uint16_t ntaps);
 
 /* ============================================================
+ * F4: run ONE halfband segment on the already-open FIRA device (s_hFir, opened by fira_tree_setup):
+ *   adi_fir_CreateTask -> FixedPointEnable(SIGNED, Path B) -> QueueTask -> wait ALL_CHANNEL_DONE
+ *   -> fira_postscale (80-bit/3-word -> Q31, decimate). Does NOT Open/Close per segment.
+ *   kind selects DECIMATION/INTERPOLATION; out_q31 receives out_count Q31 samples.
+ *   in_count = ntaps + out_count - 1 (FIRA delay-line layout); phase per DP-01 [ASSUME], F4b board-locked.
+ *   Returns 0 on success, non-zero = adi_fir_* failure step. Only defined when real header enabled.
+ *   [L1/EZKIT]: bench-side; cannot run on this host (no FIRA).
+ * ============================================================ */
+#ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
+                     int32_t *out_q31, uint16_t out_count);
+#endif
+
+/* ============================================================
  * F2/F4: one-time task setup (Open -> RegisterCallback -> CreateTask -> FixedPointEnable).
  *   Real-time mode: CreateTask + FixedPointEnable called once at init, not in frame budget.
  *   [L1/EZKIT]: real adi_fir_* behavior bench-side.

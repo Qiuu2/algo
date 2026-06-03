@@ -326,6 +326,70 @@ static uint16_t fira_postscale(const int32_t *src3, uint16_t n_src,
 }
 
 /* ============================================================
+ * SC2. fira_run_segment: one halfband segment = adi_fir lifecycle (Path B) + fira_postscale
+ * ------------------------------------------------------------
+ * Reuse F2/F3 single-channel lifecycle template (SB-template), but on the *already-open* s_hFir
+ *   (opened once by fira_tree_setup; do NOT Open/Close per segment -> real-time per-frame cost).
+ * Per segment:
+ *   (1) build ADI_FIR_CHANNEL_INFO via fira_make_channel(kind, out_count, g_hb_fira, in, s_seg_out3)
+ *       (eSampling=DECIMATION/INTERPOLATION chosen inside fira_make_channel by kind; nSamplingRatio=FIRA_RATIO);
+ *   (2) adi_fir_CreateTask (TaskMemory #pragma align 32, FIR_MEM_SIZE(1));
+ *   (3) adi_fir_FixedPointEnable(hTask, SIGNED_INTEGER) (Path B, after CreateTask / before QueueTask);
+ *   (4) g_FIRTaskDoneCount=0; adi_fir_QueueTask; spin until ALL_CHANNEL_DONE (FIRTaskDoneCount<1);
+ *   (5) fira_postscale(s_seg_out3, out_count, out_q31, FIRA_RATIO, phase, kind) -> Q31 samples.
+ *
+ * out3 scratch: FIRA writes WINDOWSIZE x 3 int32 (LSW/MSW/overflow, DP-01). Static [MAXWINDOW*3],
+ *   #pragma align 32 (cache-line, MCP.c:82, else breaks bit-exact). MAXWINDOW=512 (largest window = frame=512).
+ *   in_count = ntaps + out_count - 1 expected by FIRA delay-line layout (MCP.c:151); caller buffer layout
+ *   = F4b bench self-check (draft passes the per-segment input base directly).
+ *
+ * phase: DEC even / INT (x2 zero-stuff) phase per DP-01 [ASSUME]; F4b board bit-by-bit locks the exact phase.
+ * Returns 0 on success; non-zero = adi_fir_* failure step code (simplified error flag, draft).
+ * [L1/EZKIT]: real adi_fir_* behavior bench-side; cannot run on this host.
+ * ============================================================ */
+#ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+#define FIRA_MAXWINDOW 512u   /* largest segment output window = frame (f0); INT up to f0 too */
+
+int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
+                     int32_t *out_q31, uint16_t out_count)
+{
+    /* out3 scratch: WINDOWSIZE x 3 int32 (80-bit/3-word writeback, DP-01). align 32 (MCP.c:82). */
+    #pragma align 32
+    static int32_t s_seg_out3[FIRA_MAXWINDOW * 3u];
+    #pragma align 32
+    static uint8_t s_taskMem[FIR_MEM_SIZE(1)];
+    ADI_FIR_TASK_HANDLE hTask = 0;
+    ADI_FIR_RESULT r;
+    uint16_t phase;
+
+    if (s_hFir == 0 || g_hb_fira == 0 || in == 0 || out_q31 == 0) { return -2; }
+    if (out_count > FIRA_MAXWINDOW) { return -3; }   /* scratch overrun guard */
+
+    /* (1) channel info on already-open device (fira_tree_setup did Open + RegisterCallback) */
+    ADI_FIR_CHANNEL_INFO ch = fira_make_channel(kind, out_count, g_hb_fira, in, s_seg_out3);
+    (void)in_count;   /* caller guarantees in_count == ntaps+out_count-1 (delay-line layout, F4b bench check) */
+
+    /* (2) CreateTask */
+    r = adi_fir_CreateTask(s_hFir, &ch, 1u, (void *)s_taskMem,
+                           (uint32_t)FIR_MEM_SIZE(1), &hTask);
+                                                            if (r != ADI_FIR_RESULT_SUCCESS) return 3;
+    /* (3) Path B fixed-point SIGNED (after CreateTask / before QueueTask) */
+    r = adi_fir_FixedPointEnable(hTask, ADI_FIR_FIXED_INPUT_FORMAT_SIGNED_INTEGER);
+                                                            if (r != ADI_FIR_RESULT_SUCCESS) return 4;
+    /* (4) queue + wait ALL_CHANNEL_DONE (Legacy, MCP.c:282) */
+    g_FIRTaskDoneCount = 0;
+    r = adi_fir_QueueTask(hTask);                           if (r != ADI_FIR_RESULT_SUCCESS) return 5;
+    while (g_FIRTaskDoneCount < 1u) { /* spin; bench can switch to idle/event wait */ }
+
+    /* (5) postscale: 80-bit 3-word -> Q31, decimate to out_count.
+     *   phase: DEC even (0) / INT x2-stuff (0) per DP-01 [ASSUME]; F4b board locks exact even/odd phase. */
+    phase = 0u;
+    (void)fira_postscale(s_seg_out3, out_count, out_q31, FIRA_RATIO, phase, kind);
+    return 0;
+}
+#endif /* FIRA_USE_REAL_ADI_FIR_HEADER */
+
+/* ============================================================
  * SD. Frame-level Split-Task orchestration (draft placeholder)
  * ------------------------------------------------------------
  * Same signature as tfb_analyze/tfb_synthesize -> fira_regression can directly substitute for CRC comparison.
@@ -348,20 +412,31 @@ void fira_tfb_analyze(FiraChannelState *ch, const int32_t *in, uint16_t frame,
     /* Per-level coarse / interp reconstruction buffers (same layout as tree_filterbank.c:143-144) */
     int32_t a1[256], a2[128], a3[64];
     int32_t r1[512], r2[256], r3[128];
-    (void)ch; (void)fira_postscale_dec; (void)fira_postscale_int; (void)fira_postscale;
+    uint16_t ntaps = g_hb_fira_n;
+    (void)ch; (void)ntaps;
 
-    /* -- FIRA segment (DECIMATION r=2, even phase reproduced by hardware skip, R14-6) --
-     * [L1/EZKIT] bench: each FIRA seg writes WINDOWSIZE x 3 int32 (LSW/MSW/overflow); core calls
-     *   fira_postscale(seg_out3, nWindow, aN, FIRA_RATIO, phase, FIRA_SEG_DEC) to get Q31 a1/a2/a3.
-     * [L1/EZKIT] bench: a1=FIRA_dec(in); a2=FIRA_dec(a1); a3=FIRA_dec(a2);
-     *   (QueueTask seg0->ALL_CHANNEL_DONE->seg1->...->seg2; fira_postscale_dec restores Q31).
-     *   Draft has no hardware -> produces no real a1/a2/a3 values; memset below is placeholder to prevent uninitialized read,
-     *   does NOT mean values correct (R14 judged by bench crc). */
+#ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+    /* -- FIRA DECIMATION segments (r=2, even phase = hardware skip + fira_postscale decimate, R14-6) --
+     *   a1=dec(in)@f1; a2=dec(a1)@f2; a3=dec(a2)@f3. Each: adi_fir lifecycle (Path B) + fira_postscale_dec.
+     *   in_count = ntaps + out_count - 1 (FIRA delay-line layout, MCP.c:151; caller buffer layout F4b bench self-check). */
+    (void)fira_run_segment(FIRA_SEG_DEC, in, (uint16_t)(ntaps + f1 - 1u), a1, f1);
+    (void)fira_run_segment(FIRA_SEG_DEC, a1, (uint16_t)(ntaps + f2 - 1u), a2, f2);
+    (void)fira_run_segment(FIRA_SEG_DEC, a2, (uint16_t)(ntaps + f3 - 1u), a3, f3);
+
+    /* -- FIRA INTERPOLATION segments (r=2, x2 signed-fractional gain in fira_postscale_int) --
+     *   r3=int(a3)@f2; r2=int(a2)@f1; r1=int(a1)@f0. Reconstruct coarse for the detail residual. */
+    (void)fira_run_segment(FIRA_SEG_INT, a3, (uint16_t)(ntaps + f2 - 1u), r3, f2);
+    (void)fira_run_segment(FIRA_SEG_INT, a2, (uint16_t)(ntaps + f1 - 1u), r2, f1);
+    (void)fira_run_segment(FIRA_SEG_INT, a1, (uint16_t)(ntaps + f0 - 1u), r1, f0);
+#else
+    /* No real header on this host: FIRA convolution segments unavailable -> placeholder 0.
+     *   This intentionally produces WRONG a1/a2/a3 + r1/r2/r3 so the subband CRC check FAILS
+     *   correctly (no faking bit-exact). Bench connects real segments once FIRA_USE_REAL_ADI_FIR_HEADER is defined.
+     *   (void)fira_postscale* keeps the desktop-only postscale primitives referenced. */
+    (void)fira_postscale_dec; (void)fira_postscale_int; (void)fira_postscale;
     memset(a1, 0, sizeof(a1)); memset(a2, 0, sizeof(a2)); memset(a3, 0, sizeof(a3));
-
-    /* -- FIRA segment (INTERPOLATION r=2, reconstruct coarse for detail, x2 see fira_postscale_int) --
-     * [L1/EZKIT] bench: r3=FIRA_int(a3); r2=FIRA_int(a2); r1=FIRA_int(a1); */
     memset(r1, 0, sizeof(r1)); memset(r2, 0, sizeof(r2)); memset(r3, 0, sizeof(r3));
+#endif
 
     /* -- core-side (FIRA has no vector sub): detail = this level - interp2(lower level) -- */
     for (i = 0u; i < f2; i++) sb1[i] = a2[i] - r3[i];   /* SB1 detail @f2 (bit-identical tree_filterbank.c:161) */
@@ -375,22 +450,37 @@ void fira_tfb_synthesize(FiraChannelState *ch,
                          const int32_t *sb2, const int32_t *sb3,
                          uint16_t frame, int32_t *out)
 {
-    uint16_t f0 = frame, f1 = frame/2u, f2 = frame/4u;
+    uint16_t f0 = frame, f1 = frame/2u, f2 = frame/4u, f3 = frame/8u;
     uint16_t i;
     int32_t a2p[256], a1p[512];
     int32_t up3[128], up2[256], up1[512];
-    (void)ch;
+    uint16_t ntaps = g_hb_fira_n;
+    (void)ch; (void)ntaps;
+#ifndef FIRA_USE_REAL_ADI_FIR_HEADER
+    (void)f3; (void)sb0;   /* desktop placeholder: sb0 / f3 only consumed by the real FIRA interp path */
+#endif
 
-    /* -- FIRA segment (INTERPOLATION) + core-side synthesis add (sat_add, FIRA has no vector add) -- */
-    /* [L1/EZKIT] bench: up3=FIRA_int(sb0); draft placeholder 0. */
-    memset(up3, 0, sizeof(up3));
+    /* -- FIRA INTERPOLATION segments + core-side synthesis add (sat_add, FIRA has no vector add) --
+     *   Telescoping reconstruct: up3=int(sb0)@f2; a2p=up3+sb1; up2=int(a2p)@f1; a1p=up2+sb2;
+     *   up1=int(a1p)@f0; out=up1+sb3. FIRA does the interp MAC; core does the saturating add. */
+#ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+    (void)fira_run_segment(FIRA_SEG_INT, sb0, (uint16_t)(ntaps + f3 - 1u), up3, f2);
+#else
+    memset(up3, 0, sizeof(up3));   /* desktop placeholder: wrong on purpose -> subband CRC fails correctly */
+#endif
     for (i = 0u; i < f2; i++) a2p[i] = f_sat_add_i32(up3[i], sb1[i]);   /* bit-identical tree_filterbank.c:197 */
 
-    /* [L1/EZKIT] bench: up2=FIRA_int(a2p); */
+#ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+    (void)fira_run_segment(FIRA_SEG_INT, a2p, (uint16_t)(ntaps + f2 - 1u), up2, f1);
+#else
     memset(up2, 0, sizeof(up2));
+#endif
     for (i = 0u; i < f1; i++) a1p[i] = f_sat_add_i32(up2[i], sb2[i]);   /* :201 */
 
-    /* [L1/EZKIT] bench: up1=FIRA_int(a1p); */
+#ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+    (void)fira_run_segment(FIRA_SEG_INT, a1p, (uint16_t)(ntaps + f1 - 1u), up1, f0);
+#else
     memset(up1, 0, sizeof(up1));
+#endif
     for (i = 0u; i < f0; i++) out[i] = f_sat_add_i32(up1[i], sb3[i]);   /* :205 */
 }
