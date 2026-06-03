@@ -439,13 +439,40 @@ int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
     r = adi_fir_QueueTask(hTask);                           if (r != ADI_FIR_RESULT_SUCCESS) return 5;
     while (g_FIRTaskDoneCount < 1u) { /* spin; bench can switch to idle/event wait */ }
 
-    /* IO1d cache coherence (fix 2026-06-03): s_seg_out3 is written by FIRA DMA (not by the core).
-     * The core cache may still hold stale data for those cache lines.  Invalidate before core reads it.
-     * [ASSUME] ADI BSP cache-invalidate API for SHARC+:  adi_cache_invalidate(s_seg_out3, out_count*3*4)
-     *   or equivalent flush/invalidate call.  The exact function name must be confirmed from the BSP
-     *   installed on the EZKIT (e.g. ssync + flush_data_cache, or platform_cache_data_flush_inv_all).
-     *   Replace the comment below with the real call once [L1/EZKIT] BSP is wired. */
-    /* [L1/EZKIT BSP-FILL]: adi_cache_invalidate_region(s_seg_out3, out_count * 3u * sizeof(int32_t)); */
+    /* IO1d cache coherence (A5 HARD GATE, real-call wired 2026-06-03): s_seg_out3 is written by FIRA
+     * DMA (not by the core).  The core L1 data cache may still hold stale lines for that region, so the
+     * core MUST invalidate them AFTER the FIRA task completes (g_FIRTaskDoneCount spin above) and BEFORE
+     * fira_postscale() reads s_seg_out3 (next statement).  Range = exactly the bytes FIRA wrote =
+     * out_count*3 int32 words (DP-01 3-word/sample writeback), the same span memset above.
+     *
+     * NOTE on driver auto-invalidate (FIRA_IMPL.md L35/L155, DOC-S4-FIRA-IMPL-01): when the FIR config
+     * header has ADI_CACHE_MANAGEMENT=1 AND the output buffer is ADI_CACHE_ALIGN'd, the Legacy driver
+     * already invalidates the output region inside QueueTask completion.  This explicit call is the
+     * defensive belt-and-suspenders invalidate for the case where cache management is off / the region
+     * is not driver-tracked; with both the driver invalidate and this call active the result is still
+     * correct (invalidating an already-clean region is idempotent).  s_seg_out3 is #pragma align 32 above
+     * (cache-line aligned) so the region is whole cache lines -> no partial-line writeback hazard.
+     *
+     * SEMANTICS (critic round-A5, IMPORTANT): the required op is INVALIDATE-ONLY (discard the core's
+     * cached lines so the next read fetches the FIRA-DMA-written memory).  A flush-AND-invalidate is a
+     * HAZARD here: the memset(s_seg_out3,0,...) above dirties these lines; on a write-back D-cache a
+     * flush-first would write those stale zeros back OVER the FIRA DMA data before invalidating, and
+     * fira_postscale would read zeros.  So the primary call below uses invalidate-only.  s_seg_out3 is
+     * #pragma align 32 (whole cache lines) so invalidation never discards an unrelated dirty line.
+     *
+     * [ASSUME A5: exact symbol/header per installed EZKIT BSP -- MUST compile+link on the board before
+     *   flashing; if the symbol differs, swap the name.  Not verifiable on this host.]
+     *   Symbol assumed: adi_cache_invalidate(void *start, uint32_t bytes) -- the BSP cache service
+     *   INVALIDATE-ONLY entry for the SHARC+ core L1 D-cache (header: the installed BSP cache service,
+     *   e.g. <services/cache/adi_cache.h> on the EZKIT; name may be adi_cache_invalidate_region on some
+     *   BSP revisions -- swap if so, keep the SAME range).  Range = out_count*3 int32 = the exact bytes
+     *   FIRA wrote (DP-01 3-word/sample) = the span memset above.
+     *   FALLBACK (CCES SHARC <cache.h> builtin, if the BSP service is absent): flush_data_buffer(start,
+     *   end_inclusive_word, enInv).  If you use it, you MUST resolve the flush-back hazard above -- the
+     *   safe form is to flush+invalidate the region BEFORE adi_fir_QueueTask (so the memset lines are
+     *   clean when DMA writes), then this post-DMA call is a pure invalidate.  Board R14 g_f4 dump will
+     *   show zeros/stale data if A5 semantics are wrong. [L1/EZKIT] */
+    adi_cache_invalidate((void *)s_seg_out3, (uint32_t)out_count * 3u * sizeof(int32_t));
 
     /* (5) postscale: 80-bit 3-word -> Q31.
      * D2 fix (2026-06-03): FIRA DECIMATION mode already produced `out_count` DECIMATED output samples
