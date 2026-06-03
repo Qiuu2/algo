@@ -37,7 +37,8 @@ volatile int32_t g_fira_f3_out2 = 0;
 volatile int32_t g_fira_f3_out3 = 0;
 /* F4b: single-channel bit-exact (fira_regression.c). Decls (defined in fira_regression.c). */
 extern int      fira_r14_regression(uint32_t *out_crc);
-extern volatile int      g_f4_mismatch_idx;  /* first per-sample mismatch index (-1 = none) */
+extern volatile int      g_f4_mismatch_idx;  /* first subband-sample mismatch index (-1 = none) */
+extern volatile int      g_f4_mismatch_sb;   /* which subband 0..3 of first mismatch (-1 = none) */
 extern volatile int32_t  g_f4_core_val;      /* core (golden) value at first mismatch */
 extern volatile int32_t  g_f4_fira_val;      /* FIRA path value at first mismatch */
 extern volatile uint32_t g_f4_crc_core;      /* core chain CRC (self-check: must == 0x90556BC7) */

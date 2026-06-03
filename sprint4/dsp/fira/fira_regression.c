@@ -67,7 +67,8 @@ static void crc32_update(uint32_t *c, const int32_t *d, int n)
  * = one frame (per-frame stack buffers below). Coverage unchanged: full 65536 CRC (incremental) +
  * first per-sample mismatch + 64 spots.
  * F4a mismatch diagnosis globals (emulator reads on FAIL) */
-volatile int     g_f4_mismatch_idx  = -1;   /* first per-sample mismatch index; -1 = none */
+volatile int     g_f4_mismatch_idx  = -1;   /* first per-sample mismatch index within subband; -1 = none */
+volatile int     g_f4_mismatch_sb   = -1;   /* which subband (0..3) of first mismatch; -1 = none */
 volatile int32_t g_f4_core_val      = 0;    /* core (golden) value at first mismatch */
 volatile int32_t g_f4_fira_val      = 0;    /* FIRA path value at first mismatch */
 volatile uint32_t g_f4_crc_fira     = 0;    /* FIRA chain CRC */
@@ -96,70 +97,77 @@ int fira_harness_selfcheck(void)
 }
 
 /**
- * F7 regression: single-channel FIRA chain 65536 samples -> CRC32 + spot vs golden.
- *  @param[out] out_crc  FIRA version CRC32 (bench grabs)
- *  @return 1 = R14 PASS (crc==0x90556BC7 and all 64 spots equal); 0 = FAIL (locate plan S4)
+ * R14 regression (REDESIGNED 2026-06-03, intermediate-layer): compare FIRA-computed SUBBAND
+ * intermediates (sb0..sb3 from fira_tfb_analyze) vs core subbands (tfb_analyze), per-sample, lockstep.
  *
- * [L1/EZKIT] must run on board (incl. real FIRA DMA / 80-bit MR / phase / cache).
- *   No FIRA on desktop -> fira_tfb_* is placeholder in draft build (no FIRA segment connected) -> so this function's
- *   **desktop call result is meaningless**, only plumbing. Do not treat desktop result as R14 pass.
+ * WHY NOT end-to-end out: the dyadic tree is perfect-reconstruction -> analyze->synthesize telescopes
+ * to out=in ALGEBRAICALLY, independent of filter values (PF-4 Sub-1: "PR ~300dB, independent of coeff
+ * precision"). So end-to-end CRC (0x90556BC7 = CRC(in)) verifies telescoping+arithmetic only, NOT the
+ * FIR segments -> a placeholder (FIRA segs=0, out=in) passes it = FALSE GREEN (caught 2026-06-03).
+ * Subband intermediates sb0..sb3 DO depend on the filter (sb3=in-interp2(decimate2(in)) etc.), so
+ * comparing them tests the real FIRA decimate/interp segments. Core subbands are the live golden
+ * (numpy-backed: PF-4 Sub-2 xcheck_subband.py independently validated sb0..3).
+ *  @param[out] out_crc  CRC32 of FIRA subbands (bench grabs)
+ *  @return 1 = R14 single-channel PASS (all FIRA subbands bit-identical to core); 0 = FAIL/mismatch.
+ *
+ * [L1/EZKIT] must run on board. Desktop: fira_tree_setup()<0 -> returns 0 (no FIRA, no faking).
+ * Granularity = subband (sb0..3), the finest core intermediate exposed WITHOUT touching frozen
+ * tree_filterbank.c (hb_decimate2/a1 are static/internal there).
  */
 int fira_r14_regression(uint32_t *out_crc)
 {
     const int32_t *chirp = bench_chirp_input();
-    /* [L1/EZKIT] bench: first fira_tree_setup() (Open/CreateTask). Desktop returns -1 (disabled). */
+    /* [L1/EZKIT] bench: fira_tree_setup() (Open/CreateTask). Desktop returns -1 (disabled, no faking). */
     if (fira_tree_setup() != 0) {
-        /* Desktop/non-target platform: do not fake verification, return 0 directly. */
         if (out_crc) *out_crc = 0u;
         return 0;
     }
 
-    /* STREAMING lockstep: per frame, run FIRA frame AND core (golden) frame, compare per-sample
-     * (first mismatch), accumulate both CRCs incrementally, check spots. No full 65536 buffers. */
-    FiraChannelState fa, fs;
-    TreeChannelState ca, cs;
-    int32_t fb0[BENCH_FRAME/8], fb1[BENCH_FRAME/4], fb2[BENCH_FRAME/2], fb3[BENCH_FRAME];
-    int32_t cb0[BENCH_FRAME/8], cb1[BENCH_FRAME/4], cb2[BENCH_FRAME/2], cb3[BENCH_FRAME];
-    int32_t yf[BENCH_FRAME], yc[BENCH_FRAME];      /* per-frame FIRA / core outputs */
-    uint32_t cf = 0xFFFFFFFFu, cc = 0xFFFFFFFFu;   /* incremental CRC states */
-    int spot_match = 1;
+    /* STREAMING lockstep: per frame, FIRA analyze AND core analyze; compare the 4 SUBBANDS per-sample.
+     * No full 65536 buffers; working set = one frame. */
+    FiraChannelState fa;
+    TreeChannelState ca;
+    int32_t fsb0[BENCH_FRAME/8], fsb1[BENCH_FRAME/4], fsb2[BENCH_FRAME/2], fsb3[BENCH_FRAME];
+    int32_t csb0[BENCH_FRAME/8], csb1[BENCH_FRAME/4], csb2[BENCH_FRAME/2], csb3[BENCH_FRAME];
+    const int sz[4] = { BENCH_FRAME/8, BENCH_FRAME/4, BENCH_FRAME/2, BENCH_FRAME };
+    uint32_t cf = 0xFFFFFFFFu, cc = 0xFFFFFFFFu;
 
     tfb_set_coeffs(g_hb63_q15, FIR_HB63_NTAPS);    /* core (golden) Q15 coeffs; FIRA coeffs set in setup */
-    fira_channel_init(&fa, BENCH_FRAME); fira_channel_init(&fs, BENCH_FRAME);
-    tfb_channel_init(&ca); tfb_channel_init(&cs);
-    g_f4_mismatch_idx = -1;
+    fira_channel_init(&fa, BENCH_FRAME);
+    tfb_channel_init(&ca);
+    g_f4_mismatch_idx = -1; g_f4_mismatch_sb = -1;
 
     for (int f = 0; f < BENCH_NFR; f++) {
         const int32_t *xin = &chirp[f * BENCH_FRAME];
-        fira_tfb_analyze(&fa, xin, BENCH_FRAME, fb0, fb1, fb2, fb3);
-        fira_tfb_synthesize(&fs, fb0, fb1, fb2, fb3, BENCH_FRAME, yf);
-        tfb_analyze(&ca, xin, BENCH_FRAME, cb0, cb1, cb2, cb3);
-        tfb_synthesize(&cs, cb0, cb1, cb2, cb3, BENCH_FRAME, yc);
-
-        for (int i = 0; i < BENCH_FRAME; i++) {
-            int gi = f * BENCH_FRAME + i;
-            if (g_f4_mismatch_idx < 0 && yf[i] != yc[i]) {     /* first per-sample mismatch */
-                g_f4_mismatch_idx = gi; g_f4_core_val = yc[i]; g_f4_fira_val = yf[i];
+        fira_tfb_analyze(&fa, xin, BENCH_FRAME, fsb0, fsb1, fsb2, fsb3);
+        tfb_analyze(&ca, xin, BENCH_FRAME, csb0, csb1, csb2, csb3);
+        const int32_t *fb[4] = { fsb0, fsb1, fsb2, fsb3 };
+        const int32_t *cb[4] = { csb0, csb1, csb2, csb3 };
+        for (int b = 0; b < 4; b++) {
+            if (g_f4_mismatch_idx < 0) {
+                for (int i = 0; i < sz[b]; i++) {
+                    if (fb[b][i] != cb[b][i]) {      /* first FIRA-vs-core subband mismatch */
+                        g_f4_mismatch_sb = b; g_f4_mismatch_idx = f * sz[b] + i;
+                        g_f4_core_val = cb[b][i]; g_f4_fira_val = fb[b][i];
+                        break;
+                    }
+                }
             }
-            if ((gi % GOLDEN_SPOT_STRIDE) == 0) {              /* spot check vs GOLDEN_SPOT[64] */
-                int s = gi / GOLDEN_SPOT_STRIDE;
-                if (s < GOLDEN_NSPOT && yf[i] != GOLDEN_SPOT[s]) spot_match = 0;
-            }
+            crc32_update(&cf, fb[b], sz[b]);          /* CRC of FIRA subbands (concatenated) */
+            crc32_update(&cc, cb[b], sz[b]);          /* CRC of core subbands (live golden) */
         }
-        crc32_update(&cf, yf, BENCH_FRAME);
-        crc32_update(&cc, yc, BENCH_FRAME);
     }
 
-    uint32_t crc_fira = cf ^ 0xFFFFFFFFu;
-    g_f4_crc_fira = crc_fira;
-    g_f4_crc_core = cc ^ 0xFFFFFFFFu;              /* self-check: must == 0x90556BC7 */
-    if (out_crc) *out_crc = crc_fira;
+    g_f4_crc_fira = cf ^ 0xFFFFFFFFu;
+    g_f4_crc_core = cc ^ 0xFFFFFFFFu;                 /* core-subband golden (numpy-backed PF-4 Sub-2) */
+    if (out_crc) *out_crc = g_f4_crc_fira;
 
     fira_tree_teardown();
-    /* PASS iff no per-sample mismatch AND FIRA crc == golden AND spots match. On FAIL, emulator reads
-     * g_f4_mismatch_idx / g_f4_core_val / g_f4_fira_val (+ g_f4_crc_core self-check) to drive F4b tuning. */
-    int crc_match = (crc_fira == GOLDEN_CRC32) ? 1 : 0;
-    return (g_f4_mismatch_idx < 0) && crc_match && spot_match;
+    /* PASS = FIRA subbands bit-identical to core (filter-segment-level, NOT telescoping). On FAIL,
+     * emulator reads g_f4_mismatch_sb (which subband) / g_f4_mismatch_idx / g_f4_core_val / g_f4_fira_val
+     * -> drives postscale tuning (F4b). NOTE: a placeholder FIRA (segs=0) FAILS here (sb0..2!=core),
+     * unlike the old end-to-end test it could fool. */
+    return (g_f4_mismatch_idx < 0) && (g_f4_crc_fira == g_f4_crc_core);
 }
 
 /* ============================================================
