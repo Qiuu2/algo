@@ -72,8 +72,11 @@ void main(void)
 
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
     /* ---- F2 FIRA 冒烟：单通道完整 Legacy 生命周期 + Path B 定点（任意系数）----
-     * emulator 查：g_fira_f2_rc==0（生命周期全 SUCCESS）+ g_FIRTaskDoneCount==1（回调进）。
-     * 失败码：1=Open 2=RegisterCallback 3=CreateTask 4=FixedPointEnable(SIGNED·G2 命门)
+     * F2 判据 = 管路 PASS：g_fira_f2_rc==0（6 步全 SUCCESS）+ g_FIRTaskDoneCount==1（回调进）。
+     * ⚠️ rc==0 不证 SIGNED 真生效（adi_fir_legacy_2156x.c：FixedPointEnable 非 RUNNING 必返
+     *    SUCCESS、与 config 无关）→ G2 真闭合在 F4 逐位比 golden，非 F2。
+     * 失败码：1=Open 2=RegisterCallback 3=CreateTask
+     *         4=FixedPointEnable（仅 task==RUNNING 才非 SUCCESS = 调用顺序 bug，查顺序，**勿动 config**）
      *         5=QueueTask 6=Close / -1=未定义真头 / -2=系数或 buf 空。 */
     {
         static int32_t s_f2_coef[63];            /* F2 任意系数（仅冒烟，非真系数；F3 换真） */
