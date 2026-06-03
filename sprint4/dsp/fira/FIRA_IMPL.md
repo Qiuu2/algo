@@ -65,7 +65,14 @@
 - **定点不在 CHANNEL_INFO**（Legacy 无字段）；CreateTask 后立即 FixedPointEnable(SIGNED)，再 QueueTask。
 - 草案默认构建（无真头）返回 -1，**不接 FIRA、不冒充**。
 
-**就绪度**：模板序列完整、字段名/顺序按真 Legacy 头、定点走 Path B 正确时点 → **台架定义 `FIRA_USE_REAL_ADI_FIR_HEADER` + 链接 BSP 即可编译起步**。F2 拿它开跑。
+**就绪度**：模板序列完整、字段名/顺序按真 Legacy 头、定点走 Path B 正确时点 → **嫁接进现有 `bench_core_only` 工程**（见 §F2-载体）即可编译起步。F2 拿它开跑。
+
+### 🔧 F2 载体 = 现有 `bench_core_only`（不新建工程，CTO 顾问侧更正 2026-06-03）
+- **载体** = CTO Windows 上的 `bench_core_only`（`C:\Users\Taric\cces\2.12.1\bench_core_only`）——**它本身从 FIRA example `FIR_Multi_Channel_Processing` 派生**：BSP / include / 板初始化脚手架**已 FIRA-capable，不用再装 21569 BSP / 不建新工程**。
+- **它就是测出 F0 的那个工程**：`crc 0x90556BC7` / `cyc 1,006,935` 都在它上面测的 → `golden_ref.h` / `chirp_input.h` / CCNT harness / `-O -Ov=100` / Debug Configuration **全现成且已验证**（前述 include-path MINOR 在本载体中**自动消解**：三头已在工程内）。
+- **为什么必须同一个 bench**：F4 拿 FIRA 输出**逐位比 core golden**——只有**同输入 / 同 golden / 同工程**才是干净对比；新建工程会割裂基准。
+- **🚩 F2 第一件必查（死代码剔除）**：当初嫁接 core 算法时删了 example 的 FIRA 调用 → 链接器很可能把 **FIRA 驱动源**（`adi_fir_legacy_2156x.c`，可能还有 `adi_fir.c` 分发层）按死代码 **Exclude from Build / 剔了**。**F2 第一步**：看工程编译列表有没有 `adi_fir*.c`；**没有就右键加回 / 取消 Exclude from Build**，否则 `adi_fir_Open` 等链接 unresolved。
+- **F2 步骤**：① 把 `fira_tree.c/.h` + `fira_regression.c` 加进 `bench_core_only`（非新工程）；② 定义 `FIRA_USE_REAL_ADI_FIR_HEADER` + `#include <drivers/fir/adi_fir.h>`（Legacy 头）；③ 确认 `adi_fir*.c` 在 build；④ 跑 `fira_single_channel_template()` 验生命周期返回 0 + Path B `FixedPointEnable(SIGNED)` 在 Legacy 下不报错（G2 板上坐实）。
 
 ---
 
@@ -77,7 +84,7 @@
 |----|------|---------|----------------|------|
 | **F0** | 前置三闸门：R1 cycle 基准 1,006,935 + core-only 板上 bit-exact crc=0x90556BC7 PASS | — | 证据=R1 报告 + 板上 crc | ✅ 已闭（任务前提） |
 | **F1** | 模式/格式决策 + G1/G2 闭合（Legacy + Path B SIGNED + DECIMATION + ALL_CHANNEL_DONE） | F1 文档 + `fira_tree.{c,h}` 头注 | 证据=DOC-S4-FIRA-F1-01 + 归档 legacy 头 | ✅ 已闭 |
-| **F2** | CCES SHARC 工程 + 装 21569 BSP；定义 `FIRA_USE_REAL_ADI_FIR_HEADER` `#include <drivers/fir/adi_fir.h>`；跑 `fira_single_channel_template()` | `fira_tree.h` 头接入；`fira_tree.c` §B-template | **判据**：生命周期返回 0（无 ADI_FIR_RESULT 错）；**Path B FixedPointEnable(SIGNED) 不报错** | 🔴 待台架 |
+| **F2** | **嫁接进现有 `bench_core_only`**（不新建工程/不装 BSP，见 §F2-载体）：加 `fira_tree.c/.h`+`fira_regression.c`；定义 `FIRA_USE_REAL_ADI_FIR_HEADER` + `#include <drivers/fir/adi_fir.h>`；**🚩先确认 `adi_fir*.c` 回到 build（之前嫁接 core 删 FIRA 调用→驱动源很可能被 Exclude/死代码剔）**；跑 `fira_single_channel_template()` | `fira_tree.h` 头接入；`fira_tree.c` §B-template；§F2-载体 | **判据**：`adi_fir*.c` 在编译列表；生命周期返回 0（无 ADI_FIR_RESULT 错 / 无链接 unresolved）；**Path B FixedPointEnable(SIGNED) 不报错** | 🔴 待台架 |
 | **F3** | 系数：Q15 半带原型符号扩展冻结为 32-bit 常量数组（同源不重算，`fir_design_verify.py` 导出） | `fir_coeffs_q31.h`（占位 0→真值）+ `fira_tree_set_coeffs()` | **判据**：对齐方式（符号扩展 vs `<<16`）由 F4 单段逐位定；占位 0 禁跑回归 | 🔴 占位待填 |
 | **F4** | 单 channel DECIMATION 小例验**相位**（取偶 vs 取奇，R14-6）+ Path B 定点是否生效（G2 残）；INTERPOLATION 小例验 ×2（R14-5）；查缓冲对齐/cache flush（坏 bit-exact 首查项） | `fira_make_channel` + §C `fira_postscale_*` | **判据**：单段 out 逐位 == 小例 golden（容差 0）；定 postscale 真移位量 | 🔴 待台架攻坚 |
 | **F5** | 8ch×多段扩展：每路 9 段 CHANNEL_INFO + 每任务 FixedPointEnable(SIGNED)；task 分组/并发度/回调链；留核 detail 减/合成加/sat/broadside 求和穿插 | `fira_tfb_analyze/synthesize`（§D 留核）；8ch 求和复用 `tfb_8ch.c`；§D 已标 F5 扩展 | **判据**：全链 analyze→synthesize 单通道逐位等价核（接 F7） | 🔴 待台架（§D 留 F5 骨架） |
