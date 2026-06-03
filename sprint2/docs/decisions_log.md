@@ -607,6 +607,18 @@
 
 ---
 
+## FIRA 实现 F-progress（DOC-S4-FIRA-IMPL-01）
+
+| 阶段 | 状态 | 证据 / 备注 |
+|------|------|------------|
+| F0 闸门 | ✅ | R1 cycle 基准 + core-only 板上 bit-exact(crc 0x90556BC7) + 真实 cycle 1,006,935 |
+| F1 模式/格式 | ✅ | Legacy 锁定 + Path B 运行时 FixedPointEnable(SIGNED)（DOC-S4-FIRA-F1-01；G1 闭合归档 legacy 头）|
+| **F2 FIRA 冒烟** | ✅ **管路 PASS [L1/EZKIT 2026-06-03]** | 板上 `g_fira_f2_rc=0` + `g_FIRTaskDoneCount=1`：FIRA Legacy 全生命周期跑通、ALL_CHANNEL_DONE 回调进 1 次。**注：管路 PASS ≠ G2 闭合**——`FixedPointEnable(SIGNED)` 不报错只证调用通（源码：非 RUNNING 必返 SUCCESS、与 config 无关），**SIGNED 正确性 = F4 bit-exact 验**；**G2 仍 open** |
+| F3-F8 | 🔴 待台架 | F3 真系数 → **F4 单通道 bit-exact（R14 命门 = G2 真闭合）** → F5 8ch+抽取 → F6 全链 crc==0x90556BC7（R14 闭合）→ F7 cycle 含开销+裕量 |
+> 🔒 **C9/铁律八维持**：FIRA 算力收益在 **F6 crc 闭合前不进选型/裕量结论**。
+
+---
+
 ## 决策状态汇总
 
 | 决策ID | 内容摘要 | 状态 |

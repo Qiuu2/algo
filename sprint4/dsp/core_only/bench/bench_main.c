@@ -1,111 +1,98 @@
-/**
- * @file    bench_main.c
- * @brief   嫁接 main（target-only）：ADI LED 脚手架 boot + 我方 harness 处理槽
+/*
+ * bench_main.c -- grafted main (target-only): ADI scaffold boot + our harness slot.
+ * (ASCII-only: CCES SHARC compiler chokes on UTF-8 comments; synced to bench tree 2026-06-03.)
  *
- * 嫁接边界（红线）：
- *   - ADI 底座（保留，不改）：adi_initComponents()（时钟/电源/pinmux/sru，来自
- *     ADSP21569_LED 例程 system/startup_ldf + adi_initialize）；GPIO LED（pass/fail 可视）。
- *   - 我方算法（嫁接）：bench_run() 跑 core-only（verbatim tree_filterbank.c + tfb_8ch + hb63）。
- *   - 🚫 不挂 float 层 / 🚫 不接例程系数/437-tap / 🚫 不接 codec/A2B/DMA（内存向量法）。
+ * Graft boundary (red lines):
+ *   - ADI base (keep, do not modify): adi_initComponents() (clock/power/pinmux/sru,
+ *     from ADSP21569_LED example system/startup_ldf + adi_initialize).
+ *   - Our algorithm (graft): bench_run() runs core-only (verbatim tree_filterbank.c
+ *     + tfb_8ch + hb63).
+ *   - NO float layer / NO example coeffs(437-tap) / NO codec/A2B/DMA (memory-vector method).
  *
- * 用法：在 ADSP21569_LED 工程基础上，把本文件替换原 src/main.c（保留 system/ 全板 init），
- *       加入 ../src/tree_filterbank.c, ../src/tfb_8ch.c, bench_harness.c；include 路径加
- *       ../src ../include 与本目录；app.ldf 按 GRAFT_PLAN §.ldf 增量放置热点。
- * 编译：CCES -proc ADSP-21569 -DTARGET_SHARC（目标 0 错 0 警告 = [L1/CCES-target] 待台架）。
+ * Usage: in the FIRA-derived bench_core_only project, replace src/main.c with this file
+ *   (keep system/ board init); add tree_filterbank.c, tfb_8ch.c, bench_harness.c;
+ *   include path -> ../src ../include + bench/.
+ * Build: CCES -proc ADSP-21569 -DTARGET_SHARC (target 0err = [L1/CCES-target], bench-side).
  *
- * 结果读取：g_bench_result 落已知内存，CCES emulator 暂停后查看（Expressions 窗口）；
- *           LED：bit-exact PASS → LED 常亮；FAIL → 快闪。
+ * Results: read in CCES emulator (Expressions window): g_bench_result, g_ccnt_selftest,
+ *   and (FIRA build) g_fira_f2_rc / g_FIRTaskDoneCount. No LED indicator (idle after run).
  */
-#include "main.h"                 /* ADI LED 例程头（adi_gpio / adi_initComponents 声明） */
+#include "adi_initialize.h"       /* adi_initComponents() decl */
 #include "bench_harness.h"
 #include <stdint.h>
-#include <time.h>                 /* clock() —— CCES SHARC 上返回 CCLK 周期数 */
+#include <time.h>                 /* clock() -> CCLK cycles on CCES SHARC */
 
-/* harness 结果落已知内存，供 emulator / 后续部署读取（volatile 防优化掉） */
+/* results to known memory for emulator / later deploy (volatile = keep) */
 volatile BenchResult g_bench_result;
-volatile uint32_t    g_ccnt_selftest;   /* CCNT 自检结果（已知循环 cycle，emulator 查） */
+volatile uint32_t    g_ccnt_selftest;   /* CCNT self-test (known-loop cycles) */
 
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
-#include "fira_tree.h"                       /* F2 FIRA 冒烟（仅 FIRA 接入时编入） */
-extern volatile uint32_t g_FIRTaskDoneCount; /* fira_tree.c 定义（ALL_CHANNEL_DONE 回调置位） */
-volatile int g_fira_f2_rc = -99;             /* F2 单通道模板返回码（emulator 查；0=PASS） */
+#include "fira_tree.h"                       /* F2 FIRA smoke (only when FIRA wired) */
+extern volatile uint32_t g_FIRTaskDoneCount; /* defined in fira_tree.c (set by ALL_CHANNEL_DONE cb) */
+volatile int g_fira_f2_rc = -99;             /* F2 single-channel template rc (emulator; 0=PASS) */
 #endif
 
-/* ---- target CCNT 读取（真 CCLK 周期） ----
- * 出处：ADI 官方 ADSP-21569 例程 FIR_Throughput_21569.c:18-20,42,86-89 用标准 C `clock()`
- *   量 CCLK cycles（注释 line 4 "measure the number of CCLK cycles ... on ADSP-21569"）；
- *   Pipelined / *_Driver_Benchmark 例程一致用 clock()。底层 = REGF_EMUCLK 32-bit 核周期
- *   计数器（SHARC+ Core Programming Reference §29，用户空间只读，计核时钟周期）。
- * 位宽/回绕：clock_t 32-bit（例程以 %d 打印）；@1GHz 约 4.29s 回绕。per-frame 测量(<2ms,
- *   ~1.3M cycles) 远不回绕；bench_harness 用无符号差 end-start，单次回绕自动正确。长累计测量
- *   需 EMUCLK2（与 EMUCLK 合成 64-bit）或逐帧累加——本 harness 逐帧小区间，无需。 */
+/* ---- target CCNT read (true CCLK cycles) ----
+ * Source: ADI ADSP-21569 example FIR_Throughput_21569.c:18-20,42,86-89 uses standard C
+ *   clock() to count CCLK cycles (comment line 4 "measure the number of CCLK cycles ... on
+ *   ADSP-21569"); Pipelined / *_Driver_Benchmark examples likewise. Underlying = REGF_EMUCLK
+ *   32-bit core cycle counter (SHARC+ Core Programming Reference sec.29, user-space readable).
+ * Width/wrap: clock_t 32-bit (example prints %d); @1GHz wraps ~4.29s. Per-frame (<2ms,
+ *   ~1.3M cycles) far from wrap; bench_harness uses unsigned diff end-start (single wrap OK).
+ *   Long accumulation needs EMUCLK2 (64-bit combined) or per-frame accumulate -- not needed here. */
 #ifdef TARGET_SHARC
 uint32_t bench_cyc_target(void)
 {
-    return (uint32_t)clock();   /* CCES SHARC：clock() = CCLK 周期（同 ADI 21569 例程口径） */
+    return (uint32_t)clock();   /* CCES SHARC: clock() = CCLK cycles (same as ADI 21569 example) */
 }
 #endif
 
 void main(void)
 {
-    /* ---- ADI 底座：全板 init（时钟/电源/pinmux/sru），保留不改 ---- */
+    /* ---- ADI base: full board init (clock/power/pinmux/sru), keep unchanged ---- */
     adi_initComponents();
 
-    /* LED 方向（pass/fail 可视指示，沿用 LED 例程 PC_01..03） */
-    adi_gpio_SetDirection(ADI_GPIO_PORT_C, ADI_GPIO_PIN_1, ADI_GPIO_DIRECTION_OUTPUT);
-    adi_gpio_SetDirection(ADI_GPIO_PORT_C, ADI_GPIO_PIN_2, ADI_GPIO_DIRECTION_OUTPUT);
-    adi_gpio_SetDirection(ADI_GPIO_PORT_C, ADI_GPIO_PIN_3, ADI_GPIO_DIRECTION_OUTPUT);
-
-    /* ---- CCNT 自检（验证 clock() 读真周期；已知 1,000,000 次 volatile 循环对照） ----
-     * emulator 查 g_ccnt_selftest：应 >0 且 ≈ 1e6 × 每迭代周期（量级数 M cycles）；
-     * =0 或乱跳 → clock() 未读到真 CCNT，先排查再信 cyc_8ch_frame。 */
+    /* ---- CCNT self-test (verify clock() reads true cycles; known 1,000,000 volatile loop) ----
+     * emulator g_ccnt_selftest: should be >0 and ~ 1e6 * cycles-per-iter (order of M cycles);
+     * 0 or erratic -> clock() not reading true CCNT, debug before trusting cyc_8ch_frame. */
     {
         volatile uint32_t k; uint32_t a, b;
         a = bench_cyc_target();
         for (k = 0u; k < 1000000u; k++) { }
         b = bench_cyc_target();
-        g_ccnt_selftest = b - a;   /* 已知循环 cycle 对照 */
+        g_ccnt_selftest = b - a;   /* known-loop cycle reference */
     }
 
-    /* ---- 我方算法嫁接：跑 core-only S2-S5 harness（F0 基准，保留） ---- */
+    /* ---- our algorithm graft: run core-only S2-S5 harness (F0 baseline, kept) ---- */
     bench_run((BenchResult *)&g_bench_result);
 
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
-    /* ---- F2 FIRA 冒烟：单通道完整 Legacy 生命周期 + Path B 定点（任意系数）----
-     * F2 判据 = 管路 PASS：g_fira_f2_rc==0（6 步全 SUCCESS）+ g_FIRTaskDoneCount==1（回调进）。
-     * ⚠️ rc==0 不证 SIGNED 真生效（adi_fir_legacy_2156x.c：FixedPointEnable 非 RUNNING 必返
-     *    SUCCESS、与 config 无关）→ G2 真闭合在 F4 逐位比 golden，非 F2。
-     * 失败码：1=Open 2=RegisterCallback 3=CreateTask
-     *         4=FixedPointEnable（仅 task==RUNNING 才非 SUCCESS = 调用顺序 bug，查顺序，**勿动 config**）
-     *         5=QueueTask 6=Close / -1=未定义真头 / -2=系数或 buf 空。 */
+    /* ---- F2 FIRA smoke: single-channel full Legacy lifecycle + Path B fixed-point (any coeffs) ----
+     * F2 verdict = pipeline PASS: g_fira_f2_rc==0 (all 6 steps SUCCESS) + g_FIRTaskDoneCount==1 (cb).
+     * NOTE: rc==0 does NOT prove SIGNED took effect (adi_fir_legacy_2156x.c: FixedPointEnable returns
+     *   SUCCESS unless task RUNNING, independent of config macro) -> G2 true closure is F4 bit-exact
+     *   vs golden, not F2.
+     * rc codes: 1=Open 2=RegisterCallback 3=CreateTask
+     *           4=FixedPointEnable (only non-SUCCESS if task==RUNNING = call-order bug; check order,
+     *             DO NOT touch config)  5=QueueTask 6=Close / -1=real header undefined / -2=coeffs or buf null. */
     {
-        static int32_t s_f2_coef[63];            /* F2 任意系数（仅冒烟，非真系数；F3 换真） */
+        static int32_t s_f2_coef[63];            /* F2 arbitrary coeffs (smoke only; F3 = real) */
         static int32_t s_f2_in[63 + 64 - 1];     /* in_count = ntaps+out_count-1 = 126 */
-        static int32_t s_f2_out[64];             /* out_count = 64（window） */
+        static int32_t s_f2_out[64];             /* out_count = 64 (window) */
         unsigned i;
         for (i = 0u; i < 63u; i++) s_f2_coef[i] = 0;
-        s_f2_coef[31] = (int32_t)0x40000000;     /* 中心抽头（任意非零） */
+        s_f2_coef[31] = (int32_t)0x40000000;     /* center tap (any nonzero) */
         for (i = 0u; i < (63u + 64u - 1u); i++) s_f2_in[i] = (int32_t)((uint32_t)i << 20);
         fira_tree_set_coeffs(s_f2_coef, 63u);
         g_fira_f2_rc = fira_single_channel_template(s_f2_in, 63u + 64u - 1u,
                                                     s_f2_out, 64u, 63u);
-        /* ↑ 在此设断点查 g_fira_f2_rc / g_FIRTaskDoneCount（F2 判据见 DOC-S4-FIRA-IMPL-01） */
+        /* breakpoint here: read g_fira_f2_rc / g_FIRTaskDoneCount (verdict in DOC-S4-FIRA-IMPL-01) */
     }
 #endif
 
-    /* ---- 在此设断点，emulator 查 g_bench_result：
-     *   .bitexact_pass / .crc32(应=0x90556BC7) / .cyc_8ch_frame / .mcps_8ch / .mcps_16ch_est
-     *   → S2 bit-exact [L1/EZKIT] + S3-S5 cycle/MCPS + R1 判据（WCET<1.333ms 且 裕量≥10×） ---- */
+    /* ---- breakpoint here, emulator read g_bench_result:
+     *   .bitexact_pass / .crc32 (== 0x90556BC7) / .cyc_8ch_frame / .mcps_8ch / .mcps_16ch_est
+     *   -> S2 bit-exact [L1/EZKIT] + S3-S5 cycle/MCPS + R1 verdict (WCET<1.333ms and margin>=10x) ---- */
 
-    /* LED 指示：PASS 常亮 / FAIL 快闪 */
-    if (g_bench_result.bitexact_pass) {
-        adi_gpio_Set(ADI_GPIO_PORT_C, ADI_GPIO_PIN_1);   /* 常亮 */
-        while (1) { /* idle，保持指示 */ }
-    } else {
-        volatile unsigned i;
-        while (1) {
-            adi_gpio_Toggle(ADI_GPIO_PORT_C, ADI_GPIO_PIN_1);
-            for (i = 0; i < 0x400000u; i++) { }          /* 快闪 = FAIL */
-        }
-    }
+    while (1) { /* idle: keep results in memory for emulator */ }
 }
