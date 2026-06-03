@@ -71,8 +71,28 @@ volatile int     g_f4_mismatch_idx  = -1;   /* first per-sample mismatch index w
 volatile int     g_f4_mismatch_sb   = -1;   /* which subband (0..3) of first mismatch; -1 = none */
 volatile int32_t g_f4_core_val      = 0;    /* core (golden) value at first mismatch */
 volatile int32_t g_f4_fira_val      = 0;    /* FIRA path value at first mismatch */
-volatile uint32_t g_f4_crc_fira     = 0;    /* FIRA chain CRC */
-volatile uint32_t g_f4_crc_core     = 0;    /* core chain CRC (self-check: must == 0x90556BC7) */
+volatile uint32_t g_f4_crc_fira     = 0;    /* FIRA SUBBAND CRC (sb0|sb1|sb2|sb3 concatenated) */
+volatile uint32_t g_f4_crc_core     = 0;    /* core SUBBAND CRC = live golden; F4b self-check anchor = 0x2E0D8C6E
+                                             *   (computed desktop, sbgold.c). NOT the e2e 0x90556BC7 (that is
+                                             *   g_bench_result.crc32, a separate end-to-end check). */
+volatile uint32_t g_f4_crc_core_e2e = 0;    /* SEPARATE: end-to-end core CRC written ONLY by fira_harness_selfcheck()
+                                             *   (==0x90556BC7); kept distinct so it never clobbers the subband golden. */
+
+/* ---- F4b ratio-diagnostic dump (emulator reads on FAIL) ----
+ * idx0 / coarse-band samples are ~0 (filter group delay) and give NO ratio. These capture the first
+ * SUBSTANTIAL (|core| >= F4_PROBE_THRESH) core/FIRA pair PER subband, plus 8 consecutive sb3 pairs.
+ * sb3 (detail @f0, ~1e6, clean ramp; desktop core[frame0,idx1]=0x0018CB1E) is the cleanest shift probe:
+ *   ratio g_f4_probe_fira[3]/g_f4_probe_core[3] reveals the missing >>shift (2^k), the x2 (INT), or a
+ *   phase/index offset. Per-band lets us tell a GLOBAL shift error (all 4 off by same 2^k) from a
+ *   band-specific one (e.g. only INT/detail bands off by x2). */
+#define F4_PROBE_THRESH 256
+#define F4_DUMP_N       8
+volatile int32_t g_f4_probe_core[4] = {0, 0, 0, 0};   /* first substantial core sample, per subband 0..3 */
+volatile int32_t g_f4_probe_fira[4] = {0, 0, 0, 0};   /* paired FIRA value (ratio = shift/x2/phase clue) */
+volatile int     g_f4_probe_idx[4]  = {-1, -1, -1, -1};/* flattened sample index of that probe, per subband */
+volatile int32_t g_f4_dump_core[F4_DUMP_N];           /* 8 consecutive sb3 core samples from its 1st substantial pt */
+volatile int32_t g_f4_dump_fira[F4_DUMP_N];           /* paired FIRA sb3 samples */
+volatile int     g_f4_dump_idx0     = -1;             /* flattened sb3 index where the 8-sample dump starts */
 
 /* F4a harness self-check (DESKTOP-runnable, no FIRA): run the core single-channel chain over the
  * frozen chirp and confirm it reproduces GOLDEN_CRC32. Verifies the comparison infra + golden anchor
@@ -92,8 +112,8 @@ int fira_harness_selfcheck(void)
         tfb_synthesize(&cs, b0, b1, b2, b3, BENCH_FRAME, yc);
         crc32_update(&c, yc, BENCH_FRAME);         /* incremental CRC, frame by frame */
     }
-    g_f4_crc_core = c ^ 0xFFFFFFFFu;
-    return (g_f4_crc_core == GOLDEN_CRC32) ? 1 : 0;
+    g_f4_crc_core_e2e = c ^ 0xFFFFFFFFu;   /* end-to-end (own global; does NOT clobber subband g_f4_crc_core) */
+    return (g_f4_crc_core_e2e == GOLDEN_CRC32) ? 1 : 0;
 }
 
 /**
@@ -149,6 +169,28 @@ int fira_r14_regression(uint32_t *out_crc)
                     if (fb[b][i] != cb[b][i]) {      /* first FIRA-vs-core subband mismatch */
                         g_f4_mismatch_sb = b; g_f4_mismatch_idx = f * sz[b] + i;
                         g_f4_core_val = cb[b][i]; g_f4_fira_val = fb[b][i];
+                        break;
+                    }
+                }
+            }
+            /* ratio-diagnostic probe: first substantial core/FIRA pair per subband (skips group-delay ~0
+             *   samples that give no ratio). sb3 additionally grabs 8 consecutive pairs (cleanest shift probe). */
+            if (g_f4_probe_idx[b] < 0) {
+                for (int i = 0; i < sz[b]; i++) {
+                    int32_t cv = cb[b][i];
+                    int32_t mag = (cv < 0) ? -cv : cv;
+                    if (mag >= F4_PROBE_THRESH) {
+                        g_f4_probe_idx[b]  = f * sz[b] + i;
+                        g_f4_probe_core[b] = cv;
+                        g_f4_probe_fira[b] = fb[b][i];
+                        if (b == 3 && g_f4_dump_idx0 < 0) {   /* sb3: 8 consecutive for shift confirmation */
+                            g_f4_dump_idx0 = f * sz[b] + i;
+                            for (int d = 0; d < F4_DUMP_N; d++) {
+                                int j = i + d;
+                                g_f4_dump_core[d] = (j < sz[b]) ? cb[b][j] : 0;
+                                g_f4_dump_fira[d] = (j < sz[b]) ? fb[b][j] : 0;
+                            }
+                        }
                         break;
                     }
                 }

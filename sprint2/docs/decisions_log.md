@@ -615,7 +615,7 @@
 | F1 模式/格式 | ✅ | Legacy 锁定 + Path B 运行时 FixedPointEnable(SIGNED)（DOC-S4-FIRA-F1-01；G1 闭合归档 legacy 头）|
 | **F2 FIRA 冒烟** | ✅ **管路 PASS [L1/EZKIT 2026-06-03]** | 板上 `g_fira_f2_rc=0` + `g_FIRTaskDoneCount=1`：FIRA Legacy 全生命周期跑通、ALL_CHANNEL_DONE 回调进 1 次。**注：管路 PASS ≠ G2 闭合**——`FixedPointEnable(SIGNED)` 不报错只证调用通（源码：非 RUNNING 必返 SUCCESS、与 config 无关），**SIGNED 正确性 = F4 bit-exact 验**；**G2 仍 open** |
 | F3 接真系数 | 🟡 **草案就绪·待台架**（commit 9139de3，critic PASS）| 真系数 g_hb63_q15 符号扩展 32-bit（DP-01 假设，F4 验）+ DP-01 5 步核内 postscale（80-bit 重组/>>15/×2/decimate/sat）+ 输出 buffer ×3。板上 DoD：rc=0/done=1/buffer 不越界/postscale 非垃圾（不要求 bit-exact）|
-| **F4 单通道 bit-exact** | 🟡 **真活已接线·待板验**（commit 604a1f7，critic 7/7 PASS；中间层子带验证）｜ 历:🔴假绿回退 | 板上读 pass=1/crc=0x90556BC7，但**自查抓出假绿**：`fira_tfb_*` 是占位（FIRA 段 memset 0、`fira_postscale` 从未调），输出 `out=in`；核 golden 是 PR telescoping `out=in` → **两者撞 golden,零真 FIRA**（桌面铁证:占位 fira out crc=0x90556BC7 / out==in）。**端到端单通道 CRC 只验 telescoping+定点算术，与滤波系数无关（PF-4 Sub-1 已注"PR 与系数精度无关"），验不了 FIRA 段。R14 退回 F4-真实现 + 验证改中间层（子带 sb0-3）。** 详见下「R14 假绿回退 + 中间层验证」|
+| **F4 单通道 bit-exact** | 🟡 **真活在板上跑·迭代 postscale 中**（首板验 2026-06-03；中间层子带验证）｜ 历:🔴假绿回退 | **首次真 FIRA 板上跑**：`g_fira_f3_out*` 非零=FIRA 在算；子带测 `pass=0`（**预期失配**，真活开始）；`g_f4_crc_core=0x2E0D8C6E`=核子带 golden（与桌面 `sbgold.c` 逐位一致→核路径板上 bit-exact、harness 完好）；mismatch sb0/idx0（core=0 群延迟、无比值信息）。**已加比值诊断**（每子带首个实质样本 `g_f4_probe_*` + sb3 连续 8 对 `g_f4_dump_*`，sb3 核参考 `0x0018CB1E`）驱动 postscale（>>移位/×2/phase）迭代。详见下「F4b 首板验 + 自检锚改正」|
 | F5 | 🔴 待台架 | 扩 8ch + 抽取；据 GAP-SAT 定要否生成 8ch 过载 golden；**R14 完整闭合定义 F5 再定** |
 | ~~F6 全链 0x90556BC7~~ | ⚠️ **原定义作废** | 真 8ch golden 不存在（golden_ref.h 是单通道）；0x90556BC7 = 单通道全链（DEC-S4-R14-GRANULARITY）|
 | F7 cycle | 🔴 待台架 | R14 闭合后才测 FIRA cycle（含开销）+ 裕量重算 |
@@ -628,6 +628,17 @@
 - **修正**：① R14 退回 **F4-真实现**（`fira_tfb_*` 占位 memset 换真 `adi_fir QueueTask` 段 + `fira_postscale`，台架填 BSP）；② 验证改**中间层**：FIRA `sb0-3` vs 核 `sb0-3`（lockstep 逐样，**不比端到端**）——子带中间值依赖滤波，能测 FIRA 段；核侧 golden 即 Sub-2 numpy 背书的子带值，无新盲区。
 - **粒度（DSP 理由，非单段）**：单段 `hb_decimate2`/`a1` 在**冻结核 `tree_filterbank.c` 内为 static/内部、不外露**；单段比对须改冻结核（违 freeze）→ **取子带 sb0-3（`tfb_analyze` 唯一外露中间层）为最细可达粒度**。
 - **挂接**：R14 / DEC-S4-R14-GRANULARITY（端到端粒度判据**作废,改中间层**）/ DOC-S4-FIRA-IMPL-01 / PF-4 Sub-1/Sub-2。caught-false-green = 审计资产。
+
+### F4b 首板验 + 自检锚改正（2026-06-03，真 FIRA 首跑 + CTO 抓出读数门矛盾）
+- **首板验结果**：真 FIRA 段（commit 604a1f7）首次板上跑——`g_fira_f3_out*` 非零证 FIRA 在算；子带测 `pass=0`（**预期失配**，postscale Q 对齐未调，真活开始）；端到端 `g_bench_result.crc32=0x90556BC7` 仍正常。首失配 sb0/idx0（core=0x00000000 群延迟样本、fira=0x1af29d9a，**无比值信息**）。
+- **CTO 抓出矛盾（改正）**：子带 harness 的 `g_f4_crc_core` 是**核子带 CRC**，**不是**端到端 `0x90556BC7`。旧读数门误写"`g_f4_crc_core` must==0x90556BC7"，与闭合判据 `crc_fira==crc_core` 并列会推出"FIRA 端到端==golden"（盲判据，自相矛盾）。**已改正**：
+  - **核子带 golden = `0x2E0D8C6E`**（桌面 `sbgold.c` 复刻 `fira_r14_regression` 核路径算得；**板上 `g_f4_crc_core` 读数逐位一致**→核路径板上 bit-exact、golden 锚 + harness 完好）。
+  - 自检锚 `bench_main.c`/`fira_regression.c` 三处 `0x90556BC7`→`0x2E0D8C6E`；明确 `0x90556BC7` = **独立**端到端检查（`g_bench_result.crc32`，已 PASS）。
+  - 闭合判据 = `mismatch_sb<0 && g_fira_f4_crc==g_f4_crc_core(=0x2E0D8C6E)`，**子带级、依赖滤波、非盲**（占位 FIRA 已桌面证 `pass=0` 失败）。
+  - 消除潜在别名：`fira_harness_selfcheck`（端到端自检，未被 bench_main 挂接）改写独立全局 `g_f4_crc_core_e2e`，不再覆盖子带 golden。
+- **比值诊断（解决 idx0 core=0 无信息）**：加每子带首个实质样本对 `g_f4_probe_core/fira[0..3]`（|core|≥256）+ sb3 连续 8 对 `g_f4_dump_core/fira[0..7]`。**sb3 最干净**（detail ~1e6，核首实质值 `0x0018CB1E`@frame0/idx1）：板上读 `g_f4_probe_fira[3]/g_f4_probe_core[3]` 比值→判缺失 >>移位（2^k）/ ×2（INT）/ phase 偏移；每子带分开→辨全局移位 vs 单带（仅 INT/detail ×2）错。桌面以占位 FIRA 实跑验证逻辑：`pass=0`、`g_f4_crc_core=0x2E0D8C6E`、`mismatch_sb=0`、`probe sb3 core=0x0018CB1E/fira=0`，全对。
+- **状态**：R14 **未闭合**（诚实，真活迭代中）；**C9/铁律八维持**（零 FIRA 收益进结论）。commit 见 F-progress F4 行。
+- **挂接**：R14 / 上节「R14 假绿回退」/ DOC-S4-FIRA-IMPL-01 / DEC-S4-R14-GRANULARITY。
 
 ---
 

@@ -41,9 +41,18 @@ extern volatile int      g_f4_mismatch_idx;  /* first subband-sample mismatch in
 extern volatile int      g_f4_mismatch_sb;   /* which subband 0..3 of first mismatch (-1 = none) */
 extern volatile int32_t  g_f4_core_val;      /* core (golden) value at first mismatch */
 extern volatile int32_t  g_f4_fira_val;      /* FIRA path value at first mismatch */
-extern volatile uint32_t g_f4_crc_core;      /* core chain CRC (self-check: must == 0x90556BC7) */
+extern volatile uint32_t g_f4_crc_core;      /* core SUBBAND CRC = live golden; self-check anchor 0x2E0D8C6E
+                                              *   (NOT e2e 0x90556BC7; that is g_bench_result.crc32) */
+/* F4b ratio-diagnostic dump (read on FAIL; idx0/coarse ~0 give no ratio -> use these substantial pairs).
+ * sb3 (b=3) is the cleanest shift probe: ratio g_f4_probe_fira[3]/g_f4_probe_core[3] (core ref 0x0018CB1E). */
+extern volatile int32_t  g_f4_probe_core[4]; /* first substantial core sample, per subband 0..3 */
+extern volatile int32_t  g_f4_probe_fira[4]; /* paired FIRA value (ratio reveals >>shift / x2 / phase) */
+extern volatile int      g_f4_probe_idx[4];  /* flattened sample index of probe, per subband */
+extern volatile int32_t  g_f4_dump_core[8];  /* 8 consecutive sb3 core samples (cleanest ratio probe) */
+extern volatile int32_t  g_f4_dump_fira[8];  /* paired FIRA sb3 samples */
+extern volatile int      g_f4_dump_idx0;     /* sb3 flattened index where the 8-sample dump starts */
 volatile int      g_fira_f4_pass = -99;      /* F4b verdict: 1=PASS / 0=mismatch / -99 not-run */
-volatile uint32_t g_fira_f4_crc  = 0;        /* F4b FIRA-chain CRC */
+volatile uint32_t g_fira_f4_crc  = 0;        /* F4b FIRA-subband CRC */
 #endif
 
 /* ---- target CCNT read (true CCLK cycles) ----
@@ -105,15 +114,22 @@ void main(void)
         /* breakpoint here: read g_fira_f2_rc / g_FIRTaskDoneCount / g_fira_f3_out* (verdict in DOC-S4-FIRA-IMPL-01) */
     }
 
-    /* ---- F4b: single-channel bit-exact (FIRA+postscale full chain vs core golden 0x90556BC7) ----
-     * Runs AFTER the F3 smoke (sequenced; smoke does Open..Close, regression does its own Open..Close;
-     *   separate coeff stores (FIRA g_hb_fira vs core g_hb63_q15) + separate buffers -> no state clash).
-     * PASS: g_fira_f4_pass==1 (g_f4_mismatch_idx==-1 AND g_fira_f4_crc==0x90556BC7).
-     * FAIL (expected, iterate): emulator reads g_f4_mismatch_idx / g_f4_core_val / g_f4_fira_val
-     *   (first diverging sample: index, core golden value, FIRA value) -> drives postscale tuning.
-     * Self-check: g_f4_crc_core MUST == 0x90556BC7 (harness/golden intact, else diagnosis invalid). */
+    /* ---- F4b: single-channel SUBBAND bit-exact (FIRA decimate/interp + postscale vs core subbands) ----
+     * Compares FIRA sb0..3 vs core sb0..3 (filter-dependent), NOT end-to-end out (telescoping-blind).
+     * Runs AFTER the F3 smoke (sequenced; smoke does Open..Close, regression does its own Open..Close via
+     *   fira_tree_setup/teardown; separate coeff stores + buffers -> no state clash).
+     * PASS: g_fira_f4_pass==1  <=>  g_f4_mismatch_idx==-1 AND g_fira_f4_crc == g_f4_crc_core (the LIVE
+     *   core-subband golden, == 0x2E0D8C6E). This is the filter-level criterion -- a placeholder FIRA
+     *   (segs=0) FAILS it (unlike the retired e2e 0x90556BC7 test it could fool).
+     * Self-check: g_f4_crc_core MUST == 0x2E0D8C6E (core-subband golden, desktop sbgold.c). If it differs,
+     *   the core path / chirp / coeffs diverged on board -> diagnosis invalid, fix that first.
+     *   (0x90556BC7 is the SEPARATE end-to-end check = g_bench_result.crc32, already PASS above.)
+     * FAIL (expected first run, iterate postscale): read g_f4_mismatch_sb (which subband) / g_f4_mismatch_idx;
+     *   then the ratio probe g_f4_probe_core[0..3] vs g_f4_probe_fira[0..3] (sb3 cleanest, core ref
+     *   0x0018CB1E) + g_f4_dump_core[0..7]/g_f4_dump_fira[0..7] -> reveals missing >>shift / x2 / phase. */
     g_fira_f4_pass = fira_r14_regression((uint32_t *)&g_fira_f4_crc);
-    /* breakpoint here: g_fira_f4_pass / g_fira_f4_crc / g_f4_mismatch_idx / g_f4_core_val / g_f4_fira_val / g_f4_crc_core */
+    /* breakpoint here: g_fira_f4_pass / g_fira_f4_crc / g_f4_crc_core(==0x2E0D8C6E) / g_f4_mismatch_sb /
+     *   g_f4_mismatch_idx / g_f4_probe_core[] / g_f4_probe_fira[] / g_f4_dump_core[] / g_f4_dump_fira[] */
 #endif
 
     /* ---- breakpoint here, emulator read g_bench_result:
