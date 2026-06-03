@@ -28,8 +28,13 @@ volatile uint32_t    g_ccnt_selftest;   /* CCNT self-test (known-loop cycles) */
 
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
 #include "fira_tree.h"                       /* F2 FIRA smoke (only when FIRA wired) */
+#include "fir_coeffs_q31.h"                  /* F3 real coeffs g_hb63_fira32 */
 extern volatile uint32_t g_FIRTaskDoneCount; /* defined in fira_tree.c (set by ALL_CHANNEL_DONE cb) */
-volatile int g_fira_f2_rc = -99;             /* F2 single-channel template rc (emulator; 0=PASS) */
+volatile int g_fira_f2_rc = -99;             /* F2/F3 single-channel template rc (emulator; 0=PASS) */
+volatile int32_t g_fira_f3_out0 = 0;         /* F3 spot: output buf head words (CTO emulator spot-check) */
+volatile int32_t g_fira_f3_out1 = 0;
+volatile int32_t g_fira_f3_out2 = 0;
+volatile int32_t g_fira_f3_out3 = 0;
 #endif
 
 /* ---- target CCNT read (true CCLK cycles) ----
@@ -76,17 +81,19 @@ void main(void)
      *           4=FixedPointEnable (only non-SUCCESS if task==RUNNING = call-order bug; check order,
      *             DO NOT touch config)  5=QueueTask 6=Close / -1=real header undefined / -2=coeffs or buf null. */
     {
-        static int32_t s_f2_coef[63];            /* F2 arbitrary coeffs (smoke only; F3 = real) */
+        /* F3: real coeff path (replaces F2 arbitrary-coeff smoke). Coeffs = frozen g_hb63_fira32
+         *   (Q15 sign-extended, fir_coeffs_q31.h). Out buffer = out_count*3 (DP-01: 3x32-bit/sample). */
         static int32_t s_f2_in[63 + 64 - 1];     /* in_count = ntaps+out_count-1 = 126 */
-        static int32_t s_f2_out[64];             /* out_count = 64 (window) */
+        static int32_t s_f2_out[64 * 3];         /* DP-01: WINDOWSIZE*3 (LSW/MSW/overflow per sample) */
         unsigned i;
-        for (i = 0u; i < 63u; i++) s_f2_coef[i] = 0;
-        s_f2_coef[31] = (int32_t)0x40000000;     /* center tap (any nonzero) */
         for (i = 0u; i < (63u + 64u - 1u); i++) s_f2_in[i] = (int32_t)((uint32_t)i << 20);
-        fira_tree_set_coeffs(s_f2_coef, 63u);
+        fira_tree_set_coeffs(g_hb63_fira32, FIR_HB63_FIRA_NTAPS);   /* F3 real coeffs */
         g_fira_f2_rc = fira_single_channel_template(s_f2_in, 63u + 64u - 1u,
-                                                    s_f2_out, 64u, 63u);
-        /* breakpoint here: read g_fira_f2_rc / g_FIRTaskDoneCount (verdict in DOC-S4-FIRA-IMPL-01) */
+                                                    s_f2_out, 64u, FIR_HB63_FIRA_NTAPS);
+        /* expose output buffer head (3x32-bit of sample 0 + LSW of sample 1) for CTO emulator spot-check */
+        g_fira_f3_out0 = s_f2_out[0]; g_fira_f3_out1 = s_f2_out[1];
+        g_fira_f3_out2 = s_f2_out[2]; g_fira_f3_out3 = s_f2_out[3];
+        /* breakpoint here: read g_fira_f2_rc / g_FIRTaskDoneCount / g_fira_f3_out* (verdict in DOC-S4-FIRA-IMPL-01) */
     }
 #endif
 

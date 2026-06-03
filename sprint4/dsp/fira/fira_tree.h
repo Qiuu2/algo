@@ -99,6 +99,10 @@ typedef struct {
  * ============================================================ */
 void fira_tree_set_coeffs(const int32_t *hb_coef_fira32, uint16_t ntaps);
 
+/** @brief F3: bind active coeffs to the frozen real prototype g_hb63_fira32 (fir_coeffs_q31.h).
+ *   Use to restore real coeffs after an F2 arbitrary-coeff smoke override. */
+void fira_tree_use_real_coeffs(void);
+
 /** @brief Initialize one FIRA tree channel (clear state + fill segment metadata). */
 void fira_channel_init(FiraChannelState *ch, uint16_t frame);
 

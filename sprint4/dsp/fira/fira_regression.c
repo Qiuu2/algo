@@ -25,6 +25,12 @@
  *
  * Desktop build safety: fira_tree_setup()/fira_single_channel_template() return -1 on desktop,
  *   this function accordingly **returns 0 directly** (FAIL, hints "not bench, result invalid"), **never fakes** R14 pass.
+ *
+ * F4 PREP / BUILD STATUS: this translation unit is **Exclude from Build by default** in the CCES bench
+ *   project. It cannot compile without the real Legacy header (FIRA_USE_REAL_ADI_FIR_HEADER) + the
+ *   core_only/bench include path. F4 step: clear "Exclude from Build" on this file (and on the FIRA
+ *   group) once the EZKIT BSP header is wired, then run fira_r14_regression() on board and compare
+ *   crc == GOLDEN_CRC32 (0x90556BC7) from golden_ref.h. Until then it is inert reference plumbing.
  */
 
 #include "fira_tree.h"

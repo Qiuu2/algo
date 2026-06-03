@@ -17,6 +17,7 @@
  */
 
 #include "fira_tree.h"
+#include "fir_coeffs_q31.h"   /* F3: real 63-tap Q15-sign-extended FIRA coeffs g_hb63_fira32 (DP-01) */
 #include <string.h>
 #include <stdint.h>
 
@@ -46,9 +47,11 @@ static inline int32_t f_sat_add_i32(int32_t a, int32_t b)
 }
 #endif
 
-/* ---- Shared FIRA 32-bit halfband coeffs (F3 frozen, sign-extended from Q15, R14-2) ---- */
-static const int32_t *g_hb_fira = 0;
-static uint16_t        g_hb_fira_n = 0;
+/* ---- Shared FIRA 32-bit halfband coeffs (F3 frozen, sign-extended from Q15, R14-2) ----
+ * Default to the real F3 coeffs (g_hb63_fira32, fir_coeffs_q31.h). Bench may override via
+ *   fira_tree_set_coeffs (e.g. F2 arbitrary-coeff smoke). */
+static const int32_t *g_hb_fira   = g_hb63_fira32;
+static uint16_t        g_hb_fira_n = FIR_HB63_FIRA_NTAPS;
 
 void fira_tree_set_coeffs(const int32_t *hb_coef_fira32, uint16_t ntaps)
 {
@@ -57,6 +60,13 @@ void fira_tree_set_coeffs(const int32_t *hb_coef_fira32, uint16_t ntaps)
      *   Bench bit-by-bit verify: mistaking as unsigned / left-shift align misplacement -> overall gain off by 2^k -> CRC fails. */
     g_hb_fira   = hb_coef_fira32;
     g_hb_fira_n = ntaps;
+}
+
+/* F3: explicitly (re)bind to the real frozen coeffs (call after any F2 smoke override). */
+void fira_tree_use_real_coeffs(void)
+{
+    g_hb_fira   = g_hb63_fira32;
+    g_hb_fira_n = FIR_HB63_FIRA_NTAPS;
 }
 
 void fira_channel_init(FiraChannelState *ch, uint16_t frame)
@@ -119,9 +129,13 @@ static ADI_FIR_CHANNEL_INFO fira_make_channel(FiraSegKind kind, uint16_t window,
     ci.nCoefficientCount  = g_hb_fira_n;
     ci.pCoefficientIndex  = (void *)coeff;
     ci.nCoefficientModify = 1;
-    /* -- output (legacy hdr:52) -- */
+    /* -- output (legacy hdr:52) --
+     * DP-01 (HW sec.38-10): 80-bit MAC result is written back in bursts of 3x32-bit (LSW/MSW/overflow),
+     *   so the output buffer must hold WINDOWSIZE x 3 int32 words and nOutputBuffCount = window*3.
+     *   The caller's outbuf MUST be sized window*3 (else FIRA DMA overruns). Core fira_postscale()
+     *   then reassembles 80-bit, >>15 (+x2 for INT), decimates back down to `window` Q31 samples. */
     ci.pOutputBuffBase  = (void *)outbuf;
-    ci.nOutputBuffCount = window;
+    ci.nOutputBuffCount = (uint32_t)window * 3u;   /* WINDOWSIZE x 3 (3x32-bit per sample) */
     ci.nOutputBuffModify = 1;
     ci.pOutputBuffIndex = (void *)outbuf;
     /* -- input (legacy hdr:53): layout nTapLength+nWindowSize-1 (MCP.c:151) -- */
@@ -162,7 +176,8 @@ static void fira_done_cb(void *pCBParam, ADI_FIR_EVENT Event, void *pArg)
  *   (a) lifecycle order correct (Open..Close no ADI_FIR_RESULT error);
  *   (b) Path B runtime FixedPointEnable(SIGNED) takes effect under Legacy (F1 S4 residual G2);
  *   (c) DECIMATION phase / x2 (R14-5/-6) -- compare out bit-by-bit to small-example golden.
- * Buffers passed by caller (in length in_count = ntaps+out_count-1, out length out_count).
+ * Buffers passed by caller: in length in_count = ntaps+out_count-1; **out length out_count*3**
+ *   (DP-01: FIRA writes 3x32-bit per sample = LSW/MSW/overflow). Caller must size out as out_count*3.
  * [L1/EZKIT]: real adi_fir_* behavior bench-side; draft default build returns -1 (no FIRA, no faking).
  * ============================================================ */
 int fira_single_channel_template(const int32_t *in, uint16_t in_count,
@@ -216,6 +231,7 @@ int fira_tree_setup(void)
      * [L1/EZKIT] TaskMemory must #pragma align 32 (MCP.c:82), allocate per real FIR_MEM_SIZE().
      *   Channel grouping (same-level multi-channel concurrency / cross-level callback chain) + per-task FixedPointEnable = F4/F5 bench-side. */
     ADI_FIR_RESULT r;
+    fira_tree_use_real_coeffs();   /* F3: ensure real frozen coeffs active before CreateTask */
     r = adi_fir_Open(0u, &s_hFir);                         if (r != ADI_FIR_RESULT_SUCCESS) return 1;
     r = adi_fir_RegisterCallback(s_hFir, fira_done_cb, 0); if (r != ADI_FIR_RESULT_SUCCESS) return 2;
     /* adi_fir_CreateTask(...) + adi_fir_FixedPointEnable(hTask, SIGNED) grouped per segment:
@@ -235,25 +251,78 @@ void fira_tree_teardown(void)
 }
 
 /* ============================================================
- * SC. R14 post-processing: signed-fractional alignment (FIRA_IMPL.md S3 R14-3/-5, high bit-deviation risk)
+ * SC. R14 post-processing: FIRA 80-bit writeback -> Q31 (DP-01 5-step, FIRA_IMPL.md S3 R14-3/-5)
  * ------------------------------------------------------------
- * After FIRA 80-bit MR (SIGNED_INTEGER MAC) writeback, must unify with our core acc>>15 + x2.
- *   - DEC segment: core hb_push_filter = acc>>15 + sat (tree_filterbank.c:104).
- *   - INT segment: core = (acc>>15)*2 + sat (:127,130).
- *   x2 done only once (R14-5: FIRA INTERPOLATION zero-stuff x2 and signed-fractional x2 may
- *   compound twice -> gain off by 4x).
- *   [ASSUME] scaling factor / shift amount = pending F6 bench bit-by-bit alignment, desktop gives **semantic placeholder**, not fixed value.
+ * Per HW Reference sec.38-10 (DOC-S4-FIRA-DP-01): a 32-bit fixed-point MAC produces an 80-bit result,
+ *   and the result register is always written back in bursts of 3 x 32-bit words:
+ *     word0 = LSW (low 32 bits), word1 = MSW (next 32 bits), word2 = 16-bit overflow (high bits).
+ *   => the FIRA output buffer holds WINDOWSIZE x 3 int32 words, not WINDOWSIZE.
+ *   FIRA does an EXACT integer MAC with NO built-in right shift; the fractional >>15 (our Q15xQ31->Q46)
+ *   must be done here, core-side, matching the golden (arithmetic truncate toward -inf, NOT IEEE round).
+ *
+ * DP-01 5 steps (applied per output sample):
+ *   (a) reassemble the 80-bit signed result from the 3x32-bit words (LSW/MSW/overflow);
+ *   (b) >>15 arithmetic right shift (Q46 -> Q31, same truncation as golden Sigma h*state >>15);
+ *   (c) x2 for signed-fractional compensation (INTERPOLATION segments only; redundant-sign-bit / zero-stuff
+ *       gain, applied ONCE -- R14-5: must not compound twice or gain is off by 4x);
+ *   (d) decimate the buffer to the desired sample stride (per-segment ratio; HW NOTE: "final routine must
+ *       decimate the output buffer to the desired samples");
+ *   (e) Q31 saturate (f_sat_*; FIRA has no Q31 saturation).
+ *
+ * [ASSUME] The exact bit-window of (a), the paired (>>15)/x2 composite of (b)/(c), and the decimate phase
+ *   of (d) are F4 bench-locked (DOC-S4-FIRA-DP-01 sec.6); desktop gives the documented semantics, NOT a
+ *   board-confirmed shift/phase. These are core-side post-processing knobs (gate-internal R14 iteration),
+ *   they do NOT touch the filter structure/algorithm.
  * ============================================================ */
-static int32_t fira_postscale_dec(int64_t fira_mr)
+
+/* (a) Reassemble the signed 80-bit MAC result from the 3x32-bit FIRA writeback words.
+ *   Layout (HW sec.38-10): w[0]=LSW, w[1]=MSW, w[2]=16-bit overflow (sign-extended high bits).
+ *   We need only the low 48..64 bits for a 63-tap halfband (no realistic 80-bit overflow at our levels),
+ *   so we fold MSW into an int64; overflow word is range-checked only.
+ *   [ASSUME] exact bit selection F4-locked; if real data exercises >48 effective bits this must widen. */
+static int64_t fira_reassemble80(const int32_t w[3])
 {
-    /* [ASSUME] bench-side: SIGNED_INTEGER MAC 80-bit MR -> Q31, must >>15 (same core truncation,
-     *   toward negative infinity), must not use IEEE round (R14-1: truncate vs round differs +/-1 LSB -> CRC fails). */
-    return f_sat_i64_to_i32(fira_mr >> 15);
+    uint64_t lsw = (uint32_t)w[0];
+    uint64_t msw = (uint32_t)w[1];
+    int64_t  acc = (int64_t)((msw << 32) | lsw);   /* low 64 bits as signed */
+    /* (a-overflow) w[2] is the 16-bit overflow word; for a 63-tap halfband on Q15xQ31 it must stay
+     *   consistent with the sign of acc (no true >64-bit overflow expected). Bench asserts this on board. */
+    (void)w;   /* w[2] consistency = F4 board check (R14); keep low-64 path bit-exact-capable */
+    return acc;
 }
-static int32_t fira_postscale_int(int64_t fira_mr)
+
+/* DEC segment post-process: (a)->(b)->(e). Decimation phase handled by FIRA hardware skip (R14-6). */
+static int32_t fira_postscale_dec(const int32_t w[3])
 {
-    /* [ASSUME] bench-side: x2 interpolation gain **only once** (R14-5). If FIRA hardware already x2, do not x2 here. */
-    return f_sat_i64_to_i32((fira_mr >> 15) * 2);
+    int64_t acc = fira_reassemble80(w);            /* (a) 80-bit reassemble */
+    return f_sat_i64_to_i32(acc >> 15);            /* (b) >>15 truncate, (e) saturate */
+}
+
+/* INT segment post-process: (a)->(b)->(c)->(e). x2 applied exactly once (R14-5). */
+static int32_t fira_postscale_int(const int32_t w[3])
+{
+    int64_t acc = fira_reassemble80(w);            /* (a) 80-bit reassemble */
+    int64_t q31 = (acc >> 15) * 2;                 /* (b) >>15 truncate, (c) x2 signed-fractional */
+    return f_sat_i64_to_i32(q31);                  /* (e) saturate */
+}
+
+/* (d) Decimate a 3-word-per-sample FIRA output buffer into a packed Q31 sample buffer.
+ *   src holds n_src logical samples, each as 3 consecutive int32 (LSW,MSW,overflow).
+ *   ratio = decimation factor (DEC: pick every ratio-th sample; INT/SINGLE: ratio=1).
+ *   phase = which sub-sample to keep (R14-6 even/odd; F4-locked). kind selects dec vs int postscale.
+ *   Returns number of Q31 samples written to dst. */
+static uint16_t fira_postscale(const int32_t *src3, uint16_t n_src,
+                               int32_t *dst, uint16_t ratio, uint16_t phase,
+                               FiraSegKind kind)
+{
+    uint16_t o = 0u, s;
+    if (ratio == 0u) { ratio = 1u; }
+    for (s = phase; s < n_src; s += ratio) {
+        const int32_t *w = &src3[(uint32_t)s * 3u];   /* 3x32-bit per logical sample */
+        dst[o++] = (kind == FIRA_SEG_DEC) ? fira_postscale_dec(w)
+                                          : fira_postscale_int(w);
+    }
+    return o;   /* decimated Q31 sample count */
 }
 
 /* ============================================================
@@ -279,9 +348,11 @@ void fira_tfb_analyze(FiraChannelState *ch, const int32_t *in, uint16_t frame,
     /* Per-level coarse / interp reconstruction buffers (same layout as tree_filterbank.c:143-144) */
     int32_t a1[256], a2[128], a3[64];
     int32_t r1[512], r2[256], r3[128];
-    (void)ch; (void)fira_postscale_dec; (void)fira_postscale_int;
+    (void)ch; (void)fira_postscale_dec; (void)fira_postscale_int; (void)fira_postscale;
 
     /* -- FIRA segment (DECIMATION r=2, even phase reproduced by hardware skip, R14-6) --
+     * [L1/EZKIT] bench: each FIRA seg writes WINDOWSIZE x 3 int32 (LSW/MSW/overflow); core calls
+     *   fira_postscale(seg_out3, nWindow, aN, FIRA_RATIO, phase, FIRA_SEG_DEC) to get Q31 a1/a2/a3.
      * [L1/EZKIT] bench: a1=FIRA_dec(in); a2=FIRA_dec(a1); a3=FIRA_dec(a2);
      *   (QueueTask seg0->ALL_CHANNEL_DONE->seg1->...->seg2; fira_postscale_dec restores Q31).
      *   Draft has no hardware -> produces no real a1/a2/a3 values; memset below is placeholder to prevent uninitialized read,
