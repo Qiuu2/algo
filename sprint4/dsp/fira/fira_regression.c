@@ -34,8 +34,9 @@
  */
 
 #include "fira_tree.h"
-/* Bench CCES project must set -I.../sprint4/dsp/core_only/bench (the three headers below live in core_only/bench/,
- *    bare filenames resolved via -I; critic MINOR, else F2 compile reports not found) */
+#include "fir_coeffs_hb63.h" /* g_hb63_q15: core (Q15) coeffs for the parallel core golden run (F4a diag) */
+/* Bench CCES project must set -I.../sprint4/dsp/core_only/bench AND -I.../core_only/include
+ *    (headers below live in core_only/bench/ + core_only/include/, bare names resolved via -I) */
 #include "golden_ref.h"     /* reuse core-only golden (0x90556BC7), do not change */
 #include "bench_harness.h"  /* BENCH_FRAME/NFR/FS same convention */
 #include "chirp_input.h"    /* frozen chirp input (same R14 input, S5.3 step2) */
@@ -58,6 +59,32 @@ static uint32_t crc32_buf(const int32_t *d, int n)
 }
 
 static int32_t s_y_fira[BENCH_FRAME * BENCH_NFR];
+static int32_t s_y_core[BENCH_FRAME * BENCH_NFR];   /* parallel core single-channel golden (F4a diag) */
+
+/* F4a mismatch diagnosis globals (emulator reads on FAIL) */
+volatile int     g_f4_mismatch_idx  = -1;   /* first per-sample mismatch index; -1 = none */
+volatile int32_t g_f4_core_val      = 0;    /* core (golden) value at first mismatch */
+volatile int32_t g_f4_fira_val      = 0;    /* FIRA path value at first mismatch */
+volatile uint32_t g_f4_crc_fira     = 0;    /* FIRA chain CRC */
+volatile uint32_t g_f4_crc_core     = 0;    /* core chain CRC (self-check: must == 0x90556BC7) */
+
+/* F4a harness self-check (DESKTOP-runnable, no FIRA): run the core single-channel chain over the
+ * frozen chirp and confirm it reproduces GOLDEN_CRC32. Verifies the comparison infra + golden anchor
+ * are intact (granularity = single-channel full chain, evidence DOC: 0x90556BC7 is single-channel,
+ * gen_golden.c:71-75). Returns 1 if crc_core == GOLDEN_CRC32. */
+int fira_harness_selfcheck(void)
+{
+    TreeChannelState ca, cs;
+    int32_t b0[BENCH_FRAME/8], b1[BENCH_FRAME/4], b2[BENCH_FRAME/2], b3[BENCH_FRAME];
+    tfb_set_coeffs(g_hb63_q15, FIR_HB63_NTAPS);
+    tfb_channel_init(&ca); tfb_channel_init(&cs);
+    for (int f = 0; f < BENCH_NFR; f++) {
+        tfb_analyze(&ca, &CHIRP_INPUT[f * BENCH_FRAME], BENCH_FRAME, b0, b1, b2, b3);
+        tfb_synthesize(&cs, b0, b1, b2, b3, BENCH_FRAME, &s_y_core[f * BENCH_FRAME]);
+    }
+    g_f4_crc_core = crc32_buf(s_y_core, BENCH_FRAME * BENCH_NFR);
+    return (g_f4_crc_core == GOLDEN_CRC32) ? 1 : 0;
+}
 
 /**
  * F7 regression: single-channel FIRA chain 65536 samples -> CRC32 + spot vs golden.
@@ -92,6 +119,19 @@ int fira_r14_regression(uint32_t *out_crc)
 
     uint32_t crc = crc32_buf(s_y_fira, BENCH_FRAME * BENCH_NFR);
     if (out_crc) *out_crc = crc;
+    g_f4_crc_fira = crc;
+
+    /* F4a diagnosis: run the parallel core single-channel chain (golden) and find the FIRST
+     * per-sample mismatch (index + core value + fira value) -> tells which stage/segment diverges.
+     * fira_harness_selfcheck() fills s_y_core + g_f4_crc_core (self-check: g_f4_crc_core==0x90556BC7). */
+    (void)fira_harness_selfcheck();   /* fills s_y_core (Q15 core coeffs), restores core path */
+    g_f4_mismatch_idx = -1;
+    for (int i = 0; i < BENCH_FRAME * BENCH_NFR; i++) {
+        if (s_y_fira[i] != s_y_core[i]) {
+            g_f4_mismatch_idx = i; g_f4_core_val = s_y_core[i]; g_f4_fira_val = s_y_fira[i];
+            break;
+        }
+    }
 
     int crc_match = (crc == GOLDEN_CRC32) ? 1 : 0;
     int spot_match = 1;
@@ -100,7 +140,9 @@ int fira_r14_regression(uint32_t *out_crc)
     }
 
     fira_tree_teardown();
-    return crc_match && spot_match;   /* 1 = R14 PASS (FIRA version bit-identical to core golden) */
+    /* PASS iff no per-sample mismatch (g_f4_mismatch_idx<0) AND crc/spot match. On FAIL, emulator
+     * reads g_f4_mismatch_idx / g_f4_core_val / g_f4_fira_val to drive postscale tuning (F4b). */
+    return (g_f4_mismatch_idx < 0) && crc_match && spot_match;
 }
 
 /* ============================================================
