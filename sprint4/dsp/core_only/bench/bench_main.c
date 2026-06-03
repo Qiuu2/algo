@@ -48,9 +48,9 @@ extern volatile uint32_t g_f4_crc_core;      /* core SUBBAND CRC = live golden; 
 extern volatile int32_t  g_f4_probe_core[4]; /* first substantial core sample, per subband 0..3 */
 extern volatile int32_t  g_f4_probe_fira[4]; /* paired FIRA value (ratio reveals >>shift / x2 / phase) */
 extern volatile int      g_f4_probe_idx[4];  /* flattened sample index of probe, per subband */
-extern volatile int32_t  g_f4_dump_core[8];  /* 8 consecutive sb3 core samples (cleanest ratio probe) */
-extern volatile int32_t  g_f4_dump_fira[8];  /* paired FIRA sb3 samples */
-extern volatile int      g_f4_dump_idx0;     /* sb3 flattened index where the 8-sample dump starts */
+extern volatile int32_t  g_f4_dump_core[32]; /* 32 consecutive sb3 core samples (DEC-PHASE FIX 2026-06-04: 8->32) */
+extern volatile int32_t  g_f4_dump_fira[32]; /* paired FIRA sb3 samples (all-zero residual if fix correct) */
+extern volatile int      g_f4_dump_idx0;     /* sb3 flattened index where the 32-sample dump starts */
 volatile int      g_fira_f4_pass = -99;      /* F4b verdict: 1=PASS / 0=mismatch / -99 not-run */
 volatile uint32_t g_fira_f4_crc  = 0;        /* F4b FIRA-subband CRC */
 #endif
@@ -126,7 +126,9 @@ void main(void)
      *   (0x90556BC7 is the SEPARATE end-to-end check = g_bench_result.crc32, already PASS above.)
      * FAIL (expected first run, iterate postscale): read g_f4_mismatch_sb (which subband) / g_f4_mismatch_idx;
      *   then the ratio probe g_f4_probe_core[0..3] vs g_f4_probe_fira[0..3] (sb3 cleanest, core ref
-     *   0x0018CB1E) + g_f4_dump_core[0..7]/g_f4_dump_fira[0..7] -> reveals missing >>shift / x2 / phase. */
+     *   0x0018CB1E) + g_f4_dump_core[0..31]/g_f4_dump_fira[0..31] -> reveals missing >>shift / x2 / phase.
+     *   DEC-PHASE FIX (2026-06-04): with the fix, g_f4_dump_fira == g_f4_dump_core (residual all-zero);
+     *   if still even-phase the residual grows 0,-2,0,+2,0,-2,0,+6,...,0,-10,0,+22,... (predicted). */
     g_fira_f4_pass = fira_r14_regression((uint32_t *)&g_fira_f4_crc);
     /* breakpoint here: g_fira_f4_pass / g_fira_f4_crc / g_f4_crc_core(==0x2E0D8C6E) / g_f4_mismatch_sb /
      *   g_f4_mismatch_idx / g_f4_probe_core[] / g_f4_probe_fira[] / g_f4_dump_core[] / g_f4_dump_fira[] */

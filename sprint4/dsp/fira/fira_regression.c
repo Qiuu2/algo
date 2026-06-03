@@ -86,7 +86,10 @@ volatile uint32_t g_f4_crc_core_e2e = 0;    /* SEPARATE: end-to-end core CRC wri
  *   phase/index offset. Per-band lets us tell a GLOBAL shift error (all 4 off by same 2^k) from a
  *   band-specific one (e.g. only INT/detail bands off by x2). */
 #define F4_PROBE_THRESH 256
-#define F4_DUMP_N       8
+#define F4_DUMP_N       32   /* bumped 8->32 (2026-06-04, DEC-PHASE FIX): wider sb3 window so the next
+                              * board run sharply confirms the fix -- residual all-zero if fixed, or the
+                              * predicted even-phase explosion 0,-10,0,+22,-40,+72,... if still even-phase.
+                              * (j<sz[b]) guard below keeps it safe past the subband end. */
 volatile int32_t g_f4_probe_core[4] = {0, 0, 0, 0};   /* first substantial core sample, per subband 0..3 */
 volatile int32_t g_f4_probe_fira[4] = {0, 0, 0, 0};   /* paired FIRA value (ratio = shift/x2/phase clue) */
 volatile int     g_f4_probe_idx[4]  = {-1, -1, -1, -1};/* flattened sample index of that probe, per subband */

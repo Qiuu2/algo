@@ -147,16 +147,30 @@ static ADI_FIR_CHANNEL_INFO fira_make_channel(FiraSegKind kind, uint16_t window,
      *   the assignment to `window * FIRA_RATIO` with a one-line change here and re-run R14. [L1/EZKIT] */
     /* Decimation/interpolation mode (per-channel, Legacy supported, F1 S3). Enum see legacy hdr:33-35.
      * [ASSUME] ADI examples all SINGLE_RATE, no dec/int example -> phase/x2 behavior F4 board-verify. */
-    /* INT path uses SOFTWARE zero-stuff + SINGLE_RATE convolution (see fira_run_segment_stateful /
-     * INT history-domain fix 2026-06-03).  Rationale: the FIRA INTERPOLATION mode's internal
-     * zero-stuff PHASE and the cross-frame delay-line state would have to be reverse-engineered and
-     * carried in the 2x domain anyway; doing the zero-stuff in software makes the convolution a plain
-     * SINGLE_RATE FIR over an explicit 2x stream, so the (ntaps-1) cross-frame history is bit-exactly
-     * the tail of that stream (DESKTOP-PROVEN max|core-fira|=0, int_history_proof.py).  x2 gain still
-     * applied in fira_postscale_int.  DEC keeps real DECIMATION mode (its stream is not zero-stuffed). */
-    ci.eSampling       = (kind == FIRA_SEG_DEC) ? ADI_FIR_SAMPLING_DECIMATION
-                                                : ADI_FIR_SAMPLING_SINGLE_RATE;
-    ci.nSamplingRatio  = (kind == FIRA_SEG_DEC) ? FIRA_RATIO : 1u;  /* DEC r=2; INT prestuffed -> r=1 */
+    /* ===== DEC-PHASE FIX (2026-06-04, root cause CONFIRMED by PM + critic) =====
+     * BOTH DEC and INT now run SINGLE_RATE (full-rate FIR); the decimation phase is done in
+     * SOFTWARE by fira_postscale (ratio=2, phase=1).  WHY:
+     *   The board FIRA hardware DECIMATION mode keeps the EVEN input-stream sample (i&1==0), while
+     *   core hb_decimate2 (tree_filterbank.c:113) keeps the ODD one (i&1==1).  Because the DEC
+     *   stream is [hist(62=even) ++ frame], the HW even-phase keep lands on FRAME-EVEN indices but
+     *   core keeps FRAME-ODD -> off-by-one decimation phase.  This reproduced the board sb3 residual
+     *   [0,-2,0,+2,0,-2,0,+6] EXACTLY and then exploded (DESKTOP-PROVEN, decphase_fix_repro.py:
+     *   un-fixed HW-even max|core-fira| = 1734588; fixed = 0 over the WHOLE frame).
+     *   The HW decimation start-phase is NOT controllable through any confirmed Legacy field, and is
+     *   exactly the kind of unverifiable hardware phase we already removed for INT by doing the
+     *   zero-stuff in software.  SAME REMEDY HERE: run SINGLE_RATE (full-rate, ntaps+full-1 inputs ->
+     *   `window` = full-rate outputs = ratio*out_count), then fira_postscale decimates ratio=2 phase=1.
+     *   This makes the decimation phase a SOFTWARE knob (bit-exact-capable, board-independent), and
+     *   the (ntaps-1) RAW cross-frame history (critic-confirmed bit-exact) is UNCHANGED.
+     * INT keeps its SOFTWARE zero-stuff + SINGLE_RATE convolution (INT history-domain fix 2026-06-03):
+     *   doing the zero-stuff in software made the (ntaps-1) cross-frame history bit-exactly the tail
+     *   of the 2x stream (DESKTOP-PROVEN max|core-fira|=0, int_history_proof.py); x2 gain in
+     *   fira_postscale_int.
+     * [ASSUME dec-sw-phase] FIRA HW DECIMATION keeps EVEN phase -> we sidestep it via SINGLE_RATE +
+     *   sw phase=1.  Board R14 g_f4_dump confirms: residual all-zero if fixed; or the predicted
+     *   even-phase explosion 0,-10,0,+22,... if SINGLE_RATE itself somehow still decimates. [L1/EZKIT] */
+    ci.eSampling       = ADI_FIR_SAMPLING_SINGLE_RATE;   /* DEC + INT both full-rate; sw decimate in postscale */
+    ci.nSamplingRatio  = 1u;                             /* full-rate; software decimation downstream */
     /* -- coeffs (legacy hdr:51) -- */
     ci.nCoefficientCount  = g_hb_fira_n;
     ci.pCoefficientIndex  = (void *)coeff;
@@ -170,26 +184,17 @@ static ADI_FIR_CHANNEL_INFO fira_make_channel(FiraSegKind kind, uint16_t window,
     ci.nOutputBuffCount = (uint32_t)window * 3u;   /* WINDOWSIZE x 3 (3x32-bit per sample) */
     ci.nOutputBuffModify = 1;
     ci.pOutputBuffIndex = (void *)outbuf;
-    /* -- input (legacy hdr:53): D1b fix (2026-06-03) --
-     * To produce `window` DECIMATED outputs at ratio=2 from a 63-tap FIR, the engine must consume
-     * ntaps + ratio*window - 1 = 62 + 2*window input samples.
-     * Old (WRONG): ntaps + window - 1   = 62 + window  (factor-of-2 under-count for DEC segments).
-     * [ASSUME] This formula applies when nWindowSize = OUTPUT count.  If the ADI FIRA
-     *   hardware interprets nWindowSize as INPUT count instead, both this field AND nWindowSize
-     *   need revisiting.  Flip `FIRA_RATIO * (uint32_t)window` to plain `window` here to revert. [L1/EZKIT] */
+    /* -- input (legacy hdr:53): DEC-PHASE FIX uniform SINGLE_RATE (2026-06-04) --
+     * BOTH DEC and INT are now SINGLE_RATE, so the input-count formula is uniform:
+     *   nInputBuffCount = ntaps + window - 1   (ntaps-1 priming history + `window` full-rate outputs).
+     * Here `window` is the FULL-RATE output count the FIRA engine produces (one output per input):
+     *   DEC: caller passes window = FIRA_RATIO*out_count (full frame-rate); postscale decimates ->out_count.
+     *   INT: caller passes window = out_count (= 2x the raw input, over the sw zero-stuffed stream).
+     * This matches the buffer fira_run_segment_stateful builds (FIRA_HIST + window).
+     * (Supersedes the D1b ntaps+ratio*window-1 DEC formula, which assumed HW DECIMATION; the HW
+     *  decimation phase was the confirmed root-cause bug, so DEC no longer uses HW decimation.) */
     ci.pInputBuffBase  = (void *)inbuf;
-    ci.nInputBuffCount = (uint32_t)g_hb_fira_n + (uint32_t)FIRA_RATIO * window - 1u; /* DEC default below overridden for INT */
-    if (kind == FIRA_SEG_DEC) {
-        /* DEC: ntaps + ratio*window - 1 = ntaps + 2*out_count - 1 (engine consumes 2 raw inputs/output). */
-        ci.nInputBuffCount = (uint32_t)g_hb_fira_n + (uint32_t)FIRA_RATIO * window - 1u;
-    } else {
-        /* INT (SINGLE_RATE over a SOFTWARE-zero-stuffed stream, fix 2026-06-03):
-         *   input buffer = [zs_history(ntaps-1) ++ zero_stuff(frame)] in the 2x domain.
-         *   `window` = OUTPUT count = number of zero-stuffed frame samples = 2*in_count.
-         *   SINGLE_RATE FIR: nInputBuffCount = ntaps + window - 1 = ntaps-1 priming + window outputs.
-         *   This matches the buffer fira_run_segment_stateful builds: FIRA_HIST + window (= 62 + 2*in_count). */
-        ci.nInputBuffCount = (uint32_t)g_hb_fira_n + window - 1u;
-    }
+    ci.nInputBuffCount = (uint32_t)g_hb_fira_n + window - 1u;   /* SINGLE_RATE: ntaps-1 prime + window outputs */
     ci.nInputBuffModify = 1;
     ci.pInputBuffIndex = (void *)inbuf;
     return ci;
@@ -337,13 +342,18 @@ static int64_t fira_reassemble80(const int32_t w[3])
     uint64_t lsw = (uint32_t)w[0];
     uint64_t msw = (uint32_t)w[1];
     int64_t  acc = (int64_t)((msw << 32) | lsw);   /* low 64 bits as signed */
-    /* (a-overflow) w[2] is the 16-bit overflow word; for a 63-tap halfband on Q15xQ31 it must stay
-     *   consistent with the sign of acc (no true >64-bit overflow expected). Bench asserts this on board. */
+    /* (a-overflow) w[2] is the 16-bit overflow/sign word. Dropping it is LOSSLESS for our data NOT
+     *   because w[2]==0 (for negative acc it is 0xFFFF sign-extension, not 0) but because every acc in
+     *   this 63-tap halfband Q15xQ31 filter fits in signed 64 bits, so reinterpreting the low 64 bits as
+     *   int64 already carries the correct sign+magnitude; w[2] is then pure redundant sign extension and
+     *   reconstructs no information (desktop-proven over the +-2^47 range that occurs,
+     *   residual_pack80_repro.py pack/unpack self-check). Bench asserts the no->64-bit-overflow on board. */
     (void)w;   /* w[2] consistency = F4 board check (R14); keep low-64 path bit-exact-capable */
     return acc;
 }
 
-/* DEC segment post-process: (a)->(b)->(e). Decimation phase handled by FIRA hardware skip (R14-6). */
+/* DEC segment post-process: (a)->(b)->(e). Decimation phase done in SOFTWARE by fira_postscale
+ * (ratio=2, phase=1 == core (i&1)==1; DEC-PHASE FIX 2026-06-04, was FIRA hardware skip/even-phase). */
 static int32_t fira_postscale_dec(const int32_t w[3])
 {
     int64_t acc = fira_reassemble80(w);            /* (a) 80-bit reassemble */
@@ -388,15 +398,18 @@ static uint16_t fira_postscale(const int32_t *src3, uint16_t n_src,
  *   (2) adi_fir_CreateTask (TaskMemory #pragma align 32, FIR_MEM_SIZE(1));
  *   (3) adi_fir_FixedPointEnable(hTask, SIGNED_INTEGER) (Path B, after CreateTask / before QueueTask);
  *   (4) g_FIRTaskDoneCount=0; adi_fir_QueueTask; spin until ALL_CHANNEL_DONE (FIRTaskDoneCount<1);
- *   (5) fira_postscale(s_seg_out3, out_count, out_q31, FIRA_RATIO, phase, kind) -> Q31 samples.
+ *   (5) fira_postscale(s_seg_out3, fira_window, out_q31, post_ratio, post_phase, kind) -> Q31 samples.
  *
- * out3 scratch: FIRA writes WINDOWSIZE x 3 int32 (LSW/MSW/overflow, DP-01). Static [MAXWINDOW*3],
- *   #pragma align 32 (cache-line, MCP.c:82, else breaks bit-exact). MAXWINDOW=512 (largest window = frame=512).
- *   in_count for DEC = ntaps + FIRA_RATIO*out_count - 1; for INT = ntaps + out_count/FIRA_RATIO - 1.
- *   (D1b fix 2026-06-03; old formula ntaps+out_count-1 was wrong for DEC.  Caller passes prepended
- *   temp_in from fira_run_segment_stateful which already has the correct total count.)
+ * out3 scratch: FIRA writes fira_window x 3 int32 (LSW/MSW/overflow, DP-01). Static [MAXWINDOW*3],
+ *   #pragma align 32 (cache-line, MCP.c:82, else breaks bit-exact). MAXWINDOW=512 (largest fira_window =
+ *   FIRA_RATIO*f1 = f0 = 512 for the DEC seg0 full-rate run).
+ *   DEC-PHASE FIX (2026-06-04): BOTH DEC and INT run SINGLE_RATE -> in_count = ntaps + fira_window - 1.
+ *     DEC: fira_window = FIRA_RATIO*out_count (full frame-rate); postscale decimates ratio=2 phase=1.
+ *     INT: fira_window = out_count (sw zero-stuffed 2x stream); postscale ratio=1.
+ *   Caller (fira_run_segment_stateful) passes prepended temp_in with the correct total count.
  *
- * phase: DEC even / INT (x2 zero-stuff) phase per DP-01 [ASSUME]; F4b board bit-by-bit locks the exact phase.
+ * phase: DEC sw-decimate phase=1 (== core (i&1)==1); INT phase=0 (x2 in fira_postscale_int).
+ *   DEC-PHASE FIX 2026-06-04; F4b board bit-by-bit confirms the all-zero residual.
  * Returns 0 on success; non-zero = adi_fir_* failure step code (simplified error flag, draft).
  * [L1/EZKIT]: real adi_fir_* behavior bench-side; cannot run on this host.
  * ============================================================ */
@@ -408,9 +421,10 @@ int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
 {
     /* out3 scratch: WINDOWSIZE x 3 int32 (80-bit/3-word writeback, DP-01). align 32 (MCP.c:82).
      * D-scratch (A5 fix 2026-06-03, approach B): shared static across all 9 segments x 1024 frames.
-     * The earlier per-call memset(s_seg_out3,0,out_count*3) was BELT-AND-SUSPENDERS only: under
-     * ratio=1 fira_postscale reads EXACTLY out_count*3 words (loop s=0..out_count-1, stride 3, 3 words
-     * each = the FIRA write span), so no unwritten slot is ever read -> no stale residue can leak.
+     * The earlier per-call memset(s_seg_out3,0,fira_window*3) was BELT-AND-SUSPENDERS only: fira_postscale
+     * reads only WITHIN the FIRA write span (DEC-PHASE FIX 2026-06-04: FIRA writes fira_window full-rate
+     * slots; postscale reads slots s=post_phase..fira_window-1 stride post_ratio, 3 words each = the FIRA
+     * write span), so no unwritten slot is ever read -> no stale residue can leak.
      * The memset is now REMOVED so that no core write dirties these cache lines; this makes the
      * post-DMA flush_data_buffer(...,1) below effectively invalidate-only (no dirty line to write
      * back over the FIRA DMA data) -> the flush-back hazard is eliminated at the source, not papered
@@ -422,19 +436,31 @@ int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
     ADI_FIR_TASK_HANDLE hTask = 0;
     ADI_FIR_RESULT r;
 
+    /* DEC-PHASE FIX (2026-06-04): FIRA runs SINGLE_RATE (full-rate) for BOTH kinds; the FIRA window
+     * (= number of 3-word slots FIRA writes) is the FULL-RATE output count:
+     *   DEC: fira_window = FIRA_RATIO * out_count (full frame-rate); postscale decimates ratio=2 phase=1
+     *        -> out_count Q31 samples (== core hb_decimate2 keeping (i&1)==1).
+     *   INT: fira_window = out_count (already the 2x zero-stuffed output count); postscale ratio=1.
+     * post_ratio/post_phase drive the SOFTWARE decimation in fira_postscale. */
+    uint16_t fira_window = (kind == FIRA_SEG_DEC) ? (uint16_t)(FIRA_RATIO * out_count) : out_count;
+    uint16_t post_ratio  = (kind == FIRA_SEG_DEC) ? (uint16_t)FIRA_RATIO : 1u;
+    uint16_t post_phase  = (kind == FIRA_SEG_DEC) ? 1u : 0u;   /* DEC: keep odd phase == core (i&1)==1 */
+
     if (s_hFir == 0 || g_hb_fira == 0 || in == 0 || out_q31 == 0) { return -2; }
-    if (out_count > FIRA_MAXWINDOW) { return -3; }   /* scratch overrun guard */
+    if (fira_window > FIRA_MAXWINDOW) { return -3; }   /* scratch overrun guard (full-rate window) */
 
     /* (A5 approach B) NO memset here: see the s_seg_out3 declaration note above. Clearing would
      * dirty the cache lines and reintroduce the post-DMA flush-back hazard; postscale reads exactly
      * the FIRA write span (out_count*3 words) under ratio=1, so there is nothing to pre-clear. */
 
     /* (1) channel info on already-open device (fira_tree_setup did Open + RegisterCallback).
-     * in_count: caller (fira_tfb_analyze/synthesize) now passes the CORRECTED count
-     *   DEC: ntaps + ratio*out_count - 1 (prepend history, total input = hist(62) + frame_slice).
-     *   INT: ntaps + out_count - 1 (prepend history, total input = hist(62) + out_count samples).
+     * in_count: caller (fira_tfb_analyze/synthesize) passes the assembled prepended count.  Under the
+     * DEC-PHASE FIX (SINGLE_RATE for both kinds) the engine consumes ntaps + fira_window - 1 inputs:
+     *   DEC: hist(62) + FIRA_RATIO*out_count raw frame samples = 62 + fira_window (one trailing raw
+     *        sample unused; engine reads ntaps+fira_window-1 = 62+fira_window... i.e. 63+fira_window-1).
+     *   INT: hist(62) + out_count zero-stuffed samples = 62 + fira_window.
      * Passed via `in` which ALREADY points to the prepended temp buffer (see fira_run_segment_stateful). */
-    ADI_FIR_CHANNEL_INFO ch = fira_make_channel(kind, out_count, g_hb_fira, in, s_seg_out3);
+    ADI_FIR_CHANNEL_INFO ch = fira_make_channel(kind, fira_window, g_hb_fira, in, s_seg_out3);
     (void)in_count;   /* in_count double-documented in ch.nInputBuffCount via fira_make_channel; kept for caller contract */
 
     /* (2) CreateTask */
@@ -489,19 +515,21 @@ int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
      *   not silent). Board R14 g_f4 dump still shows zeros/stale if any A5 assumption is wrong.
      *   NOT verifiable on this host. [L1/EZKIT] */
     flush_data_buffer((void *)s_seg_out3,
-                      (void *)(s_seg_out3 + (uint32_t)out_count * 3u),
+                      (void *)(s_seg_out3 + (uint32_t)fira_window * 3u),
                       1 /*enInv: also invalidate after (no dirty lines under approach B)*/);
 
-    /* (5) postscale: 80-bit 3-word -> Q31.
-     * D2 fix (2026-06-03): FIRA DECIMATION mode already produced `out_count` DECIMATED output samples
-     *   in s_seg_out3 (one per output slot, hardware skips alternate samples internally).  Postscale
-     *   must NOT decimate again.  Use ratio=1 -> stride=1 -> reads all out_count slots, emits out_count
-     *   Q31 samples.  Old code used ratio=FIRA_RATIO=2 which halved the count, leaving out_q31[out_count/2
-     *   .. out_count-1] uninitialised.
-     * [ASSUME] FIRA DECIMATION mode: hardware writes exactly `out_count` (= nWindowSize) 3-word slots
-     *   in DMA order (one per DECIMATED output).  If the hw writes 2*out_count slots (before its own
-     *   decimation), flip ratio back to FIRA_RATIO.  Board R14 g_f4_probe ratios will reveal this. [L1/EZKIT] */
-    (void)fira_postscale(s_seg_out3, out_count, out_q31, 1u /*ratio=1: no re-decimate*/, 0u /*phase*/, kind);
+    /* (5) postscale: 80-bit 3-word -> Q31 + SOFTWARE decimation (DEC-PHASE FIX 2026-06-04).
+     * FIRA now runs SINGLE_RATE and wrote `fira_window` full-rate 3-word slots.  Postscale:
+     *   DEC: ratio=2, phase=1 -> keeps slots 1,3,5,... == core hb_decimate2 (i&1)==1 -> out_count samples.
+     *        (DESKTOP-PROVEN max|core-fira|=0 over the whole frame, decphase_fix_repro.py; the OLD
+     *         HW-decimation even-phase path reproduced the board residual [0,-2,0,+2,0,-2,0,+6] then
+     *         exploded to ~1.7e6.)
+     *   INT: ratio=1, phase=0 -> reads all out_count slots (x2 gain applied inside fira_postscale_int).
+     * fira_postscale returns the decimated Q31 sample count (== out_count for DEC, out_count for INT).
+     * [ASSUME dec-sw-phase] FIRA SINGLE_RATE writes exactly `fira_window` full-rate 3-word slots in DMA
+     *   order (one per input-after-priming).  Board R14 g_f4_dump confirms (all-zero if fixed; predicted
+     *   even-phase explosion 0,-10,0,+22,... if SINGLE_RATE itself still decimates). [L1/EZKIT] */
+    (void)fira_postscale(s_seg_out3, fira_window, out_q31, post_ratio, post_phase, kind);
     return 0;
 }
 /* ============================================================
@@ -525,9 +553,11 @@ int fira_run_segment(FiraSegKind kind, const int32_t *in, uint16_t in_count,
  *   Carrying ZERO-STUFFED history for INT -> max|core-fira| = 0 (proof).
  *
  * IMPLEMENTATION:
- *   DEC: build temp_in = [hist_raw(62) ++ frame_raw(2*out_count)], run FIRA DECIMATION mode,
- *        update hist from the last 62 RAW frame samples.  (UNCHANGED from round-1; DEC was confirmed
- *        bit-exact by the Critic and by int_history_proof.py DEC check.)
+ *   DEC: build temp_in = [hist_raw(62) ++ frame_raw(2*out_count)], run FIRA as a SINGLE_RATE FIR over
+ *        that stream (DEC-PHASE FIX 2026-06-04: was FIRA DECIMATION mode, whose EVEN keep-phase mismatched
+ *        the core ODD phase -- the confirmed root-cause bug; now full-rate + SOFTWARE decimate ratio=2
+ *        phase=1 in fira_postscale == core (i&1)==1, DESKTOP-PROVEN max|core-fira|=0 decphase_fix_repro.py).
+ *        The RAW cross-frame history is UNCHANGED (Critic + int_history_proof.py confirmed bit-exact).
  *   INT: build temp_zs = [hist_zs(62) ++ zero_stuff(frame_raw)] in the 2x domain, run FIRA as a
  *        SINGLE_RATE FIR over that explicit 2x stream (eSampling set in fira_make_channel; x2 gain in
  *        fira_postscale_int), keep out_count = 2*in_count outputs, then update hist_zs from the last 62
@@ -650,7 +680,8 @@ void fira_tfb_analyze(FiraChannelState *ch, const int32_t *in, uint16_t frame,
     /* ch is used by fira_run_segment_stateful in the FIRA path; (void)ch removed from the #else path below */
 
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
-    /* -- FIRA DECIMATION segments (r=2, even phase = hardware skip + fira_postscale, R14-6) --
+    /* -- FIRA DEC segments (DEC-PHASE FIX 2026-06-04: SINGLE_RATE full-rate FIR + SOFTWARE decimate
+     *      ratio=2 phase=1 in fira_postscale == core (i&1)==1; was HW DECIMATION even-phase = the bug) --
      *   D3/ST1 fix (2026-06-03): use fira_run_segment_stateful, which prepends history and updates it.
      *   n_frame for DEC = ratio * out_count (the raw sample count consumed by the decimator this frame).
      *   Segment index mapping (fira_channel_init): seg 0=ana_dec[0], 1=ana_dec[1], 2=ana_dec[2].
