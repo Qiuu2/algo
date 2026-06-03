@@ -1,7 +1,7 @@
 /**
  * @file    fira_regression.c
- * @brief   【草案·未编译·待台架】F7 R14 回归 harness：FIRA 路径输出 → CRC32 + spot
- *          vs core-only golden（0x90556BC7）。复用 bench/golden_ref.h 同基准。
+ * @brief   【草案·未编译·真 Legacy API·待台架】F7 R14 回归 harness：FIRA 路径输出
+ *          → CRC32 + spot vs core-only golden（0x90556BC7）。复用 bench/golden_ref.h 同基准。
  *
  * ┌───────────────────────────────────────────────────────────────────────┐
  * │ 🔴 诚实状态：本机无 FIRA 硬件 → 本文件**无法产生有效 FIRA 输出**。       │
@@ -11,13 +11,21 @@
  * │  🚫 桌面跑不出真值；R14 [L1] 由台架板上回填（plan §5.3 step6）。          │
  * └───────────────────────────────────────────────────────────────────────┘
  *
- * 接入方式（plan §5.2 + 任务要点 3）：FIRA 版**替换 bench_harness 的卷积段**——
+ * 接入方式（FIRA_IMPL.md §4 + 任务要点 2）：FIRA 版**替换 bench_harness 的卷积段**——
  *   即把 tfb_analyze/tfb_synthesize 换成 fira_tfb_analyze/fira_tfb_synthesize，
  *   输出仍走同一 crc32_buf + GOLDEN_CRC32/GOLDEN_SPOT 比对。其余（输入冻结 chirp、
  *   sat/unsat 双 build）完全沿用 bench_harness.c，不改 golden（否则失对照基准）。
+ *
+ * 台架先决：F2 先跑 fira_single_channel_template()（单段完整 Legacy 生命周期 +
+ *   Path B 运行时 FixedPointEnable(SIGNED)）验通，再扩到本全链回归（F4→F7）。
+ *
+ * 🔴 桌面构建安全：fira_tree_setup()/fira_single_channel_template() 桌面返回 -1，
+ *   本函数据此**直接返回 0**（FAIL，提示"非台架，结果无效"），**绝不冒充** R14 通过。
  */
 
 #include "fira_tree.h"
+/* ⚠️ 台架 CCES 工程须配 -I.../sprint4/dsp/core_only/bench（下三头实体在 core_only/bench/，
+ *    裸文件名靠 -I 解析；critic MINOR，否则 F2 编译报 not found） */
 #include "golden_ref.h"     /* 复用 core-only golden（0x90556BC7），勿改 */
 #include "bench_harness.h"  /* BENCH_FRAME/NFR/FS 同口径 */
 #include "chirp_input.h"    /* 冻结 chirp 输入（同 R14 输入，§5.3 step2） */
