@@ -35,6 +35,14 @@ volatile int32_t g_fira_f3_out0 = 0;         /* F3 spot: output buf head words (
 volatile int32_t g_fira_f3_out1 = 0;
 volatile int32_t g_fira_f3_out2 = 0;
 volatile int32_t g_fira_f3_out3 = 0;
+/* F4b: single-channel bit-exact (fira_regression.c). Decls (defined in fira_regression.c). */
+extern int      fira_r14_regression(uint32_t *out_crc);
+extern volatile int      g_f4_mismatch_idx;  /* first per-sample mismatch index (-1 = none) */
+extern volatile int32_t  g_f4_core_val;      /* core (golden) value at first mismatch */
+extern volatile int32_t  g_f4_fira_val;      /* FIRA path value at first mismatch */
+extern volatile uint32_t g_f4_crc_core;      /* core chain CRC (self-check: must == 0x90556BC7) */
+volatile int      g_fira_f4_pass = -99;      /* F4b verdict: 1=PASS / 0=mismatch / -99 not-run */
+volatile uint32_t g_fira_f4_crc  = 0;        /* F4b FIRA-chain CRC */
 #endif
 
 /* ---- target CCNT read (true CCLK cycles) ----
@@ -95,6 +103,16 @@ void main(void)
         g_fira_f3_out2 = s_f2_out[2]; g_fira_f3_out3 = s_f2_out[3];
         /* breakpoint here: read g_fira_f2_rc / g_FIRTaskDoneCount / g_fira_f3_out* (verdict in DOC-S4-FIRA-IMPL-01) */
     }
+
+    /* ---- F4b: single-channel bit-exact (FIRA+postscale full chain vs core golden 0x90556BC7) ----
+     * Runs AFTER the F3 smoke (sequenced; smoke does Open..Close, regression does its own Open..Close;
+     *   separate coeff stores (FIRA g_hb_fira vs core g_hb63_q15) + separate buffers -> no state clash).
+     * PASS: g_fira_f4_pass==1 (g_f4_mismatch_idx==-1 AND g_fira_f4_crc==0x90556BC7).
+     * FAIL (expected, iterate): emulator reads g_f4_mismatch_idx / g_f4_core_val / g_f4_fira_val
+     *   (first diverging sample: index, core golden value, FIRA value) -> drives postscale tuning.
+     * Self-check: g_f4_crc_core MUST == 0x90556BC7 (harness/golden intact, else diagnosis invalid). */
+    g_fira_f4_pass = fira_r14_regression((uint32_t *)&g_fira_f4_crc);
+    /* breakpoint here: g_fira_f4_pass / g_fira_f4_crc / g_f4_mismatch_idx / g_f4_core_val / g_f4_fira_val / g_f4_crc_core */
 #endif
 
     /* ---- breakpoint here, emulator read g_bench_result:
