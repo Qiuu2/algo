@@ -1,30 +1,31 @@
 /**
  * @file    fira_tree.c
- * @brief   【草案·未编译·真 Legacy API·F2-F7 待台架】
- *          FIRA 版 4 子带树形 FIR — Split-Task 编排（FIRA 卷积 + 留核定点语义）
+ * @brief   [DRAFT, uncompiled, real Legacy API, F2-F7 bench-side]
+ *          FIRA 4-subband tree FIR - Split-Task orchestration (FIRA convolution + core-side fixed-point semantics)
  *
- * ┌───────────────────────────────────────────────────────────────────────┐
- * │ 🔴 诚实状态（硬约束，禁删）：本机无 SHARC 工具链 + 无 FIRA 硬件 →        │
- * │  本文件 **无法编译 / 板上验证**。adi_fir_* = 真 Legacy 签名（归档头      │
- * │  adi_fir_legacy_2156x.h）；生命周期仿官方 Legacy 实例 MCP.c:243-285。    │
- * │  每个未验证假设标 [ASSUME]/[L1/EZKIT]。                                  │
- * │  🚫 不声称"已编译/已 bit-exact/已实测 cycle" → 全部待台架（F2-F7）。      │
- * └───────────────────────────────────────────────────────────────────────┘
+ * +-----------------------------------------------------------------------+
+ * | HONESTY STATUS (hard constraint, do not delete): no SHARC toolchain   |
+ * |  + no FIRA hardware on this host -> this file **cannot be compiled /   |
+ * |  board-verified**. adi_fir_* = real Legacy signatures (archived header |
+ * |  adi_fir_legacy_2156x.h); lifecycle mirrors official Legacy example    |
+ * |  MCP.c:243-285. Each unverified assumption marked [ASSUME]/[L1/EZKIT]. |
+ * |  Does NOT claim "compiled/bit-exact/measured cycle" -> all bench-side  |
+ * |  (F2-F7).                                                              |
+ * +-----------------------------------------------------------------------+
  *
- * 模式 LEGACY；定点 Path B（运行时 adi_fir_FixedPointEnable(SIGNED)，CreateTask 后/QueueTask 前）。
+ * Mode LEGACY; fixed-point Path B (runtime adi_fir_FixedPointEnable(SIGNED), after CreateTask / before QueueTask).
  */
 
 #include "fira_tree.h"
-#include "fir_coeffs_q31.h"   /* 冻结 32-bit 半带系数（F3，占位 0 → 台架填实） */
 #include <string.h>
 #include <stdint.h>
 
 /* ============================================================
- * 留核定点原语（Split-Task 核侧）
+ * Core-side fixed-point primitives (Split-Task core side)
  * ------------------------------------------------------------
- * 🔴 这些必须留核：FIRA 只做 MAC，无 Q31 饱和 / 向量减 / 向量加语义。
- *   语义逐位等同 tree_filterbank.c:47-61（sat_i64_to_i32 / sat_add_i32）。
- *   R14 比对验证 FIRA 路径与核路径数值等价（crc==0x90556BC7）。
+ * These must stay in core: FIRA only does MAC, no Q31 saturation / vector sub / vector add semantics.
+ *   Semantics bit-identical to tree_filterbank.c:47-61 (sat_i64_to_i32 / sat_add_i32).
+ *   R14 comparison verifies FIRA path numerically equivalent to core path (crc==0x90556BC7).
  * ============================================================ */
 #ifdef TFB_DISABLE_SAT
 static inline int32_t f_sat_i64_to_i32(int64_t v) { return (int32_t)v; }
@@ -45,15 +46,15 @@ static inline int32_t f_sat_add_i32(int32_t a, int32_t b)
 }
 #endif
 
-/* ---- 共享 FIRA 32-bit 半带系数（F3 冻结，符号扩展自 Q15，R14-2） ---- */
+/* ---- Shared FIRA 32-bit halfband coeffs (F3 frozen, sign-extended from Q15, R14-2) ---- */
 static const int32_t *g_hb_fira = 0;
 static uint16_t        g_hb_fira_n = 0;
 
 void fira_tree_set_coeffs(const int32_t *hb_coef_fira32, uint16_t ntaps)
 {
-    /* 🔴 R14-2：hb_coef_fira32 须由 fir_coeffs_q31.h 一次性冻结，
-     *   = Q15 符号扩展进 32-bit 容器（高位补符号），小数点语义保持。
-     *   台架逐位核实：误当无符号 / 左移对齐错位 → 整体增益错 2^k → CRC 必挂。 */
+    /* R14-2: hb_coef_fira32 must be frozen once by fir_coeffs_q31.h,
+     *   = Q15 sign-extended into 32-bit container (sign-fill high bits), fractional-point semantics preserved.
+     *   Bench bit-by-bit verify: mistaking as unsigned / left-shift align misplacement -> overall gain off by 2^k -> CRC fails. */
     g_hb_fira   = hb_coef_fira32;
     g_hb_fira_n = ntaps;
 }
@@ -62,7 +63,7 @@ void fira_channel_init(FiraChannelState *ch, uint16_t frame)
 {
     uint16_t f1 = frame/2u, f2 = frame/4u, f3 = frame/8u;
     memset(ch, 0, sizeof(*ch));
-    /* 段元数据（顺序 = FIRA_IMPL.md §2 表）：3 dec(↓) + 3 ana_int(↑) + 3 syn_int(↑) */
+    /* Segment metadata (order = FIRA_IMPL.md S2 table): 3 dec(down) + 3 ana_int(up) + 3 syn_int(up) */
     ch->kind[0] = FIRA_SEG_DEC; ch->window[0] = f1;   /* ana_dec[0] f0->f1 */
     ch->kind[1] = FIRA_SEG_DEC; ch->window[1] = f2;   /* ana_dec[1] f1->f2 */
     ch->kind[2] = FIRA_SEG_DEC; ch->window[2] = f3;   /* ana_dec[2] f2->f3 */
@@ -76,12 +77,12 @@ void fira_channel_init(FiraChannelState *ch, uint16_t frame)
 }
 
 /* ============================================================
- * §A. ADI_FIR_CHANNEL_INFO 构造（真 Legacy 字段，仿 MCP.c:128-153 + legacy 头:46-54）
+ * SA. ADI_FIR_CHANNEL_INFO construction (real Legacy fields, mirrors MCP.c:128-153 + legacy hdr:46-54)
  * ------------------------------------------------------------
- * 🔴 Legacy 模式下 CHANNEL_INFO **无内联定点字段**（bFixedEnable/eFixedFormat 在
- *   例程 #if ACM 内，Legacy 编译掉，MCP.c:135-142；legacy 头:45 注明）。定点经
- *   运行时 adi_fir_FixedPointEnable(SIGNED) 设（CreateTask 后/QueueTask 前，见 §B）。
- * 字段顺序严格按 legacy 头 ADI_FIR_CHANNEL_INFO（:46-54）：
+ * In Legacy mode CHANNEL_INFO has **no inline fixed-point fields** (bFixedEnable/eFixedFormat are
+ *   inside example's #if ACM, compiled out in Legacy, MCP.c:135-142; legacy hdr:45 notes). Fixed-point set via
+ *   runtime adi_fir_FixedPointEnable(SIGNED) (after CreateTask / before QueueTask, see SB).
+ * Field order strictly per legacy hdr ADI_FIR_CHANNEL_INFO (:46-54):
  *   nTapLength, nWindowSize, eSampling, nSamplingRatio,
  *   nCoefficientCount, pCoefficientIndex, nCoefficientModify,
  *   pOutputBuffBase, nOutputBuffCount, nOutputBuffModify, pOutputBuffIndex,
@@ -89,17 +90,17 @@ void fira_channel_init(FiraChannelState *ch, uint16_t frame)
  * ============================================================ */
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
 /**
- * 构造一个半带段的 Legacy ADI_FIR_CHANNEL_INFO。
- *  @param kind   DEC→eSampling=DECIMATION；INT→INTERPOLATION（FIRA_IMPL.md §2）
- *  @param window 输出样本数（= frame/2^level）
- *  @param coeff  冻结 32-bit 半带系数基址（fira_tree_set_coeffs 注入）
- *  @param inbuf  输入延迟线基址，**布局须为 nTapLength+nWindowSize-1**（MCP.c:151）
- *  @param outbuf 输出缓冲基址（window 样本）
+ * Construct a Legacy ADI_FIR_CHANNEL_INFO for one halfband segment.
+ *  @param kind   DEC->eSampling=DECIMATION; INT->INTERPOLATION (FIRA_IMPL.md S2)
+ *  @param window output sample count (= frame/2^level)
+ *  @param coeff  frozen 32-bit halfband coeff base (injected by fira_tree_set_coeffs)
+ *  @param inbuf  input delay-line base, **layout must be nTapLength+nWindowSize-1** (MCP.c:151)
+ *  @param outbuf output buffer base (window samples)
  *
- * 🔴 R14-3（HIGH）：定点格式不在此设（Legacy 无字段）；由 adi_fir_FixedPointEnable
- *   (hTask, SIGNED_INTEGER) 运行时设。signed-fractional 当 SIGNED_INTEGER 用 → 小数点
- *   语义丢失，须配 ×2 缩放 + decimate 后处理 + 核内 >>15 一致化（见 fira_postscale_*）。
- *   **此映射桌面无法坐实，必上板逐位回归 golden 0x90556BC7**。
+ * R14-3 (HIGH): fixed-point format not set here (no Legacy field); set at runtime by adi_fir_FixedPointEnable
+ *   (hTask, SIGNED_INTEGER). signed-fractional used as SIGNED_INTEGER -> fractional-point
+ *   semantics lost, needs x2 scaling + decimate post-processing + core-side >>15 unification (see fira_postscale_*).
+ *   **This mapping cannot be confirmed on desktop, must do board bit-by-bit regression golden 0x90556BC7**.
  */
 static ADI_FIR_CHANNEL_INFO fira_make_channel(FiraSegKind kind, uint16_t window,
                                               const int32_t *coeff,
@@ -107,23 +108,23 @@ static ADI_FIR_CHANNEL_INFO fira_make_channel(FiraSegKind kind, uint16_t window,
 {
     ADI_FIR_CHANNEL_INFO ci;
     memset(&ci, 0, sizeof(ci));
-    ci.nTapLength      = g_hb_fira_n;                      /* 63（legacy 头:47） */
-    ci.nWindowSize     = window;                           /* 输出样本数（:48） */
-    /* 抽取/插值模式（per-channel，Legacy 支持，F1 §3）。枚举见 legacy 头:33-35。
-     * 🔴 [ASSUME] ADI 例程全 SINGLE_RATE，无 dec/int 示例 → 相位/×2 行为 F4 上板验。 */
+    ci.nTapLength      = g_hb_fira_n;                      /* 63 (legacy hdr:47) */
+    ci.nWindowSize     = window;                           /* output sample count (:48) */
+    /* Decimation/interpolation mode (per-channel, Legacy supported, F1 S3). Enum see legacy hdr:33-35.
+     * [ASSUME] ADI examples all SINGLE_RATE, no dec/int example -> phase/x2 behavior F4 board-verify. */
     ci.eSampling       = (kind == FIRA_SEG_DEC) ? ADI_FIR_SAMPLING_DECIMATION
                                                 : ADI_FIR_SAMPLING_INTERPOLATION;
-    ci.nSamplingRatio  = FIRA_RATIO;                       /* 2（整数，legacy 头:50） */
-    /* —— 系数（legacy 头:51）—— */
+    ci.nSamplingRatio  = FIRA_RATIO;                       /* 2 (integer, legacy hdr:50) */
+    /* -- coeffs (legacy hdr:51) -- */
     ci.nCoefficientCount  = g_hb_fira_n;
     ci.pCoefficientIndex  = (void *)coeff;
     ci.nCoefficientModify = 1;
-    /* —— 输出（legacy 头:52）—— */
+    /* -- output (legacy hdr:52) -- */
     ci.pOutputBuffBase  = (void *)outbuf;
     ci.nOutputBuffCount = window;
     ci.nOutputBuffModify = 1;
     ci.pOutputBuffIndex = (void *)outbuf;
-    /* —— 输入（legacy 头:53）：布局 nTapLength+nWindowSize-1（MCP.c:151）—— */
+    /* -- input (legacy hdr:53): layout nTapLength+nWindowSize-1 (MCP.c:151) -- */
     ci.pInputBuffBase  = (void *)inbuf;
     ci.nInputBuffCount = (uint32_t)g_hb_fira_n + window - 1u;
     ci.nInputBuffModify = 1;
@@ -133,43 +134,43 @@ static ADI_FIR_CHANNEL_INFO fira_make_channel(FiraSegKind kind, uint16_t window,
 #endif /* FIRA_USE_REAL_ADI_FIR_HEADER */
 
 /* ============================================================
- * §B. 设备 / 任务生命周期（真 Legacy，仿 MCP.c:243-285）
+ * SB. Device / task lifecycle (real Legacy, mirrors MCP.c:243-285)
  * ------------------------------------------------------------
- * 链：Open → RegisterCallback → CreateTask → FixedPointEnable(SIGNED) → QueueTask
- *     → 等回调(FIRTaskDoneCount<N_TASKS, ALL_CHANNEL_DONE) → Close。
- * Legacy 完成事件 = ADI_FIR_EVENT_ALL_CHANNEL_DONE（MCP.c:103），主循环等
- *   FIRTaskDoneCount < N_TASKS（MCP.c:282）。
+ * Chain: Open -> RegisterCallback -> CreateTask -> FixedPointEnable(SIGNED) -> QueueTask
+ *     -> wait callback (FIRTaskDoneCount<N_TASKS, ALL_CHANNEL_DONE) -> Close.
+ * Legacy completion event = ADI_FIR_EVENT_ALL_CHANNEL_DONE (MCP.c:103), main loop waits
+ *   FIRTaskDoneCount < N_TASKS (MCP.c:282).
  * ============================================================ */
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
 static ADI_FIR_DEV_HANDLE  s_hFir = 0;
-volatile uint32_t          g_FIRTaskDoneCount = 0;   /* 回调置位（MCP.c:92,105，Legacy 每 task 一次） */
+volatile uint32_t          g_FIRTaskDoneCount = 0;   /* set by callback (MCP.c:92,105, Legacy once per task) */
 
-/* 完成回调：Legacy 在一个 task 的所有 channel 完成后触发一次 ALL_CHANNEL_DONE（MCP.c:96-107）。 */
+/* Completion callback: Legacy fires ALL_CHANNEL_DONE once after all channels of one task complete (MCP.c:96-107). */
 static void fira_done_cb(void *pCBParam, ADI_FIR_EVENT Event, void *pArg)
 {
     (void)pCBParam; (void)pArg;
-    if (Event == ADI_FIR_EVENT_ALL_CHANNEL_DONE) {   /* Legacy（MCP.c:103） */
+    if (Event == ADI_FIR_EVENT_ALL_CHANNEL_DONE) {   /* Legacy (MCP.c:103) */
         g_FIRTaskDoneCount++;
     }
 }
 #endif
 
 /* ============================================================
- * §B-template. F2-F4 单通道台架起步模板（可编译起步：台架定义真头后即跑）
+ * SB-template. F2-F4 single-channel bench starter template (compilable starter: runs once bench defines real header)
  * ------------------------------------------------------------
- * 跑通 1 个 DECIMATION 半带段的**完整 Legacy 生命周期 + Path B 定点**，验证：
- *   (a) 生命周期顺序正确（Open..Close 无 ADI_FIR_RESULT 错）；
- *   (b) Path B 运行时 FixedPointEnable(SIGNED) 在 Legacy 下生效（F1 §4 残留 G2）；
- *   (c) DECIMATION 相位 / ×2（R14-5/-6）—— 对 out 逐位比小例 golden。
- * 缓冲由调用者传入（in 长 in_count = ntaps+out_count-1，out 长 out_count）。
- * 🔴 [L1/EZKIT]：真 adi_fir_* 行为待台架；草案默认构建返回 -1（不接 FIRA，不冒充）。
+ * Run **full Legacy lifecycle + Path B fixed-point** of 1 DECIMATION halfband segment, verify:
+ *   (a) lifecycle order correct (Open..Close no ADI_FIR_RESULT error);
+ *   (b) Path B runtime FixedPointEnable(SIGNED) takes effect under Legacy (F1 S4 residual G2);
+ *   (c) DECIMATION phase / x2 (R14-5/-6) -- compare out bit-by-bit to small-example golden.
+ * Buffers passed by caller (in length in_count = ntaps+out_count-1, out length out_count).
+ * [L1/EZKIT]: real adi_fir_* behavior bench-side; draft default build returns -1 (no FIRA, no faking).
  * ============================================================ */
 int fira_single_channel_template(const int32_t *in, uint16_t in_count,
                                  int32_t *out, uint16_t out_count, uint16_t ntaps)
 {
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
-    /* TaskMemory：真 FIR_MEM_SIZE(N_CH) 宏（legacy 头:18）。1 通道 → FIR_MEM_SIZE(1)。
-     * #pragma align 32（MCP.c:82-83；cache line 对齐，否则坏 bit-exact，见 FIRA_IMPL.md §F4）。 */
+    /* TaskMemory: real FIR_MEM_SIZE(N_CH) macro (legacy hdr:18). 1 channel -> FIR_MEM_SIZE(1).
+     * #pragma align 32 (MCP.c:82-83; cache line alignment, else breaks bit-exact, see FIRA_IMPL.md SF4). */
     #pragma align 32
     static uint8_t s_taskMem[FIR_MEM_SIZE(1)];
     ADI_FIR_TASK_HANDLE hTask = 0;
@@ -177,12 +178,12 @@ int fira_single_channel_template(const int32_t *in, uint16_t in_count,
 
     if (g_hb_fira == 0 || in == 0 || out == 0) { return -2; }
 
-    /* 1 个 channel：DECIMATION r=2（台架可切 INTERPOLATION 验 ×2）。 */
+    /* 1 channel: DECIMATION r=2 (bench can switch INTERPOLATION to verify x2). */
     ADI_FIR_CHANNEL_INFO ch = fira_make_channel(FIRA_SEG_DEC, out_count,
                                                 g_hb_fira, in, out);
     ch.nTapLength = ntaps; ch.nCoefficientCount = ntaps;
     ch.nInputBuffCount = (uint32_t)ntaps + out_count - 1u;
-    (void)in_count;   /* 调用者保证 in_count == ntaps+out_count-1（布局自检留台架） */
+    (void)in_count;   /* caller guarantees in_count == ntaps+out_count-1 (layout self-check bench-side) */
 
     g_FIRTaskDoneCount = 0;
 
@@ -191,111 +192,111 @@ int fira_single_channel_template(const int32_t *in, uint16_t in_count,
     r = adi_fir_CreateTask(s_hFir, &ch, 1u, (void *)s_taskMem,
                            (uint32_t)FIR_MEM_SIZE(1), &hTask);
                                                             if (r != ADI_FIR_RESULT_SUCCESS) return 3;
-    /* 🔴 Path B：CreateTask 后、QueueTask 前设定点 SIGNED（F1 锁定，不改 config 头）。 */
+    /* Path B: set fixed-point SIGNED after CreateTask / before QueueTask (F1 locked, do not change config header). */
     r = adi_fir_FixedPointEnable(hTask, ADI_FIR_FIXED_INPUT_FORMAT_SIGNED_INTEGER);
                                                             if (r != ADI_FIR_RESULT_SUCCESS) return 4;
     r = adi_fir_QueueTask(hTask);                           if (r != ADI_FIR_RESULT_SUCCESS) return 5;
 
-    /* Legacy：等 N_TASKS=1 个 ALL_CHANNEL_DONE 回调（MCP.c:282）。 */
-    while (g_FIRTaskDoneCount < 1u) { /* spin；台架可换 idle/事件等待 */ }
+    /* Legacy: wait N_TASKS=1 ALL_CHANNEL_DONE callbacks (MCP.c:282). */
+    while (g_FIRTaskDoneCount < 1u) { /* spin; bench can switch to idle/event wait */ }
 
     r = adi_fir_Close(s_hFir);  s_hFir = 0;                 if (r != ADI_FIR_RESULT_SUCCESS) return 6;
     return 0;
 #else
     (void)in; (void)in_count; (void)out; (void)out_count; (void)ntaps;
-    return -1;   /* 🚫 本机无真头：不可执行，禁误用为"已验证"。台架定义真头后返回 0。 */
+    return -1;   /* No real header on this host: not executable, do not misuse as "verified". Returns 0 once bench defines real header. */
 #endif
 }
 
 int fira_tree_setup(void)
 {
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
-    /* 仿 MCP.c:243-265：Open → RegisterCallback → CreateTask（×段/通道分组）
-     *   → FixedPointEnable(SIGNED)（每任务，Path B）。
-     * 🔴 [L1/EZKIT] TaskMemory 须 #pragma align 32（MCP.c:82），按真 FIR_MEM_SIZE() 分配。
-     *   通道分组（同级多通道并发 / 跨级回调链）+ 每任务 FixedPointEnable = F4/F5 台架定。 */
+    /* Mirrors MCP.c:243-265: Open -> RegisterCallback -> CreateTask (per segment/channel grouping)
+     *   -> FixedPointEnable(SIGNED) (per task, Path B).
+     * [L1/EZKIT] TaskMemory must #pragma align 32 (MCP.c:82), allocate per real FIR_MEM_SIZE().
+     *   Channel grouping (same-level multi-channel concurrency / cross-level callback chain) + per-task FixedPointEnable = F4/F5 bench-side. */
     ADI_FIR_RESULT r;
     r = adi_fir_Open(0u, &s_hFir);                         if (r != ADI_FIR_RESULT_SUCCESS) return 1;
     r = adi_fir_RegisterCallback(s_hFir, fira_done_cb, 0); if (r != ADI_FIR_RESULT_SUCCESS) return 2;
-    /* adi_fir_CreateTask(...) + adi_fir_FixedPointEnable(hTask, SIGNED) 按段分组：
-     *   [ASSUME] 见 FIRA_IMPL.md §F2/F4/F5，全任务编排待台架。 */
+    /* adi_fir_CreateTask(...) + adi_fir_FixedPointEnable(hTask, SIGNED) grouped per segment:
+     *   [ASSUME] see FIRA_IMPL.md SF2/SF4/SF5, full task orchestration bench-side. */
     return 0;
 #else
-    /* 🚫 本机无真头：setup 不可执行。返回非 0 表"未在目标平台"，禁误用。 */
-    return -1;   /* 台架（F1）启用真头后返回 0 */
+    /* No real header on this host: setup not executable. Non-zero return means "not on target platform", do not misuse. */
+    return -1;   /* Returns 0 once bench (F1) enables real header */
 #endif
 }
 
 void fira_tree_teardown(void)
 {
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
-    if (s_hFir) { adi_fir_Close(s_hFir); s_hFir = 0; }   /* 实时退出调（MCP.c 未显式调） */
+    if (s_hFir) { adi_fir_Close(s_hFir); s_hFir = 0; }   /* call on real-time exit (MCP.c does not call explicitly) */
 #endif
 }
 
 /* ============================================================
- * §C. R14 后处理：signed-fractional 对齐（FIRA_IMPL.md §3 R14-3/-5，bit 偏差高发）
+ * SC. R14 post-processing: signed-fractional alignment (FIRA_IMPL.md S3 R14-3/-5, high bit-deviation risk)
  * ------------------------------------------------------------
- * 🔴 FIRA 80-bit MR（SIGNED_INTEGER MAC）回写后，须与我方核 acc>>15 + ×2 一致化。
- *   - DEC 段：核 hb_push_filter = acc>>15 + sat（tree_filterbank.c:104）。
- *   - INT 段：核 = (acc>>15)*2 + sat（:127,130）。
- *   ×2 只做一次（R14-5：FIRA INTERPOLATION 零插值 ×2 与 signed-fractional ×2 可能
- *   复合两次 → 增益错 4×）。
- *   [ASSUME] 缩放因子/移位量 = 待 F6 台架逐位对齐，桌面给的是**语义占位**，非定值。
+ * After FIRA 80-bit MR (SIGNED_INTEGER MAC) writeback, must unify with our core acc>>15 + x2.
+ *   - DEC segment: core hb_push_filter = acc>>15 + sat (tree_filterbank.c:104).
+ *   - INT segment: core = (acc>>15)*2 + sat (:127,130).
+ *   x2 done only once (R14-5: FIRA INTERPOLATION zero-stuff x2 and signed-fractional x2 may
+ *   compound twice -> gain off by 4x).
+ *   [ASSUME] scaling factor / shift amount = pending F6 bench bit-by-bit alignment, desktop gives **semantic placeholder**, not fixed value.
  * ============================================================ */
 static int32_t fira_postscale_dec(int64_t fira_mr)
 {
-    /* 🔴 [ASSUME] 待台架：SIGNED_INTEGER MAC 的 80-bit MR → Q31，须 >>15（同核截断，
-     *   向负无穷），不得用 IEEE round（R14-1：截断 vs 舍入差 ±1 LSB → CRC 挂）。 */
+    /* [ASSUME] bench-side: SIGNED_INTEGER MAC 80-bit MR -> Q31, must >>15 (same core truncation,
+     *   toward negative infinity), must not use IEEE round (R14-1: truncate vs round differs +/-1 LSB -> CRC fails). */
     return f_sat_i64_to_i32(fira_mr >> 15);
 }
 static int32_t fira_postscale_int(int64_t fira_mr)
 {
-    /* 🔴 [ASSUME] 待台架：×2 内插增益**只一次**（R14-5）。若 FIRA 硬件已 ×2，则此处不再 ×2。 */
+    /* [ASSUME] bench-side: x2 interpolation gain **only once** (R14-5). If FIRA hardware already x2, do not x2 here. */
     return f_sat_i64_to_i32((fira_mr >> 15) * 2);
 }
 
 /* ============================================================
- * §D. 帧级 Split-Task 编排（草案占位）
+ * SD. Frame-level Split-Task orchestration (draft placeholder)
  * ------------------------------------------------------------
- * 🔴 与 tfb_analyze/tfb_synthesize 同签名 → fira_regression 可直接替换做 CRC 比对。
- *   本机无 FIRA → 无法真跑。草案给**编排骨架 + 留核段**；FIRA 卷积段以注释标出
- *   "此处 QueueTask + 等 ALL_CHANNEL_DONE"，台架（F4-F6）填真调用。detail 减/合成加/饱和=核内。
+ * Same signature as tfb_analyze/tfb_synthesize -> fira_regression can directly substitute for CRC comparison.
+ *   No FIRA on this host -> cannot truly run. Draft gives **orchestration skeleton + core-side segments**; FIRA convolution segments marked in comments
+ *   "QueueTask + wait ALL_CHANNEL_DONE here", bench (F4-F6) fills real calls. detail sub / synthesis add / saturation = in core.
  *
- *   ⚠️ 草案策略（避免冒充验证）：未定义 FIRA_USE_REAL_ADI_FIR_HEADER 时，
- *   FIRA 卷积段**不可用**，本两函数仅保留留核部分 + 段标注，不产出有效数值
- *   （不冒充 bit-exact）。台架启用真头后接通 FIRA 段。
+ *   Draft strategy (avoid faking verification): when FIRA_USE_REAL_ADI_FIR_HEADER undefined,
+ *   FIRA convolution segments **unavailable**, these two functions keep only core-side part + segment annotation, produce no valid values
+ *   (no faking bit-exact). Bench connects FIRA segments once real header enabled.
  *
- *   🔴 8ch×多段扩展 = F5（标注，不全展开）：本两函数处理单通道；8ch broadside
- *   把 8 路单通道 analyze/synthesize 各自跑后在核内 sat_add 求和（复用 tfb_8ch.c），
- *   每路一组 ADI_FIR_CHANNEL_INFO + 一次 FixedPointEnable，task 分组与并发度台架填。
+ *   8ch x multi-segment extension = F5 (annotated, not fully expanded): these two functions handle single channel; 8ch broadside
+ *   runs 8 single-channel analyze/synthesize each then sums in core via sat_add (reuse tfb_8ch.c),
+ *   each path one set of ADI_FIR_CHANNEL_INFO + one FixedPointEnable, task grouping and concurrency bench-side.
  * ============================================================ */
 void fira_tfb_analyze(FiraChannelState *ch, const int32_t *in, uint16_t frame,
                       int32_t *sb0, int32_t *sb1, int32_t *sb2, int32_t *sb3)
 {
     uint16_t f0 = frame, f1 = frame/2u, f2 = frame/4u, f3 = frame/8u;
     uint16_t i;
-    /* 各级 coarse / interp 重建缓冲（同 tree_filterbank.c:143-144 布局） */
+    /* Per-level coarse / interp reconstruction buffers (same layout as tree_filterbank.c:143-144) */
     int32_t a1[256], a2[128], a3[64];
     int32_t r1[512], r2[256], r3[128];
     (void)ch; (void)fira_postscale_dec; (void)fira_postscale_int;
 
-    /* —— FIRA 段（DECIMATION r=2，取偶相位由硬件 skip 复现，R14-6）——
-     * 🔴 [L1/EZKIT] 台架：a1=FIRA_dec(in); a2=FIRA_dec(a1); a3=FIRA_dec(a2);
-     *   （QueueTask seg0→ALL_CHANNEL_DONE→seg1→…→seg2；fira_postscale_dec 还原 Q31）。
-     *   草案无硬件 → 不产生 a1/a2/a3 真值；下行 memset 仅占位防未初始化读，
-     *   🚫 不代表数值正确（R14 由台架 crc 判定）。 */
+    /* -- FIRA segment (DECIMATION r=2, even phase reproduced by hardware skip, R14-6) --
+     * [L1/EZKIT] bench: a1=FIRA_dec(in); a2=FIRA_dec(a1); a3=FIRA_dec(a2);
+     *   (QueueTask seg0->ALL_CHANNEL_DONE->seg1->...->seg2; fira_postscale_dec restores Q31).
+     *   Draft has no hardware -> produces no real a1/a2/a3 values; memset below is placeholder to prevent uninitialized read,
+     *   does NOT mean values correct (R14 judged by bench crc). */
     memset(a1, 0, sizeof(a1)); memset(a2, 0, sizeof(a2)); memset(a3, 0, sizeof(a3));
 
-    /* —— FIRA 段（INTERPOLATION r=2，求 detail 用 coarse 重建，×2 见 fira_postscale_int）——
-     * 🔴 [L1/EZKIT] 台架：r3=FIRA_int(a3); r2=FIRA_int(a2); r1=FIRA_int(a1); */
+    /* -- FIRA segment (INTERPOLATION r=2, reconstruct coarse for detail, x2 see fira_postscale_int) --
+     * [L1/EZKIT] bench: r3=FIRA_int(a3); r2=FIRA_int(a2); r1=FIRA_int(a1); */
     memset(r1, 0, sizeof(r1)); memset(r2, 0, sizeof(r2)); memset(r3, 0, sizeof(r3));
 
-    /* —— 留核（FIRA 无向量减）：detail = 本级 − interp2(下级) —— */
-    for (i = 0u; i < f2; i++) sb1[i] = a2[i] - r3[i];   /* SB1 detail @f2（逐位同 tree_filterbank.c:161） */
-    for (i = 0u; i < f1; i++) sb2[i] = a1[i] - r2[i];   /* SB2 detail @f1（:162） */
-    for (i = 0u; i < f0; i++) sb3[i] = in[i] - r1[i];   /* SB3 detail @f0（:163） */
-    for (i = 0u; i < f3; i++) sb0[i] = a3[i];           /* SB0 coarse @f3（:164） */
+    /* -- core-side (FIRA has no vector sub): detail = this level - interp2(lower level) -- */
+    for (i = 0u; i < f2; i++) sb1[i] = a2[i] - r3[i];   /* SB1 detail @f2 (bit-identical tree_filterbank.c:161) */
+    for (i = 0u; i < f1; i++) sb2[i] = a1[i] - r2[i];   /* SB2 detail @f1 (:162) */
+    for (i = 0u; i < f0; i++) sb3[i] = in[i] - r1[i];   /* SB3 detail @f0 (:163) */
+    for (i = 0u; i < f3; i++) sb0[i] = a3[i];           /* SB0 coarse @f3 (:164) */
 }
 
 void fira_tfb_synthesize(FiraChannelState *ch,
@@ -309,16 +310,16 @@ void fira_tfb_synthesize(FiraChannelState *ch,
     int32_t up3[128], up2[256], up1[512];
     (void)ch;
 
-    /* —— FIRA 段（INTERPOLATION）+ 留核合成加（sat_add，FIRA 无向量加）—— */
-    /* 🔴 [L1/EZKIT] 台架：up3=FIRA_int(sb0); 草案占位 0。 */
+    /* -- FIRA segment (INTERPOLATION) + core-side synthesis add (sat_add, FIRA has no vector add) -- */
+    /* [L1/EZKIT] bench: up3=FIRA_int(sb0); draft placeholder 0. */
     memset(up3, 0, sizeof(up3));
-    for (i = 0u; i < f2; i++) a2p[i] = f_sat_add_i32(up3[i], sb1[i]);   /* 逐位同 tree_filterbank.c:197 */
+    for (i = 0u; i < f2; i++) a2p[i] = f_sat_add_i32(up3[i], sb1[i]);   /* bit-identical tree_filterbank.c:197 */
 
-    /* 🔴 [L1/EZKIT] 台架：up2=FIRA_int(a2p); */
+    /* [L1/EZKIT] bench: up2=FIRA_int(a2p); */
     memset(up2, 0, sizeof(up2));
     for (i = 0u; i < f1; i++) a1p[i] = f_sat_add_i32(up2[i], sb2[i]);   /* :201 */
 
-    /* 🔴 [L1/EZKIT] 台架：up1=FIRA_int(a1p); */
+    /* [L1/EZKIT] bench: up1=FIRA_int(a1p); */
     memset(up1, 0, sizeof(up1));
     for (i = 0u; i < f0; i++) out[i] = f_sat_add_i32(up1[i], sb3[i]);   /* :205 */
 }
