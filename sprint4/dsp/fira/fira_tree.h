@@ -85,10 +85,30 @@ typedef enum {
 /* ============================================================
  * FIRA tree channel state (draft): per-channel segment metadata (window/category).
  *   Actual buffers (coeffs/input delay-line/output) + TaskMemory statically allocated by caller (F2 template demo).
+ *
+ * D3 / ST1 cross-frame history (fix 2026-06-03):
+ *   tree_filterbank.c is STATEFUL: hb_decimate2 / hb_interp2 maintain a persistent (ntaps-1) = 62 sample
+ *   ring buffer (HbFirState.state[TFB_HB_TAPS]) across ALL 1024 frames.  FIRA operates as a one-shot
+ *   block call per frame, with no built-in delay-line persistence between frames.  To produce bit-exact
+ *   output the FIRA path must PREPEND the previous frame's tail ((ntaps-1) = 62 samples) to each frame's
+ *   input before calling adi_fir_QueueTask.
+ *
+ *   hist[seg][0 .. FIRA_HIST-1] = the last (ntaps-1) input samples of the PREVIOUS frame for each of the
+ *   9 segments.  fira_channel_init() zero-initialises them (correct: filter delay-line starts at 0).
+ *   fira_run_segment_stateful() prepends hist to the real input and updates hist after each call.
+ *
+ *   FIRA_HIST = FIRA_HB_TAPS - 1 = 62.  Hard-coded so the compiler can size the arrays statically.
+ *   [ASSUME] ntaps is always 63 (frozen g_hb63_fira32, FIR_HB63_FIRA_NTAPS=63).  If ntaps changes,
+ *   FIRA_HIST must be updated AND all callers must be recompiled.  Board must verify the prepend layout
+ *   produces bit-exact subbands vs core on the first frame boundary (frame 0 -> frame 1 transition).
  * ============================================================ */
+#define FIRA_HIST  62   /* ntaps-1; MUST equal FIR_HB63_FIRA_NTAPS-1 = 62 [ASSUME] */
+
 typedef struct {
     FiraSegKind kind[FIRA_SEGS_PER_CHAN];
     uint16_t    window[FIRA_SEGS_PER_CHAN];   /* output sample count (= frame/2^level) */
+    /* D3/ST1 per-segment cross-frame history (ntaps-1 samples each, zero-init by fira_channel_init). */
+    int32_t     hist[FIRA_SEGS_PER_CHAN][FIRA_HIST]; /* [seg][0..FIRA_HIST-1] = prev-frame tail */
     uint8_t     initialized;
 } FiraChannelState;
 
