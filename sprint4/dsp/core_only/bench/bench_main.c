@@ -25,6 +25,12 @@
 volatile BenchResult g_bench_result;
 volatile uint32_t    g_ccnt_selftest;   /* CCNT 自检结果（已知循环 cycle，emulator 查） */
 
+#ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+#include "fira_tree.h"                       /* F2 FIRA 冒烟（仅 FIRA 接入时编入） */
+extern volatile uint32_t g_FIRTaskDoneCount; /* fira_tree.c 定义（ALL_CHANNEL_DONE 回调置位） */
+volatile int g_fira_f2_rc = -99;             /* F2 单通道模板返回码（emulator 查；0=PASS） */
+#endif
+
 /* ---- target CCNT 读取（真 CCLK 周期） ----
  * 出处：ADI 官方 ADSP-21569 例程 FIR_Throughput_21569.c:18-20,42,86-89 用标准 C `clock()`
  *   量 CCLK cycles（注释 line 4 "measure the number of CCLK cycles ... on ADSP-21569"）；
@@ -61,8 +67,28 @@ void main(void)
         g_ccnt_selftest = b - a;   /* 已知循环 cycle 对照 */
     }
 
-    /* ---- 我方算法嫁接：跑 core-only S2-S5 harness ---- */
+    /* ---- 我方算法嫁接：跑 core-only S2-S5 harness（F0 基准，保留） ---- */
     bench_run((BenchResult *)&g_bench_result);
+
+#ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+    /* ---- F2 FIRA 冒烟：单通道完整 Legacy 生命周期 + Path B 定点（任意系数）----
+     * emulator 查：g_fira_f2_rc==0（生命周期全 SUCCESS）+ g_FIRTaskDoneCount==1（回调进）。
+     * 失败码：1=Open 2=RegisterCallback 3=CreateTask 4=FixedPointEnable(SIGNED·G2 命门)
+     *         5=QueueTask 6=Close / -1=未定义真头 / -2=系数或 buf 空。 */
+    {
+        static int32_t s_f2_coef[63];            /* F2 任意系数（仅冒烟，非真系数；F3 换真） */
+        static int32_t s_f2_in[63 + 64 - 1];     /* in_count = ntaps+out_count-1 = 126 */
+        static int32_t s_f2_out[64];             /* out_count = 64（window） */
+        unsigned i;
+        for (i = 0u; i < 63u; i++) s_f2_coef[i] = 0;
+        s_f2_coef[31] = (int32_t)0x40000000;     /* 中心抽头（任意非零） */
+        for (i = 0u; i < (63u + 64u - 1u); i++) s_f2_in[i] = (int32_t)((uint32_t)i << 20);
+        fira_tree_set_coeffs(s_f2_coef, 63u);
+        g_fira_f2_rc = fira_single_channel_template(s_f2_in, 63u + 64u - 1u,
+                                                    s_f2_out, 64u, 63u);
+        /* ↑ 在此设断点查 g_fira_f2_rc / g_FIRTaskDoneCount（F2 判据见 DOC-S4-FIRA-IMPL-01） */
+    }
+#endif
 
     /* ---- 在此设断点，emulator 查 g_bench_result：
      *   .bitexact_pass / .crc32(应=0x90556BC7) / .cyc_8ch_frame / .mcps_8ch / .mcps_16ch_est
