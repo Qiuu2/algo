@@ -265,6 +265,14 @@
 - **不阻塞 R1**：R1 关闭路径见 BENCH_OPS_CARD **13b** 反汇编饱和钳位——**无分支→GAP-SAT 与 R1 算力无关**（cycle 不受饱和影响，R1 数标「WCET@非饱和+钳位无分支确认」）；**是分支→补 8ch 满载饱和激励量真 WCET**。即 R1（算力）可独立于 GAP-SAT（正确性）关闭。
 - **关闭路径**：① 台架反汇编确认钳位指令（无分支即正确性上钳位行为确定）；或 ② 生成过载激励 + 独立 golden 补饱和路 bit-exact（S0-S1 host 已验饱和原语功能，板上补测优先级低）。
 
+#### GAP-SAT 处置更新（2026-06-04，F5-B 删求和 wrapper 后 → F5-C 前提验证后）：`closed-by-topology (premise-VERIFIED)`
+- **状态**：`closed-by-topology (premise-VERIFIED)`——F5-C 已显式验证残留前提（全权重 ≤1.0，见下「前提验证更新」），premise 由 `pending-on-F5C` 翻转为 VERIFIED。
+- **依据 = 拓扑闭合（不是补激励/补 golden）**：F5-B（计划 `sprint4/dsp/fira/F5_F7_PLAN.md` §2）删除 `tfb_8ch.c` 的 8→1 数字求和 wrapper。该求和节点（`w_add_i32` + `acc0..3` 累加 + 单路 synthesize）是 **WCET 时代的验证 wrapper，非产品数据通路**。CTO 锁定产品拓扑 = 8 通道各自独立输出到 8 个 DAC（每路驱一对 A/B 串联阵元），broadside = **声学叠加**，DSP 内**无数字求和**。
+- **证据链**：① 8ch 事实自查（CTO 接受）——8 路完全独立、无跨通道求和；② F5-B 实改：`tfb_8ch.c`/`tfb_8ch.h` 改 8-in-8-out 独立链（`for c: analyze→synthesize`，`syn` 单实例扩 `syn[8]`），`w_add_i32`/`acc*`/单路 synthesize **完全移除**（grep-proof：strip-comment 后 `tfb_8ch.c` 零 `w_add_i32`/`acc`/`+=`/`sat_add` 跨通道求和节点）；③ 桌面验证：host bench_harness（sat+unsat）编译通过、S2 单通道 bit-exact 仍 PASS（crc `0x90556BC7` 不变，冻结核 golden 未动）、新 8-out 路径 8/8 路逐位 == 单通道 golden（增益 1.0 下每路 == 单通道链，FG1 依赖滤波）+ 8 路互等（无串扰）。
+- **残留前提（VERIFY，非 ASSUME，归 F5-C）**：拓扑闭合成立的前提 = **所有通道权重 ≤ 1.0**（权重 >1.0 会放大单路样本逼近 INT32 边界，在单路链内重新引入饱和风险）。该前提**由 F5-C 显式验证**（双轨浮点表 `max|w|≤1.0` + 定点容器不溢出，计划 §3.4）；F5-B **只登记依赖、不假设**。若 F5-C 验出任一权重 >1.0 → 本闭合作废，回到「需覆盖单路饱和路径」。
+- **前提验证更新（2026-06-04，F5-C 冻结后）：`premise-VERIFIED`**。F5-C 双轨（scipy chebwin / Barbiere 递推，第三轨 MATLAB chebwin 交叉）显式验证：全 8 通道权重浮点 `max|w| = 1.000000 ≤ 1.0`（两轨）；定点容器（Q15）`max|w_q15| = 32768 = (1<<15) == 1.0`，无任一值 > 1.0 → 单路样本不被放大、无新 INT32 饱和风险引入。premise 由 `pending-on-F5C` **翻转为 premise-VERIFIED**。证据：`sprint4/dsp/fira/gen_dolph_w8.py`（生成+验证脚本）/ `dolph_w8_q15.h`（冻结表 + ≤1.0 声明）/ `dolph_w8_q15.csv`（双轨证据）。GAP-SAT 状态：`closed-by-topology (premise-VERIFIED)`。
+- **挂接**：R14 / DEC-S4-R14-GRANULARITY / F5-B（`F5_F7_PLAN.md` §2.3）/ F5-C（前提已验证，§3.4，`dolph_w8_q15.h`）/ `tfb_8ch.c`+`tfb_8ch.h`（实改）。
+
 ---
 
 ## Sprint 2 补做决策（2026-05-26，CTO 拍板）
