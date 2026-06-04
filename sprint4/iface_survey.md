@@ -220,11 +220,13 @@ SRU2 宏形式：`SRU2(信号源_O, 目的_I)` —— 把 DAI1 引脚和 SPORT4 
 | `adi_spu_EnableMasterSecure` | (hSpu, SPORT_4A/4B_SPU, true) | ✅ 给 SPORT4A/4B | ✅ | 用法 :227,234 |
 | `ADI_SPU_MEMORY_SIZE` / `SPORT_4A_SPU`/`SPORT_4B_SPU` | 宏 | ✅ | ✅ | 用法 :121,227,234 |
 
-### 5c. power / clock（adi_pwr_2156x.h，本机存在 ✅；example 主程序未显式调，由 adi_initComponents/system 配）
+### 5c. power / clock（adi_pwr_2156x.h，本机存在 ✅；~~example 主程序未显式调，由 adi_initComponents/system 配~~）
+
+> ⚠️ **【已证伪 2026-06-04，铁律五加标】**「pwr 由 adi_initComponents 代办」假设为**错**：本 BSP 系 FIRA 工程的 `adi_initComponents()` 函数体仅 `result = adi_sec_Init(); return result;`（EE408V02 `ADSP_2156x_FIRA_Performance/system/adi_initialize.c` 源证 [L2/源码勘查]），**不初始化 pwr**。后果实证：F7 首次板跑未先 `adi_pwr_Init` 即调 `adi_pwr_GetCoreClkFreq` → BadResetDetected/PC=0x1。正确做法 = 启动处显式 `adi_pwr_Init(0, 25MHz)`（DDR main.c:28 / post.c:172 / UART main.c:25 三范例同款）。修复 commit `524c7c0`，critic verdict 2026-06-04。
 
 | 函数 | 参数 | example 用了吗 | 我们要吗 | 出处 |
 |---|---|---|---|---|
-| `adi_pwr_Init` | (nDeviceNum uint8, clkin uint32) | ❌(走 adi_initComponents() :154) | ⚠(确认 CGU/CLKIN) | adi_pwr_2156x.h:642 |
+| `adi_pwr_Init` | (nDeviceNum uint8, clkin uint32) | ❌~~(走 adi_initComponents() :154)~~ **【证伪：initComponents 不代办，须显式调，见 5c 顶注】** | **✅ 必须**(dev 0, CLKIN=25MHz) | adi_pwr_2156x.h:642 |
 | `adi_pwr_ClockInit` | (…) | ❌ | ⚠ | adi_pwr_2156x.h:633 |
 | `adi_pwr_GetSystemFreq` | (nDevNum, *fsysclk, *fsclk0, *fsclk1) | ❌ | ⚠(算力核算需 SCLK) | adi_pwr_2156x.h:653 |
 | `adi_pwr_GetCoreClkFreq` | (nDevNum, *fcclk) | ❌ | ⚠(核频=1GHz 验证) | adi_pwr_2156x.h:663 |
@@ -292,7 +294,7 @@ SRU2 宏形式：`SRU2(信号源_O, 目的_I)` —— 把 DAI1 引脚和 SPORT4 
 - SPORT：`adi_sport_Open` ×2, `ConfigMC`, `SelectChannel`, `ConfigData`, `ConfigFrameSync`, `MuxHalfSport`, `RegisterCallback`, `DMATransfer` ×2, `Enable` ×2
 - PDMA：`ADI_PDMA_DESC_LIST` 描述符 ×N
 - FIRA：`adi_fir_Open`, `RegisterCallback`, `CreateTask`(或 CreateConfig+AddChannel), `QueueTask`, +`ADI_FIR_CHANNEL_INFO` 含 **SIGNED** 定点格式
-- pwr：`adi_pwr_Init`（多由 adi_initComponents 代办，确认即可）
+- pwr：`adi_pwr_Init` ~~（多由 adi_initComponents 代办，确认即可）~~ **【已证伪 2026-06-04：本 BSP 系 initComponents 仅调 adi_sec_Init，pwr 须显式 init(0, 25MHz)，见 §5c 顶注 + commit 524c7c0】**
 
 ## §7 gaps（header/example 没有、待台架确认）
 
@@ -303,7 +305,7 @@ SRU2 宏形式：`SRU2(信号源_O, 目的_I)` —— 把 DAI1 引脚和 SPORT4 
 | G3 | **8-slot×32bit TDM 的 ConfigMC 精确参数** | example 全程 I2S(2ch)，**从不调 `adi_sport_ConfigMC`**；nFrameDelay/nWindowSize/FS 类型(早/晚、电平)无 example 实例 | TDM 时序配错→ slot 错位/无声 | 查 ADSP-2156x HW Reference SPORT 章 + 台架示波器对帧 |
 | G4 | **FRAME=64 vs example block=256/window=1024** | example BLOCK_SIZE=256, FIR_WINDOW_SIZE=1024, FIR_TAPS=512(Pipelined) / TAPS=64,4096+window=1024(FIR_Multi)；**我方 FRAME=64** 无对应实例；FIRA 要求输入缓冲 ≥ BLOCK+TAPS-1 (c:572) | window/环形缓冲尺寸、延迟线预载长度需按 FRAME=64 重算；FRAME=64 是否过小影响 FIRA 效率待评 | 按我方 N_tap + FRAME=64 重算 WindowSize/InputCount/Modify |
 | G5 | **ADAU 寄存器值 ↔ 48k/8ch TDM 对应** | example 寄存器值(SAI_CTRL0=0x02 等)对应其 I2S/采样率配置，非 8ch TDM/48k | 采样率/SAI 模式/通道映射(CMAP)配错→codec 不出声或错通道 | 按 ADAU1979/1962A datasheet 重算 SAI_CTRL0/1、CMAP12/34、BLOCK_POWER_SAI、DAC 通道映射 |
-| G6 | **adi_pwr 实际调用点/CLKIN 值** | example 主程序不显式调 adi_pwr，交给 `adi_initComponents()`(c:154)+ system.svc 配置 | 核频(目标 1GHz)/SCLK 数值未在源码暴露→算力核算缺真值 | 读 system/ 下 .svc 或台架 `adi_pwr_GetCoreClkFreq` |
+| G6 | **adi_pwr 实际调用点/CLKIN 值** | ~~example 主程序不显式调 adi_pwr，交给 `adi_initComponents()`(c:154)+ system.svc 配置~~ **【「交给 initComponents」部分已证伪 2026-06-04：其函数体仅 adi_sec_Init，见 §5c 顶注；调用点现已落定 = bench_main 启动处 `adi_pwr_Init(0, 25MHz)` + F7 `GetCoreClkFreq`，commit 524c7c0】** | 核频(目标 1GHz)/SCLK 数值未在源码暴露→算力核算缺真值 | ~~读 system/ 下 .svc 或~~ 台架 `adi_pwr_GetCoreClkFreq`（F7 测量块就绪，待板跑读 `g_f7_cclk_hz`） |
 | G7 | **adi_int(GIC) 是 ARM 侧** | `adi_int.h` 在 cortex-a5 路径，SHARC 中断控制器不同 | 若需手动装中断(一般不需)，签名/iid 不可信 | 优先用驱动回调；必要时查 SHARC 侧 adi_int |
 | G8 | **FIR vs FIR+IIR / 浮点 vs 定点路线未定** | example(Pipelined)是 FIR(512tap)+5band IIR 且**走浮点**(Fixed↔Float 转换 c:535-557)；我方波束形成是否纯 FIR / 纯定点未锁 | 决定走 §2c 哪条枚举路径 + 是否需 IIR 驱动(adi_iir) | 由 DEC-S4-DSP-01 算法定型后定 |
 | G9 | **example FIR 系数=全通(b0=1)占位** | example FIR 是 all-pass 占位(c:8)，非真实波束系数 | 不影响接口，但提醒系数加载路径(`pCoefficientBase`/`CoeffBuff`)要接我方 8 路波束权 | 接入声学 agent 输出的 8 路 FIR 系数 |
