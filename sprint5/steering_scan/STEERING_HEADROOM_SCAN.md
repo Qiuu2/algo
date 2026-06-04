@@ -5,6 +5,7 @@
 > 报告内 FLAG-C 'R14 PENDING' 表述系扫描时点快照; 隔离原则不变: 本线估算 [L4/待验证] 不进选型基准.
 
 〔critic R8 修正注：synthesizer 原工作注曾以 ~21.7 MCPS 为 FRAME=256 下界——该值把 MAC 项也 /4 摊薄，正是 workflow 内部 verifier 已纠正过的算错（21.7 撤回）。verifier 下界 86.9 MCPS 才是正确 floor。本报告正文已按 verifier-correct 区间呈现：FRAME=256: 86.9–341.6 MCPS（margin 2.93x–11.51x）；FRAME=128: 173.7–343.6 MCPS（2.91x–5.76x）。此事例证 synthesizer 可能撤销自家 verifier 的纠正——独立 critic 命门不可省。〕
+〔修正台账 #2（critic R9，缘起 CTO 质询）：STEER-2 原「~49x 纯核余量」退役——49x=1500/30.56 系桌面理想 1cyc/MAC 的**整路径**余量（dsp_8ch_report.md:64-68），被误挂到聚焦增量头上（类别错误），且同口径已被板上推翻（~30-50 cyc/MAC 实测，decisions_log:234/770）。修正后口径：聚焦增量 86–144 MCPS [L4]（板实测包络），margin 2.878x→~2.04x–2.31x，连体 §8 呈现。R9 同时抓住修正稿自身两处偏乐观新错（2.55x 低端算错应 2.31x；3 cyc/MAC 下界无板证）——修数的文档也要过门。〕
 
 ---
 
@@ -38,7 +39,7 @@
 | **#8** | **ORCH-1(constraints 视角=同一项)** | — 与 #3 同条，constraints 维度复述其 governance-free 性质 | 见 #3 | 见 #3 | 见 #3 | 见 #3 |
 | **#9** | **HW-3** | 多通道 CreateTask/通道分组削减 72 次/帧调用开销（与 ORCH-1 同机理，硬件维度） | **grade 修正**：固定份额 10,345 cyc=2.23% 是 [L1] 但**那不是分组能回收的部分**；可回收量在每通道 56,616 里，**[L4/待验证]**，量级 ~single-digit-thousands cyc/frame | **L**（破 [ASSUME-A1] 须 per-task scratch + bit-exact 全重验，多板测） | 2.23% 天花板 vs 高回归风险；建议 deprioritize | 16ch ~线性扩展（无免费摊薄）——转向预算输入 |
 | **#10** | **ORCH-4(flush)** | 若驱动 ADI_CACHE_MANAGEMENT 已 invalidate 输出区，删每段 flush_data_buffer | **量级 [L4]，最小项**（~single-digit-thousands cyc/frame）；FIRA_IMPL.md:35/155 称驱动已 invalidate，但 21569 驱动源本机缺失=**UNVERIFIABLE** | **S（验证 catch：删一个看似冗余实则 load-bearing 的 cache op = 静默数据损坏）** | HIGH regret if wrong；**建议：measure first, likely KEEP**，勿投机删 | 与转向正交；G1-class gap |
-| **#11** | **STEER-2** | broadside **近场聚焦/分区**是 A/B 兼容的（仅角度 tilt 被阻），可在现 8ch 上做 | **[L3]**：对称聚焦=与 STEER-4 同分数延迟 FIR 成本但仅 8 distinct ch，静态区延迟更新率≈0（2.88 MMAC/s 于 30.56 总，~49x headroom，纯核口径） | **S/M**（固件 only IF PRD=broadside 聚焦/分区；触碰冻结滤波器输入缓冲则须重 bit-exact） | PRD 歧义："steerable" 口语指角度转向（STEER-1 阻）；对称聚焦疗效待声学仿确认 | 现板唯一有余量的"转向-like"能力；强制 PRD 二选一 |
+| **#11** | **STEER-2** | broadside **近场聚焦/分区**是 A/B 兼容的（仅角度 tilt 被阻），可在现 8ch 上做 | **聚焦/分区 = 8ch 分数延迟 FIR（STEER-4 同类，8 distinct ch），静态区延迟更新率≈0**。成本口径修正（CTO 挑出 49x 误用，critic R9 过门）：源 `dsp_8ch_report.md:59-72` 的「2.88 MMAC/s 于 30.56 总、49x」是 **桌面理想 1 cyc/MAC 口径**（49x=1500/30.56=整路径余量，非聚焦 ADD 的余量；同口径已被板上推翻：桌面 33x/17x→板 0.92x，decisions_log:234）。**板上真实 ADD ≈ 2.88 MMAC/s × 30–50 cyc/MAC（板实测包络 decisions_log:234/770）= ~86–144 MCPS [L4 区间]**（理论最优短 FIR 内核或低至 ~3 cyc/MAC≈9 MCPS，但**无项目板测支撑，仅乐观下界**），落在 post-FIRA 8ch 算法 headroom（1000−347.45=**652.5 MCPS [L1-derived]**）的 ~13.2%–22.1%（margin 2.878x→**~2.04x–2.31x**）。**必须与 §8 整系统未计入清单（43–379 MCPS，残余 1.38x–2.56x，DEC-S4-C9-RELEASE-01）连体呈现，不得以 49x 或单独 2.88 示人。** FIRA-offload 聚焦 FIR = [L4 选项]（MAC 移出核但每加一段付 ~6,290 cyc/段 orchestration，F7 g_f7_cyc_1ch_fira/9 [L1-derived]；C9 闸下）。聚焦疗效 [L3/待 acoustic-sim] | **S/M**（固件 only IF PRD=broadside 聚焦/分区；触碰冻结滤波器输入缓冲则须重 bit-exact） | PRD 歧义："steerable" 口语指角度转向（STEER-1 阻）；对称聚焦疗效待声学仿确认 | 现板唯一有余量的"转向-like"能力；强制 PRD 二选一 |
 
 **未单列但已含的项**：HW-6（闲置硬件清单 ASRC/PCG/S/PDIF/SIMD-PEy/crypto，均不可映射，见 EXCLUSIONS）；STEER-4/STEER-5（转向自身算力，见 §3）；ORCH-3/ORCH-4/ORCH-5（constraints 维度=分类与引用项，见 §2 & §5）。
 
@@ -80,7 +81,7 @@
 
 **是否 fit 当前包络？**
 - **off-axis 角度转向：在现 8ch 板上 NOT FEASIBLE（硬件物理，FLAG-A）。** 16ch 叉后，core-only 已 0.55x 不满足实时，FIRA-16ch 余量未板测——**必须先板测 16ch FIRA + 测转向 FIR 板成本**才能判 fit。
-- **broadside 聚焦/分区（STEER-2）：fit，有 ~49x 纯核 headroom**，固件 only（若不碰冻结输入缓冲）。
+- **broadside 聚焦/分区（STEER-2）：fit，固件 only（若不碰冻结输入缓冲）**。算力口径修正（critic R9）：原「~49x 纯核 headroom」是桌面理想 MAC（1 cyc/MAC）口径，**不可与板上 L1 并置**（49x=1500/30.56 整路径，已被板上 0.92x 推翻同源）。板上真实聚焦 ADD ≈ **86–144 MCPS [L4]**（2.88 MMAC/s × 30–50 cyc/MAC 板实测包络；~3 cyc/MAC=9 MCPS 仅理论乐观下界无板证），约 post-FIRA 652.5 MCPS [L1-derived] headroom 的 13.2%–22.1%（margin → ~2.04x–2.31x）；**呈现须连体 §8 未计入清单（残余 1.38x–2.56x）**。结论方向（聚焦在现板可负担）不变，但量级降为 [L4 区间]，非 49x。
 
 **承诺前必须先 pin（pin-first 清单）**
 1. **PRD 定义**："steerable" = 角度 tilt（→16ch 硬件叉，CTO Gate-2）还是 broadside 聚焦/分区（→固件可达）？（STEER-2 强制二选一）
