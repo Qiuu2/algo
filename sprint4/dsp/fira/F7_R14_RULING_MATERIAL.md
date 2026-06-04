@@ -239,3 +239,155 @@ per iron-rule-8 (even though their provenance is L1) — C9 gates USE, not prove
 3. WCET / system-integrated load (§3a) — bench is steady-state, algorithm-only; not measured.
 4. No SHARC toolchain/board here: board values taken as CTO-supplied [L1/EZKIT]; formulas/constants
    verified from source (§1A-1E cite file:line); arithmetic is [L1-derived] or [L3] as labeled.
+
+---
+
+# ADDENDUM (CTO-ordered 2026-06-04; critic R5 gated CONDITIONAL 0/1/1, pre-cleared fixes applied; reviewer: critic @ claude-opus-4-8 / 2026-06-04)
+
+## Section 7 — Addendum A: Expected-value worksheet for the two idle tail-reads (zero code change)
+
+Both reads are of existing `volatile` globals at the idle `while(1)` (bench_main.c:233); no rebuild, no
+re-run if the session is still loaded. They (i) resolve the §1E exact-equal anomaly and (ii) upgrade the
+16ch estimate from [L3] to [L1-derived].
+
+### 7A. Re-read `g_f7_cyc_8ch_core` (resolves the §1E anomaly)
+
+Source recap (why a delta is EXPECTED): the FIRA-build `g_f7_cyc_8ch_core` span (fira_regression.c:621-630)
+applies `f5_apply_w` weighting per channel (8 x 64 = 512 calls of one int64 multiply + `>>15`,
+fira_regression.c:262) in a MANUAL per-channel loop calling `tfb_analyze`/`tfb_synthesize` on `f7_ca[c]`.
+The core-only `cyc_8ch_frame` (bench_harness.c:115-118) is UNWEIGHTED and goes through the `tfb8_process`
+wrapper. Different code -> a delta is expected; exact equality is NOT.
+
+| Outcome | Value | Interpretation | Next action |
+|---|---|---|---|
+| **(i) ~1.452M-1.456M** (slightly above 1,451,030) | expected | **Anomaly RESOLVED as transcription substitution** — last session's "1,451,030 in-build baseline" was the core-only value carried over, not the FIRA build's own read. The true in-build core is a bit higher by the weighting+loop delta. | Recompute speedup with the TRUE value (formula below). [L1] firm. No further action. |
+| **(ii) EXACTLY 1,451,030 again** | unexpected | **Genuine anomaly** — two different code paths cannot land bit-identical on a free-running CCNT. Suspect measurement aliasing: e.g. the global was written once and read twice, or a shared-buffer/timing artifact, or the span timers (t2/t3, fira_regression.c:622/629) captured a stale value. | Investigate next: confirm t2/t3 bracket the loop (they do, source-verified); check the global is not aliased with `cyc_8ch_frame`; re-run with a deliberately altered core input to force a different count. |
+| **(iii) wildly different** (e.g. <1M or >2M) | unexpected | The in-build core path is not what we think (cache state, warm-up, or a real bug). | STOP, diagnose before trusting ANY F7 core-side number; the 2.878x FIRA margin is still independent (uses only `g_f7_cyc_8ch_fira` + cclk). |
+
+**Plausible delta for outcome (i) [L3]:** 512 x `f5_apply_w`. On SHARC+ a 64-bit multiply + arithmetic
+shift is ~3-10 cycles incl. operand moves -> **~1,500-5,200 cycles** added vs the unweighted wrapper
+(plus/minus the wrapper-vs-manual-loop difference, which is small and could go either way). So expect
+`g_f7_cyc_8ch_core` in roughly **1,452,500-1,456,200** if outcome (i). [L3 estimate]
+
+**Speedup recompute formula (outcome i):**
+`true_speedup = g_f7_cyc_8ch_core(in-build) / g_f7_cyc_8ch_fira`.
+e.g. if it reads 1,454,000: `1,454,000 / 463,273 = 3.139x` (vs the 3.132x using the substituted value) —
+a ~0.2% shift, **does NOT move the headline 2.878x realtime margin** (which uses neither core value).
+
+### 7B. Re-read `g_f7_cyc_1ch_fira` / `g_f7_cyc_analyze_fira` / `g_f7_cyc_synth_fira`
+
+These three are computed for the c=7 unity channel (fira_regression.c:632-646):
+`g_f7_cyc_1ch_fira = g_f7_cyc_analyze_fira + g_f7_cyc_synth_fira` (set explicitly at :646).
+
+**Relations to check + what each reveals:**
+
+1. **`1ch_fira` vs `analyze_fira + synth_fira`:** must be EXACTLY equal (it's a literal sum in code,
+   :646) — tolerance 0. If not equal, the readout is corrupted (re-read).
+
+2. **`8 x 1ch_fira` vs `g_f7_cyc_8ch_fira` (463,273) — amortization indicator:** the 8ch span
+   (fira_regression.c:612-617) IS 8 sequential single-channel iterations, so `8 x 1ch_fira` should be
+   **~equal to** 463,273 within steady-state noise (per-channel = 463,273/8 = **57,909 cyc**).
+   - If `8 x 1ch_fira` ~ 463,273 (within a few %): **per-channel cost is flat, NO shared per-frame fixed
+     orchestration is being amortized across channels** — i.e. each channel pays its own full
+     CreateTask/QueueTask/spin overhead. This means 16ch scales ~linearly from 8ch (supports the
+     conservative 1.44x naive-2x view) UNLESS the analyze/synth split shows otherwise (point 3).
+   - If `8 x 1ch_fira` >> 463,273: the 8ch loop shares some fixed cost the single-channel measurement
+     double-counts — would indicate the 8ch number already benefits from amortization (16ch better than
+     naive 2x). [Direction depends on the read; quantify on receipt.]
+
+3. **`analyze_fira` ~ 38,220 -> CONFIRMS the 16ch ~1.73x estimate (RECONCILES the v2 §1D flag):**
+   - **Confirms/operationalizes v2 §1D:** the CTO's earlier "~1.74x" IS reproducible — via the CORE-STYLE 16ch
+     formula applied to the FIRA side: `demand_16ch = (g_f7_cyc_8ch_fira + 8 x g_f7_cyc_analyze_fira)`
+     (the FIRA analog of bench_harness.c:125 `mcps_16ch_est = (cyc_8ch + 8*cyc_analyze_1ch)*fpf/1e6`).
+     v2 §1D could not reproduce it ONLY because `g_f7_cyc_analyze_fira` had not been read out. With it,
+     the convention estimate is well-defined.
+   - **Confirmation test:** `analyze_fira ~ 38,220` gives
+     `(463,273 + 8 x 38,220) x 750 / 1e6 = 576.8 MCPS` -> margin `1000/576.8 = ` **1.734x**. [arithmetic]
+   - **Range that anchors 1.73x:** `analyze_fira` in **~38,000-38,500** yields margin **1.72x-1.74x**.
+     (38,430 -> 1.73x exactly; 37,876 -> 1.74x; 38,220 -> 1.734x.) If the read lands in this band, the
+     16ch convention estimate **upgrades from [L3 extrapolation] to [L1-derived]** (it is then
+     arithmetic on three [L1/EZKIT] reads: `cyc_8ch_fira`, `cyc_analyze_fira`, `cclk`).
+   - **Caveat on the convention:** this core-style formula models 16ch as "the 8ch frame + 8 extra
+     analyze-only passes" — it is the project's established 16ch convention (bench_harness.c:125), NOT a
+     measured 16ch FIRA run. It assumes the 8 extra channels add analyze cost only (the broadside-sum
+     topology reuses synthesize) — that ASSUMPTION rides on the existing convention and should be named
+     when 1.73x is cited. The truly conservative bound remains naive-2x = 1.44x. Present BOTH; CTO picks
+     which convention governs the (reference-only) 16ch figure. 16ch is NOT the R1 gate (R1 bound to 8ch,
+     DEC-S4-R1-8CH-01).
+
+---
+
+## Section 8 — Addendum B: Quantification of the five unaccounted items (sets the honest denominator)
+
+> NO optimism bias. Each item is a RANGE with an explicit grade. The 8ch FIRA algorithm demand is
+> **347.45 MCPS [L1/EZKIT]** (Section 1B). "Budget" = 1000 MCPS = the measured 1 GHz core [L1, Section 1C].
+> These five are what the 347.45 does NOT yet include. **The residual-margin RESULT inherits the WEAKEST
+> grade among its inputs (= [L4] here, because items 3 & 4 are L4).** This is a denominator for policy,
+> not an L1 system measurement.
+
+### Per-item estimates
+
+| # | Item | Estimate (MCPS, % of 1000) | Basis | Grade |
+|---|---|---|---|---|
+| 1 | **Codec / I/O DMA** (8-slot TDM in via ADAU1979->SPORT4, 8ch out via SPORT4->ADAU1962A) | **5-30 MCPS (0.5-3%)** | Audio moves by **SPORT PDMA descriptors, NOT core copies** (Pipelined `Audio_Passthrough_I2S.c:93-97` PDMA desc lists; ping-pong + RX callback :193). So core cost = per-block callback + descriptor/ptr management + cache-invalidate on the DMA buffer, ~750 frames/s (FRAME=64@48k). NOT the data movement itself. | **[L3]** (structure [L2/ADI example], cycle cost engineering-estimated; cheaply -> L1, see follow-ups) |
+| 2 | **System interrupts** (audio frame ISR; scheduler tick IF an RTOS is used) | **2-15 MCPS (0.2-1.5%)** | Frame ISR ~750/s (same cadence). Bench is bare-metal free-run (no RTOS observed; bench_main.c is a plain `main`+idle loop). If product stays bare-metal -> low end; if an RTOS/OSAL tick is added (ADI OSAL is available, post.c uses `ADI_OSAL_*`) -> higher. | **[L3]** (cadence [L2], per-ISR cost estimated) |
+| 3 | **Mixing / limiter / EQ** (post-beamform per-channel chain) | **0-150 MCPS (0-15%)** | **NO evidence either way.** Teardown explicitly EXCLUDES competitor firmware/DSP chain (`knowledge_base/competitor/full_teardown_v2.md:16`). PRD/architecture docs (DOC-S4-IO-01) describe direct-in-direct-out beamform ONLY — no EQ/limiter named. Range: 0 (pure beamform pass-through) to ~150 (if product adds per-channel biquad EQ + a limiter on 8 channels: a few biquads/ch x 8ch x 750 frames is order tens-of-MCPS; a rich multiband chain pushes higher). **(NB: at board ~30 cyc/MAC — decisions_log:234 — a rich 5-band+limiter x8 can reach ~250-290 MCPS, i.e. >150; 150 is a nominal envelope, NOT a ceiling.)** | **[L4]** (no source; pure engineering envelope — the DOMINANT uncertainty) |
+| 4 | **Control / UI / comms** | **1-10 MCPS (0.1-1%)** | A2B is **bypassed** (DOC-S4-IO-01:4 "直进直出, 不用 A2B" -> no A2B stack cost). UART/key-scan/volume control = trivial polled or low-rate ISR. No display (DSP chip decision: no ARM/net/display, MEMORY dsp-chip-decision). | **[L4]** (architecture [L1: A2B bypassed], residual control cost estimated) |
+| 5 | **WCET-vs-steady-state delta** (cold-cache frames, DMA bus contention, ISR jitter) | **+10% to +50% on the algorithm demand = +34.7 to +173.7 MCPS** | The 463,273 is ONE warmed steady frame (F7_WARM=4, fira_regression.c:593). Real worst-case frames pay cold L1/L2 cache misses + DMA contention on the shared crossbar. SHARC L1-miss penalties + the FIRA cache-invalidate per segment make a 1.1x-1.5x WCET multiplier a defensible conservative envelope. | **[L3]** (steady value [L1]; multiplier engineering-estimated, NOT measured) |
+
+### Residual whole-system margin (RANGE, weakest-grade-inherited = [L4])
+
+```
+residual_margin = 1000 MCPS / ( 347.45 + item1 + item2 + item3 + item4 + WCET_extra )
+```
+- **Best case** (low estimates: io=5, irq=2, mix=0, ctl=1, WCET +10% = +34.7):
+  `1000 / (347.45 + 42.7) = 1000 / 390.2 = ` **2.56x**
+- **Worst case** (high estimates: io=30, irq=15, mix=150, ctl=10, WCET +50% = +173.7):
+  `1000 / (347.45 + 378.7) = 1000 / 726.2 = ` **1.38x**
+- **Mid / "modest DSP chain" sub-case** (mixing 0-50, others mid): roughly **1.6x - 2.4x**.
+
+**=> Residual whole-system realtime margin ~ 1.38x (worst) to 2.56x (best). Grade [L4]** (inherits item 3/4).
+The dominant swing is item 3 (mixing/EQ/limiter, 0-150 MCPS) and item 5 (WCET multiplier).
+
+### What threshold policies this RANGE supports or kills (CTO picks; this does NOT pick)
+
+- **>=10x:** **KILLED outright** — even the algorithm-only 8ch is 2.878x; with any system load it is far
+  below 10x. The desktop-era 10x is unreachable without an algorithm/architecture change (Section 3c).
+- **>=2x (realtime + ~50% headroom):** **BORDERLINE.** Algorithm-only 8ch meets it (2.878x); the residual
+  whole-system range (1.38-2.56x) **straddles 2.0x** — it holds in the best/modest cases but FAILS in the
+  worst (rich EQ + high WCET). So a >=2x policy is defensible ONLY if items 3 & 5 are pinned down (see
+  follow-ups) or the product commits to a lean DSP chain. **Say plainly: >=2x is not yet provably met
+  system-wide; it is met algorithm-only and in the best/mid system cases.**
+- **>=1.0x realtime floor:** MET across the range AS QUANTIFIED HERE (worst 1.38x), **BUT this holds
+  only if item 3 (mixing/EQ/limiter) stays <=150 MCPS — an [L4] envelope, not a firm cap.** A rich
+  per-channel multiband EQ + limiter x8ch could, at board cycle-efficiency (~30 cyc/MAC,
+  decisions_log:234), reach ~250-290 MCPS, which would pull the worst case toward ~1.0x. So >=1.0x is
+  safe for a lean/modest DSP chain but is **NOT guaranteed if a heavy post-beamform chain is added —
+  item 3 must be pinned (PRD spec) before >=1.0x can be asserted unconditionally.**
+- **>=1.5x:** met in best/mid, marginal at worst (1.38x slightly below). 
+
+**No recommendation. The CTO sets the threshold; the facts say: 10x dead, 1.0x safe for a lean/modest
+chain but conditional on item-3 <=150 (pin via PRD), 2x borderline pending items 3+5, 1.5x mostly-met.**
+
+### Cheaply upgradable to L1/L2 later (FOLLOW-UPS, not now)
+- **Item 1 (DMA/IO):** measurable on EZKIT with a small harness — run the Pipelined ADC->DAC passthrough
+  (no algorithm) and read `cyc` of the callback+buffer path; subtract idle. -> [L1]. (Low effort.)
+- **Item 2 (interrupts):** falls out of the same passthrough harness (ISR cadence x measured ISR cost). -> [L1].
+- **Item 5 (WCET):** measure a COLD-cache frame (skip warm-up) + an 8ch frame under concurrent DMA load
+  -> the real multiplier. -> [L1]. (The F7 code already has the warm-up knob F7_WARM; set 0 to get cold.)
+- **Item 3 (mixing/EQ/limiter):** NOT measurable until the product DSP chain is SPEC'D — this is a
+  PRD/algorithm-definition input, not a measurement gap. Flag to CTO/PM as the biggest residual unknown.
+- **Item 4 (control):** measurable once the control firmware exists; trivial, low priority.
+
+---
+
+## Cross-reference / non-decision (unchanged from v2 Section 5)
+- C9 / iron-rule-8 still BINDS: FIRA benefit stays [L4/待验证] for SELECTION/COMMITMENT use until the CTO
+  rules R14 CLOSED, regardless of its L1 provenance (C9 gates USE, not provenance).
+- This addendum decides nothing. It supplies: (A) the tail-read expectations to resolve §1E + upgrade the
+  16ch estimate, and (B) the quantified denominator the CTO uses to pick a realtime+headroom threshold.
+
+## What desktop CANNOT verify (addendum-specific)
+- The actual tail-read values (7A/7B) — board globals; expectations only.
+- Items 1,2,5 cycle costs — engineering estimates [L3] until the follow-up harness measures them.
+- Item 3 — undefined until the product DSP chain is spec'd [L4]; the single largest residual unknown.
