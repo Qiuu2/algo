@@ -36,4 +36,9 @@
 
 ## Change control (audit)
 - Changing any role's model = edit this table + log the change (old->new, date, reason) in decisions_log, per POLICY-PROV-001 change-trail discipline.
-- See Step-3 audit integration (critic verdicts carry the reviewer's exact model ID) — to be appended.
+
+## Step-3 audit integration (2026-06-04, CTO-mandated — IN EFFECT)
+- **Every critic verdict MUST carry**: `reviewer: critic @ <exact model ID> / <date>` in its report header (audit chain, aligns C5 traceability). The lead enforces this in every critic dispatch; a verdict without the tag is returned for re-issue.
+- **Retroactive record**: all six F4-line critic verdicts (2026-06-03~04: D1b+M2 / INT-domain / pack80+phase-reject / A5 flush-back / A5 symbol-fix gate / DEC-phase-fix) = `reviewer: critic @ claude-opus-4-8`. Recorded in `sprint4/dsp/fira/F4_BITEXACT_HANDOFF.md` §3/§8.
+- **Model-change trail**: any roster change = edit the table above + a decisions_log line (old -> new, effective date, reason, who approved). No silent re-tiering.
+- dsp re-tier executed this session: `claude-sonnet-4-6` (instance a9ba…, retired 2026-06-03) -> `claude-opus-4-8` (effective 2026-06-03, CTO Step-2 confirmation).
