@@ -1,0 +1,5 @@
+sprint4/dsp/core_only/host_bitexact_sat
+sprint4/dsp/core_only/host_bitexact_unsat
+sprint4/dsp/core_only_to_windows.tgz
+*.o
+__pycache__/
