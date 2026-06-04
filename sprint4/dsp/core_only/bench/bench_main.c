@@ -29,6 +29,9 @@ volatile uint32_t    g_ccnt_selftest;   /* CCNT self-test (known-loop cycles) */
 #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
 #include "fira_tree.h"                       /* F2 FIRA smoke (only when FIRA wired) */
 #include "fir_coeffs_q31.h"                  /* F3 real coeffs g_hb63_fira32 */
+#if defined(TARGET_SHARC)
+#include <services/pwr/adi_pwr.h>            /* F7-FIX: adi_pwr_Init at startup (BSP-supplied; G6 evidence in fira_regression.c) */
+#endif
 extern volatile uint32_t g_FIRTaskDoneCount; /* defined in fira_tree.c (set by ALL_CHANNEL_DONE cb) */
 volatile int g_fira_f2_rc = -99;             /* F2/F3 single-channel template rc (emulator; 0=PASS) */
 volatile int32_t g_fira_f3_out0 = 0;         /* F3 spot: output buf head words (CTO emulator spot-check) */
@@ -84,6 +87,8 @@ extern volatile uint32_t g_f7_cyc_analyze_fira; /* one-channel FIRA analyze-only
 extern volatile uint32_t g_f7_cyc_synth_fira;   /* one-channel FIRA synthesize-only (split, c=7) */
 extern volatile uint32_t g_f7_cclk_hz;          /* measured core clock Hz (G6); 0 = not read / desktop */
 extern volatile int      g_f7_valid;            /* 1 = ran on board with FIRA; 0 = desktop/no-FIRA (numbers meaningless) */
+extern volatile int      g_f7_pwrinit_rc;       /* F7-FIX: adi_pwr_Init rc (0=SUCCESS); -99 not-run/desktop */
+extern volatile int      g_f7_cclk_rc;          /* F7-FIX: adi_pwr_GetCoreClkFreq rc (0=SUCCESS); -99 not-run/desktop */
 volatile int g_fira_f7_done = -99;              /* F7 measure ran: 1=on-board w/ FIRA / 0=desktop no-FIRA / -99 not-run */
 #endif
 
@@ -106,6 +111,24 @@ void main(void)
 {
     /* ---- ADI base: full board init (clock/power/pinmux/sru), keep unchanged ---- */
     adi_initComponents();
+
+    /* ---- F7-FIX (board crash bbcf1fc root-cause): init the power service at STARTUP, right after
+     *   adi_initComponents() and BEFORE any app code, mirroring the BSP exemplars' timing exactly
+     *   (ADSP21569_DDR/src/main.c:28, Power_On_Self_Test/.../post.c:172, ADSP21569_UART/src/main.c:25
+     *   all call adi_pwr_Init BEFORE the app runs).  RATIONALE: the FIRA-example adi_initComponents()
+     *   (knowledge_base/ezkit/bsp/app_notes/fira_accel_code/EE408V02/ADSP_2156x_FIRA_Performance/
+     *    system/adi_initialize.c -- body `result = adi_sec_Init(); return result;`) calls ONLY
+     *   adi_sec_Init(); it does NOT init the power service.  Calling adi_pwr_GetCoreClkFreq later
+     *   (F7, fira_f7_measure) on an UNINITIALIZED pwr service is the suspected NULL-vector fault.
+     *   Doing the init ONCE here (not mid-run inside the measure function) removes any re-init hazard.
+     *   Args: dev 0, CLKIN=25 MHz per the three exemplars (DDR main.h:56,59).  rc in g_f7_pwrinit_rc.
+     *   DISCRIMINATOR: if the board STILL stops cleanly at adi_initComponents() (the line above) even
+     *   WITH this startup pwr-init present, the fault is NOT the pwr call -> it cleanly indicts the
+     *   link/startup hypothesis (a) (pulling adi_pwr into the link perturbed the generated startup /
+     *   system.svc), NOT an uninitialized-pwr call. */
+#if defined(FIRA_USE_REAL_ADI_FIR_HEADER) && defined(TARGET_SHARC)
+    g_f7_pwrinit_rc = (int)adi_pwr_Init(0u, 25u * 1000000u);
+#endif
 
     /* ---- CCNT self-test (verify clock() reads true cycles; known 1,000,000 volatile loop) ----
      * emulator g_ccnt_selftest: should be >0 and ~ 1e6 * cycles-per-iter (order of M cycles);

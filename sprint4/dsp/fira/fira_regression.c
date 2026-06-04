@@ -502,6 +502,8 @@ volatile uint32_t g_f7_cyc_analyze_fira = 0u;  /* [L1/EZKIT] one-channel FIRA an
 volatile uint32_t g_f7_cyc_synth_fira   = 0u;  /* [L1/EZKIT] one-channel FIRA synthesize-only (split, c=7) */
 volatile uint32_t g_f7_cclk_hz         = 0u;   /* [L1/EZKIT] measured core clock (G6); 0 = not read / desktop */
 volatile int      g_f7_valid           = 0;    /* 1 = ran on board with FIRA; 0 = desktop/no-FIRA (numbers meaningless) */
+volatile int      g_f7_pwrinit_rc      = -99;  /* [L1/EZKIT] adi_pwr_Init rc (0=SUCCESS); -99 not-run/desktop (F7-FIX diag) */
+volatile int      g_f7_cclk_rc         = -99;  /* [L1/EZKIT] adi_pwr_GetCoreClkFreq rc (0=SUCCESS); -99 not-run/desktop  */
 
 /* Frame budget / margin formula (OFF-BOARD only; NOT computed here -- C9 keeps benefit out of code):
  *   frame_period_s = BENCH_FRAME / BENCH_FS = 64 / 48000 = 1.3333... ms
@@ -532,12 +534,30 @@ int fira_f7_measure(void)
     g_f7_cyc_1ch_fira = 0u; g_f7_cyc_analyze_fira = 0u; g_f7_cyc_synth_fira = 0u;
     g_f7_cclk_hz = 0u; g_f7_valid = 0;
 
-    /* ---- CCLK read (G6): independent of FIRA; do it first so even a no-FIRA build records CCLK ---- */
+    /* ---- CCLK read (G6): independent of FIRA; do it first so even a no-FIRA build records CCLK ----
+     * F7-FIX (board crash bbcf1fc root-cause): the prior code assumed "power service already
+     *   initialized by adi_initComponents()".  That assumption is FALSE for this BSP family:
+     *   the FIRA-example adi_initComponents()
+     *   (knowledge_base/ezkit/bsp/app_notes/fira_accel_code/EE408V02/ADSP_2156x_FIRA_Performance/
+     *    system/adi_initialize.c -- body `result = adi_sec_Init(); return result;`) calls ONLY
+     *   adi_sec_Init() -- it does NOT init the power service.
+     *   Every installed-BSP example that calls adi_pwr_GetCoreClkFreq first calls adi_pwr_Init:
+     *     ADSP21569_DDR/src/main.c:28  adi_pwr_Init(CGU_DEV=0, CLKIN=25*MHZ);   then :38 GetCoreClkFreq
+     *     ADSP21569_UART/src/main.c:25 adi_pwr_Init(CGU_DEV=0, CLKIN=25*MHZ);
+     *     Power_On_Self_Test/.../post.c:172 adi_pwr_Init(CGU_DEV, CLKIN);       then :203 GetCoreClkFreq
+     *   Calling GetCoreClkFreq on an UNINITIALIZED pwr service is the suspected NULL-vector / bad read.
+     *   The pwr service is now initialized ONCE AT STARTUP in bench_main.c (right after
+     *   adi_initComponents(), before any app code -- mirroring the exemplar timing exactly, rc in
+     *   g_f7_pwrinit_rc).  Here we ONLY read CCLK and capture its rc into g_f7_cclk_rc for diagnosis.
+     * NOTE this does NOT explain a crash REPORTED AT adi_initComponents() (bench_main.c) unless
+     *   F4/F5 already ran; see the startup pwr-init DISCRIMINATOR note in bench_main.c + the CTO
+     *   discriminating test: a startup pwr-init that STILL crashes cleanly at adi_initComponents()
+     *   indicts the link/startup hypothesis (a), not this read (which is reached far later). */
 #if defined(FIRA_USE_REAL_ADI_FIR_HEADER) && defined(TARGET_SHARC)
     {
         uint32_t cclk = 0u;
-        /* power service already initialized by adi_initComponents() at boot (see main). */
-        (void)adi_pwr_GetCoreClkFreq(0u, &cclk);   /* [L1/EZKIT] Hz; G6 evidence: post.c:203 */
+        /* pwr service inited at startup (bench_main.c). Read only; capture rc for board diagnosis. */
+        g_f7_cclk_rc = (int)adi_pwr_GetCoreClkFreq(0u, &cclk);  /* [L1/EZKIT] Hz; G6 evidence: post.c:203 */
         g_f7_cclk_hz = cclk;
     }
 #endif
