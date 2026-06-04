@@ -1,0 +1,591 @@
+{
+  "metadata": {
+    "task": "PREREQUISITE #2 v1 on-axis focusing/depth-zoning efficacy sim (numpy primary)",
+    "role": "POLICY v1.8 三道关 GATE-1 SCREENING ONLY -- NO efficacy verdict",
+    "L_grade": {
+      "sim_field": "L2/仿真",
+      "feasibility_table": "L3/解析",
+      "L1": "none-in-scope"
+    },
+    "geometry": {
+      "N": 16,
+      "d_m": 0.055,
+      "L_aperture_m": 0.825,
+      "L_box_m": 0.88,
+      "c_m_s": 343.0,
+      "element_positions_m_centered": [
+        -0.4125,
+        -0.3575,
+        -0.3025,
+        -0.2475,
+        -0.1925,
+        -0.1375,
+        -0.0825,
+        -0.0275,
+        0.0275,
+        0.0825,
+        0.1375,
+        0.1925,
+        0.2475,
+        0.3025,
+        0.3575,
+        0.4125
+      ]
+    },
+    "weights_source": "sprint4/dsp/fira/dolph_w8_q15.csv",
+    "w8_float": [
+      0.866829692739,
+      0.504310064654,
+      0.621670438182,
+      0.733379376588,
+      0.83273310386,
+      0.913514611287,
+      0.970518658126,
+      1.0
+    ],
+    "model": "near-field spherical-wave sum p=sum w_n/(4 pi r_n) exp(-j k (r_n - c tau_n))",
+    "freqs_hz": [
+      500.0,
+      1000.0,
+      2000.0,
+      4000.0,
+      6000.0
+    ],
+    "focal_dists_m": [
+      2.0,
+      3.0,
+      5.0,
+      8.0,
+      12.0
+    ],
+    "boundaries": [
+      "point-source isotropic elements (no element directivity / diffraction / mutual coupling; underestimates real HF directivity >=2kHz)",
+      "band capped 6 kHz (grating lobes >=6236 Hz excluded)",
+      "relative dB only (absolute SPL not modeled)",
+      "symmetric-only excitation (off-axis steering excluded, DEC-S3-DSP-03)"
+    ]
+  },
+  "validation_anchors": {
+    "A1_farfield_BW_1k_deg": 29.269033,
+    "A3_peak_SLL_dB": -20.0,
+    "A2_paired_vs_16elem_max_abs_diff": 0.0
+  },
+  "nearfield_limit_table_L3": {
+    "500": {
+      "lambda_m": 0.686,
+      "L_over_lambda": 1.202624,
+      "L2_over_lambda_m": 0.992165,
+      "rayleigh_2L2_over_lambda_m": 1.984329
+    },
+    "1000": {
+      "lambda_m": 0.343,
+      "L_over_lambda": 2.405248,
+      "L2_over_lambda_m": 1.984329,
+      "rayleigh_2L2_over_lambda_m": 3.968659
+    },
+    "2000": {
+      "lambda_m": 0.1715,
+      "L_over_lambda": 4.810496,
+      "L2_over_lambda_m": 3.968659,
+      "rayleigh_2L2_over_lambda_m": 7.937318
+    },
+    "4000": {
+      "lambda_m": 0.08575,
+      "L_over_lambda": 9.620991,
+      "L2_over_lambda_m": 7.937318,
+      "rayleigh_2L2_over_lambda_m": 15.874636
+    },
+    "6000": {
+      "lambda_m": 0.057167,
+      "L_over_lambda": 14.431487,
+      "L2_over_lambda_m": 11.905977,
+      "rayleigh_2L2_over_lambda_m": 23.811953
+    }
+  },
+  "per_cell": {
+    "500": {
+      "2": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.0746,
+        "axial_zone_depth_m": 0.4028,
+        "axial_z_near_m": 0.2,
+        "axial_z_far_m": 0.6028,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.2,
+        "lateral_width_m": 2.1201
+      },
+      "3": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.0336,
+        "axial_zone_depth_m": 0.4851,
+        "axial_z_near_m": 0.3,
+        "axial_z_far_m": 0.7851,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.3,
+        "lateral_width_m": 3.1587
+      },
+      "5": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.0122,
+        "axial_zone_depth_m": 0.6418,
+        "axial_z_near_m": 0.5,
+        "axial_z_far_m": 1.1419,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.5,
+        "lateral_width_m": 5.2463
+      },
+      "8": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.0048,
+        "axial_zone_depth_m": 0.8982,
+        "axial_z_near_m": 0.8,
+        "axial_z_far_m": 1.6982,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.8,
+        "lateral_width_m": 8.3838
+      },
+      "12": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.0021,
+        "axial_zone_depth_m": 1.2651,
+        "axial_z_near_m": 1.2,
+        "axial_z_far_m": 2.4651,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 1.2,
+        "lateral_width_m": 12.57
+      }
+    },
+    "1000": {
+      "2": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 0.2991,
+        "axial_zone_depth_m": 0.8374,
+        "axial_z_near_m": 0.2,
+        "axial_z_far_m": 1.0374,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.2,
+        "lateral_width_m": 1.0376
+      },
+      "3": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 0.1346,
+        "axial_zone_depth_m": 0.9035,
+        "axial_z_near_m": 0.3,
+        "axial_z_far_m": 1.2035,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.3,
+        "lateral_width_m": 1.5434
+      },
+      "5": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.0488,
+        "axial_zone_depth_m": 0.9356,
+        "axial_z_near_m": 0.5,
+        "axial_z_far_m": 1.4356,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.5,
+        "lateral_width_m": 2.5609
+      },
+      "8": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.0191,
+        "axial_zone_depth_m": 1.0797,
+        "axial_z_near_m": 0.8,
+        "axial_z_far_m": 1.8797,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.8,
+        "lateral_width_m": 4.0916
+      },
+      "12": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.0085,
+        "axial_zone_depth_m": 1.3832,
+        "axial_z_near_m": 1.2,
+        "axial_z_far_m": 2.5832,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 1.2,
+        "lateral_width_m": 6.1339
+      }
+    },
+    "2000": {
+      "2": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 1.2072,
+        "axial_zone_depth_m": 0.9726,
+        "axial_z_near_m": 0.2,
+        "axial_z_far_m": 1.1725,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.2,
+        "lateral_width_m": 0.5152
+      },
+      "3": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 0.5409,
+        "axial_zone_depth_m": 1.1392,
+        "axial_z_near_m": 0.3,
+        "axial_z_far_m": 1.4392,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.3,
+        "lateral_width_m": 0.7658
+      },
+      "5": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 0.1955,
+        "axial_zone_depth_m": 2.1062,
+        "axial_z_near_m": 0.5,
+        "axial_z_far_m": 2.6062,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.5,
+        "lateral_width_m": 1.2704
+      },
+      "8": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.0764,
+        "axial_zone_depth_m": 2.1325,
+        "axial_z_near_m": 0.8,
+        "axial_z_far_m": 2.9325,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.9042,
+        "lateral_width_m": 2.0294
+      },
+      "12": {
+        "feasible_F_lt_rayleigh": false,
+        "focal_gain_dB": 0.034,
+        "axial_zone_depth_m": 1.9885,
+        "axial_z_near_m": 1.2,
+        "axial_z_far_m": 3.1885,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 1.2,
+        "lateral_width_m": 3.042
+      }
+    },
+    "4000": {
+      "2": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 4.8454,
+        "axial_zone_depth_m": 0.5088,
+        "axial_z_near_m": 0.2,
+        "axial_z_far_m": 0.7088,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.2567,
+        "lateral_width_m": 0.2571
+      },
+      "3": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 2.1943,
+        "axial_zone_depth_m": 0.4976,
+        "axial_z_near_m": 0.3,
+        "axial_z_far_m": 0.7976,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.3,
+        "lateral_width_m": 0.3822
+      },
+      "5": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 0.7869,
+        "axial_zone_depth_m": 2.2886,
+        "axial_z_near_m": 0.5,
+        "axial_z_far_m": 2.7885,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.6402,
+        "lateral_width_m": 0.6339
+      },
+      "8": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 0.3066,
+        "axial_zone_depth_m": 2.4091,
+        "axial_z_near_m": 0.8,
+        "axial_z_far_m": 3.2091,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.8,
+        "lateral_width_m": 1.0126
+      },
+      "12": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 0.1361,
+        "axial_zone_depth_m": 4.6111,
+        "axial_z_near_m": 1.2,
+        "axial_z_far_m": 5.8111,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 1.9188,
+        "lateral_width_m": 1.5179
+      }
+    },
+    "6000": {
+      "2": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 8.0914,
+        "axial_zone_depth_m": 0.3265,
+        "axial_z_near_m": 0.2,
+        "axial_z_far_m": 0.5265,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.2742,
+        "lateral_width_m": 0.1714
+      },
+      "3": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 4.9184,
+        "axial_zone_depth_m": 0.0836,
+        "axial_z_near_m": 0.3,
+        "axial_z_far_m": 0.3836,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.3075,
+        "lateral_width_m": 0.2547
+      },
+      "5": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 1.7863,
+        "axial_zone_depth_m": 0.2038,
+        "axial_z_near_m": 0.5,
+        "axial_z_far_m": 0.7038,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 0.5371,
+        "lateral_width_m": 0.4224
+      },
+      "8": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 0.6927,
+        "axial_zone_depth_m": 3.4496,
+        "axial_z_near_m": 0.8,
+        "axial_z_far_m": 4.2496,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 1.0274,
+        "lateral_width_m": 0.6749
+      },
+      "12": {
+        "feasible_F_lt_rayleigh": true,
+        "focal_gain_dB": 0.3069,
+        "axial_zone_depth_m": 3.3914,
+        "axial_z_near_m": 1.2,
+        "axial_z_far_m": 4.5914,
+        "axial_depth_near_open": true,
+        "axial_depth_far_open": false,
+        "axial_peak_z_m": 1.2,
+        "lateral_width_m": 1.0115
+      }
+    }
+  },
+  "cross_zone_isolation": {
+    "3m_vs_8m": {
+      "500": {
+        "focus_z1_meas_z1_dB": -9.3518,
+        "focus_z1_meas_z2_dB": -17.8607,
+        "focus_z2_meas_z1_dB": -9.3648,
+        "focus_z2_meas_z2_dB": -17.8476,
+        "isolation_z1_on_minus_off_dB": 8.5089,
+        "isolation_z2_on_minus_off_dB": -8.4828,
+        "geometric_spreading_dB": 8.5194,
+        "focusing_excess_z1_dB": -0.0105,
+        "focusing_excess_z2_dB": 0.0366
+      },
+      "1000": {
+        "focus_z1_meas_z1_dB": -9.3518,
+        "focus_z1_meas_z2_dB": -17.9,
+        "focus_z2_meas_z1_dB": -9.404,
+        "focus_z2_meas_z2_dB": -17.8476,
+        "isolation_z1_on_minus_off_dB": 8.5482,
+        "isolation_z2_on_minus_off_dB": -8.4435,
+        "geometric_spreading_dB": 8.5194,
+        "focusing_excess_z1_dB": 0.0289,
+        "focusing_excess_z2_dB": 0.0758
+      },
+      "2000": {
+        "focus_z1_meas_z1_dB": -9.3518,
+        "focus_z1_meas_z2_dB": -18.0576,
+        "focus_z2_meas_z1_dB": -9.5613,
+        "focus_z2_meas_z2_dB": -17.8476,
+        "isolation_z1_on_minus_off_dB": 8.7059,
+        "isolation_z2_on_minus_off_dB": -8.2863,
+        "geometric_spreading_dB": 8.5194,
+        "focusing_excess_z1_dB": 0.1865,
+        "focusing_excess_z2_dB": 0.2331
+      },
+      "4000": {
+        "focus_z1_meas_z1_dB": -9.3518,
+        "focus_z1_meas_z2_dB": -18.6937,
+        "focus_z2_meas_z1_dB": -10.1957,
+        "focus_z2_meas_z2_dB": -17.8476,
+        "isolation_z1_on_minus_off_dB": 9.3419,
+        "isolation_z2_on_minus_off_dB": -7.6519,
+        "geometric_spreading_dB": 8.5194,
+        "focusing_excess_z1_dB": 0.8225,
+        "focusing_excess_z2_dB": 0.8675
+      },
+      "6000": {
+        "focus_z1_meas_z1_dB": -9.3518,
+        "focus_z1_meas_z2_dB": -19.7694,
+        "focus_z2_meas_z1_dB": -11.2681,
+        "focus_z2_meas_z2_dB": -17.8476,
+        "isolation_z1_on_minus_off_dB": 10.4177,
+        "isolation_z2_on_minus_off_dB": -6.5794,
+        "geometric_spreading_dB": 8.5194,
+        "focusing_excess_z1_dB": 1.8983,
+        "focusing_excess_z2_dB": 1.9399
+      }
+    },
+    "2m_vs_5m": {
+      "500": {
+        "focus_z1_meas_z1_dB": -5.8636,
+        "focus_z1_meas_z2_dB": -13.7979,
+        "focus_z2_meas_z1_dB": -5.8901,
+        "focus_z2_meas_z2_dB": -13.7712,
+        "isolation_z1_on_minus_off_dB": 7.9343,
+        "isolation_z2_on_minus_off_dB": -7.8811,
+        "geometric_spreading_dB": 7.9588,
+        "focusing_excess_z1_dB": -0.0245,
+        "focusing_excess_z2_dB": 0.0777
+      },
+      "1000": {
+        "focus_z1_meas_z1_dB": -5.8636,
+        "focus_z1_meas_z2_dB": -13.878,
+        "focus_z2_meas_z1_dB": -5.9698,
+        "focus_z2_meas_z2_dB": -13.7712,
+        "isolation_z1_on_minus_off_dB": 8.0144,
+        "isolation_z2_on_minus_off_dB": -7.8014,
+        "geometric_spreading_dB": 7.9588,
+        "focusing_excess_z1_dB": 0.0556,
+        "focusing_excess_z2_dB": 0.1574
+      },
+      "2000": {
+        "focus_z1_meas_z1_dB": -5.8636,
+        "focus_z1_meas_z2_dB": -14.1999,
+        "focus_z2_meas_z1_dB": -6.29,
+        "focus_z2_meas_z2_dB": -13.7712,
+        "isolation_z1_on_minus_off_dB": 8.3363,
+        "isolation_z2_on_minus_off_dB": -7.4812,
+        "geometric_spreading_dB": 7.9588,
+        "focusing_excess_z1_dB": 0.3775,
+        "focusing_excess_z2_dB": 0.4776
+      },
+      "4000": {
+        "focus_z1_meas_z1_dB": -5.8636,
+        "focus_z1_meas_z2_dB": -15.5081,
+        "focus_z2_meas_z1_dB": -7.59,
+        "focus_z2_meas_z2_dB": -13.7712,
+        "isolation_z1_on_minus_off_dB": 9.6445,
+        "isolation_z2_on_minus_off_dB": -6.1812,
+        "geometric_spreading_dB": 7.9588,
+        "focusing_excess_z1_dB": 1.6857,
+        "focusing_excess_z2_dB": 1.7776
+      },
+      "6000": {
+        "focus_z1_meas_z1_dB": -5.8636,
+        "focus_z1_meas_z2_dB": -17.7104,
+        "focus_z2_meas_z1_dB": -9.773,
+        "focus_z2_meas_z2_dB": -13.7712,
+        "isolation_z1_on_minus_off_dB": 11.8468,
+        "isolation_z2_on_minus_off_dB": -3.9982,
+        "geometric_spreading_dB": 7.9588,
+        "focusing_excess_z1_dB": 3.888,
+        "focusing_excess_z2_dB": 3.9606
+      }
+    }
+  },
+  "physically_void_cells": [
+    {
+      "freq_hz": 500,
+      "focal_dist_m": 2,
+      "focal_gain_dB": 0.0746,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    },
+    {
+      "freq_hz": 500,
+      "focal_dist_m": 3,
+      "focal_gain_dB": 0.0336,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    },
+    {
+      "freq_hz": 500,
+      "focal_dist_m": 5,
+      "focal_gain_dB": 0.0122,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    },
+    {
+      "freq_hz": 500,
+      "focal_dist_m": 8,
+      "focal_gain_dB": 0.0048,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    },
+    {
+      "freq_hz": 500,
+      "focal_dist_m": 12,
+      "focal_gain_dB": 0.0021,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    },
+    {
+      "freq_hz": 1000,
+      "focal_dist_m": 5,
+      "focal_gain_dB": 0.0488,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    },
+    {
+      "freq_hz": 1000,
+      "focal_dist_m": 8,
+      "focal_gain_dB": 0.0191,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    },
+    {
+      "freq_hz": 1000,
+      "focal_dist_m": 12,
+      "focal_gain_dB": 0.0085,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    },
+    {
+      "freq_hz": 2000,
+      "focal_dist_m": 8,
+      "focal_gain_dB": 0.0764,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    },
+    {
+      "freq_hz": 2000,
+      "focal_dist_m": 12,
+      "focal_gain_dB": 0.034,
+      "reason": "F beyond Rayleigh (far-field); focusing collapses to broadside"
+    }
+  ],
+  "dualtrack": {
+    "tracks": "numpy(primary) vs MATLAB R2026a(independent)",
+    "rows_compared": 118,
+    "worst_abs_diff_db_field": 4.82e-05,
+    "worst_abs_diff_length": 0.001529,
+    "tol_db": 0.001,
+    "tol_length_m": 0.002,
+    "status": "CONSISTENT",
+    "note": "DB-field metrics agree to ~5e-5 (identical spherical-wave eqn proven). Length metrics agree to ~1 grid step (~1.5mm axial) = discretization artifact, not model disagreement.",
+    "per_family_max_abs_diff": {
+      "anchor": 3.782502560056855e-07,
+      "focal_gain_dB": 4.8196752862827985e-05,
+      "axial_depth_m": 0.001529106177410533,
+      "lateral_width_m": 0.00040618865173058794,
+      "isolation_z1_on_minus_off_dB": 3.765382626674807e-05,
+      "isolation_z2_on_minus_off_dB": 4.13613968568427e-05,
+      "focusing_excess_z1_dB": 4.628921910448079e-05,
+      "focusing_excess_z2_dB": 3.7565493557684126e-05
+    },
+    "flagged_rows": []
+  }
+}
