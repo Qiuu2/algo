@@ -3,6 +3,7 @@
 > 生成: 2026-06-04, workflow steering-headroom-scan (31 agents, 5 维侦察 + 逐发现对抗证伪; 幸存 findings 见附录).
 > 时点注记: 扫描启动时 R14 裁定 PENDING; 现 CTO 已三连裁定(R14 CLOSED / 判据复议 / C9 松绑附诚实分母).
 > 报告内 FLAG-C 'R14 PENDING' 表述系扫描时点快照; 隔离原则不变: 本线估算 [L4/待验证] 不进选型基准.
+> v1 路线注记 (2026-06-04): CTO 已裁 v1=聚焦/分区(DEC-S5-STEER-V1-01); 角度偏转转独立项(16ch 叉 ROI 待评). 优化排序 HW-1(IIR EQ)最高优先+item-3 PRD 同推(DEC-S5-OPT-ORDER-01). 口径采纳: 49x/340x 双作废(同源 1cyc/MAC 理想记账); 聚焦增量 86-144 MCPS[L4](30-50 cyc/MAC 板证包络), 聚焦后算法侧 margin 2.04-2.31x. 本报告 [L4/待验证] 估算不进选型基准, 须连体 §8 未计入清单呈现(DEC-S4-C9-RELEASE-01).
 
 〔critic R8 修正注：synthesizer 原工作注曾以 ~21.7 MCPS 为 FRAME=256 下界——该值把 MAC 项也 /4 摊薄，正是 workflow 内部 verifier 已纠正过的算错（21.7 撤回）。verifier 下界 86.9 MCPS 才是正确 floor。本报告正文已按 verifier-correct 区间呈现：FRAME=256: 86.9–341.6 MCPS（margin 2.93x–11.51x）；FRAME=128: 173.7–343.6 MCPS（2.91x–5.76x）。此事例证 synthesizer 可能撤销自家 verifier 的纠正——独立 critic 命门不可省。〕
 〔修正台账 #2（critic R9，缘起 CTO 质询）：STEER-2 原「~49x 纯核余量」退役——49x=1500/30.56 系桌面理想 1cyc/MAC 的**整路径**余量（dsp_8ch_report.md:64-68），被误挂到聚焦增量头上（类别错误），且同口径已被板上推翻（~30-50 cyc/MAC 实测，decisions_log:234/770）。修正后口径：聚焦增量 86–144 MCPS [L4]（板实测包络），margin 2.878x→~2.04x–2.31x，连体 §8 呈现。R9 同时抓住修正稿自身两处偏乐观新错（2.55x 低端算错应 2.31x；3 cyc/MAC 下界无板证）——修数的文档也要过门。〕

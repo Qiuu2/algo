@@ -704,6 +704,9 @@
 | **DEC-S4-R14-GRANULARITY** | R14 闭合粒度=**单通道全链 crc 0x90556BC7**（证据 gen_golden.c:71-75 单 TreeChannelState 全4子带链；非8ch）；原"F6=全链"作废（真8ch golden 不存在）；GAP-SAT 低优先 tracked→F5；R14 完整闭合定义 F5 再定 | ✅ APPROVED |
 | **DEC-S4-F7-CLOSE-01** | R14 cycle/CCLK 数据采集完成；官方加速比 3.07x[L1-derived]（in-build A/B 1,420,543/463,273），3.13x 退役（混 build）；8ch 裕量 2.878x[L1-derived]（CCLK 1e9 实测关 G6）；数据 COMPLETE，R14/判据/C9 裁定 PENDING CTO；C9 续 | ✅ 录数据（裁定 PENDING）|
 | **R14 三裁定** | ✅ **R14 CLOSED + 判据复议 + C9 RELEASED（CTO 正式裁定 2026-06-04）** | 三条：DEC-S4-R14-RULING-01（R14 闭合，证据侧 §5 全绿，FIRA 2.878x 裕量/3.07x 加速 L1 坐实，bit-exact 逐位不变；8ch_core 复读=非阻塞尾巴）｜DEC-S4-CRITERION-01（>=10x 退役→「实时下限+余量政策」，临时下限 >=1.0x，正式阈值待 item-3 EQ链 PRD + WCET 实测）｜DEC-S4-C9-RELEASE-01（C9 松绑附诚实分母：FIRA 收益 [L1] 进选型但必须与 §8 未计入清单 43-379 MCPS 连体呈现；官方加速比锁 3.07x in-build；3.13x 混 build 禁入选型/对外）。详见下「R14 三裁定」节 + `sprint4/dsp/fira/F7_R14_RULING_MATERIAL.md` |
+| **STEER v1 路线** | ✅ **v1=聚焦/分区（现板固件线）；角度偏转=独立立项（CTO 后评 ROI）**（DEC-S5-STEER-V1-01，2026-06-04）| 转向定义二选一已裁：v1 走 broadside 聚焦/分区（现板可负担，算法侧最坏 margin **2.04x**）；角度偏转拓扑数学不可达 [L1]，须 16ch 硬件叉 + SC-S3-GEOM-01 d 重议，单独立项。聚焦增量 **86–144 MCPS [L4]**（2.88 MMAC/s × 30–50 cyc/MAC 板证包络），聚焦后算法侧 margin **2.04–2.31x**（口径修正见 STEER scan R9 台账：49x/340x 同源 1cyc/MAC 理想记账双双作废）。详见「STEER v1 路线」节 |
+| **STEER 优化排序** | ✅ **HW-1(IIR EQ offload) 最高优先 + item-3 EQ PRD 同推**（DEC-S5-OPT-ORDER-01，2026-06-04）| 基于修正后真实余量 2.04–2.31x：(1) HW-1 IIR 加速器 EQ offload 评估 = 最高优先（聚焦后余量紧，EQ=§8 item-3 最大威胁，且为聚焦/分区成立前提钥匙）+ item-3 EQ 链 PRD 规格化（joint）；(2) 聚焦增量上板小 harness（86–144 [L4]→L1）；(3) FRAME/ORCH 按收益排后；ORCH-4 = measure-first likely KEEP（CTO 认可）。依赖：DEC-S4-CRITERION-01 正式阈值与 item-3/WCET 共依赖 |
+| **三道关新政** | ✅ **workflow 产出三道关，含修正稿**（DEC-S5-POLICY-3GATE-01，POLICY v1.8，2026-06-04）| 任何 workflow/多 agent 产出（**含修正稿**）须过：自动 verify(初筛) → 独立 critic 门 → CTO 常识合理性审，缺一不可，**不得假设「修过即对」**。缘起 R8（synthesizer 撤销自家 verifier 的纠正）+ R9（修正稿自带两处偏乐观新错）。详见 POLICY-PROV-001 §4B + CLAUDE.md/team_config 同步 |
 
 ### 锁定基线一览（2026-05-29 几何统一修正后更新）
 > **自研基线（单一，d=55 统一，DEC-S3-GEOM-01）**：N = 16 / d = 55mm / L = 825mm / Dolph-Chebyshev -20dB（d=30 已撤销 ⚠️PF-8；自研与竞品几何统一，受 SC-S3-GEOM-01 永久边界约束）
@@ -783,6 +786,49 @@
 3. DMA/中断小 harness（Pipelined ADC→DAC passthrough）量 §8 item-1/2 → [L1]。
 4. 非阻塞：重读 g_f7_cyc_analyze_fira/synth_fira（正确符号名）→ 16ch 约定估算升 [L1-derived]。
 
+
+## STEER v1 路线裁定（2026-06-04，CTO 正式裁定；本节录裁定与依据）
+
+### DEC-S5-STEER-V1-01：v1 = 聚焦/分区（现板固件线）；角度偏转 = 独立立项
+- **裁定（substance 逐字）**：转向定义走「聚焦/分区」做 v1（现板可负担，算法侧最坏 margin 2.04x）；
+  「角度偏转」（拓扑数学不可达 [L1]，16ch 硬件叉 + d 重议）单独立项，CTO 后续评 ROI。
+- **数字依据（口径修正后）**：
+  - 聚焦增量 = **86–144 MCPS [L4]**（fractional-delay FIR 2.88 MMAC/s × **30–50 cyc/MAC 板证包络**；
+    源 dsp_8ch_report.md:59-72 的 2.88 MMAC/s 桌面 MMAC 记账 × 板上真实 cyc/MAC）。
+  - 聚焦后算法侧 margin = **2.04–2.31x**（= 1000 MCPS [L1, CCLK 实测 1e9] / (347.45 [L1] + 86–144 [L4])）。
+  - **49x / 340x 双双作废**：49x=1500/30.56 系桌面理想 1cyc/MAC 整路径余量（类别错挂聚焦增量）；
+    340x=1000/2.88 同源理想记账；同口径已被板上 0.92x 推翻（decisions_log:234/770）。
+    修正台账见 STEERING_HEADROOM_SCAN.md 顶「修正台账 #2（critic R9）」。
+  - **FLAG-A [L1] 基础**：角度偏转不可达 = 对称实阵 broadside-only（AF 纯实偶函数，dsp_8ch_report.md:164
+    + critic_review_s3.md:106 + {c,15-c} 串联 [L1/硬件实测]）；DEC-S3-DSP-03 broadside-only 一致。
+- **隔离**：聚焦疗效 = **[L3/待 acoustic-sim + PRD 确认]**，非 load-bearing 直到声学 teammate 确认。
+- **状态**：v1 路线锁定聚焦/分区；角度偏转转独立项（16ch 叉 ROI 待 CTO 后评）。FIRA/算力收益仍 C9 纪律
+  （DEC-S4-C9-RELEASE-01 松绑附诚实分母：任何聚焦增量呈现须连体 §8 未计入清单 43–379 MCPS）。
+
+### DEC-S5-OPT-ORDER-01：优化执行排序（基于修正后真实余量 2.04–2.31x）
+- **裁定（substance 逐字）**：HW-1（IIR offload EQ）最高优先（聚焦后余量紧，EQ=item-3 最大威胁必须先解，
+  也是聚焦/分区成立的前提钥匙）；配套小 harness 上板实测聚焦增量（86–144 [L4]→L1）；其余 FRAME/ORCH 按
+  收益排后；ORCH-4 同意 measure-first likely KEEP。item-3 EQ 链 PRD 规格化优先推进，与 HW-1 评估一并做。
+- **排序落字**：
+  1. **HW-1 IIR 加速器 EQ offload 评估** + **item-3 EQ 链 PRD 规格化**（joint，最高优先）。理由：聚焦后
+     算法侧 margin 仅 2.04–2.31x，EQ（§8 item-3，0–150 MCPS [L4]，整系统残余最坏 ~1.0x 的主威胁）必须先解；
+     EQ offload 也是聚焦/分区成立的前提钥匙。
+  2. **聚焦增量上板 harness**：86–144 MCPS [L4] → [L1]（小 harness，DMA/中断同测，对应 §8 follow-up）。
+  3. **FRAME/ORCH 按收益排后**（FRAME-1 区间 86.9–341.6 MCPS [L4]、ORCH-1 ~3.2–3.6x [L4] 等，
+     均 R14 bit-exact 重门 gated）。
+  4. **ORCH-4 = measure-first likely KEEP**（CTO 认可）。
+- **依赖**：DEC-S4-CRITERION-01 的正式阈值（实时下限+余量政策）与 item-3 EQ PRD + WCET 实测共依赖——
+  HW-1/item-3 落定后方能拍正式阈值。
+- **C9 纪律**：所有 offload/FRAME/ORCH 收益在各自 R14-类闸关闭前 [L4/待验证]，呈现连体未计入清单。
+
+### DEC-S5-POLICY-3GATE-01：workflow 产出三道关（POLICY v1.8）
+- **裁定（substance 逐字）**：workflow/agent 输出每一轮都可能引入新错，包括修正错误的那一轮。
+  POLICY-PROV-001 增条：任何 workflow 产出（含修正稿）三道关——自动 verify(初筛) → 独立 critic 门 →
+  CTO 常识合理性审，缺一不可，不得假设「修过即对」。
+- **缘起**：R8（synthesizer 撤销自家内部 verifier 已纠正的算错——21.7 MCPS 错下界）+ R9（STEER-2 修正稿
+  自带两处偏乐观新错：2.55x 低端应 2.31x、3 cyc/MAC 下界无板证）。两轮均「修正动作本身引入/遗漏错」。
+- **落点**：POLICY-PROV-001 v1.8 §4B（全文，见本包 §2）+ CLAUDE.md 治理摘要同步（§3）+ team_config 团队
+  法同步（§4）。critic 评审时显式列三道关状态（与 C1–C10 并列）。
 
 ---
 

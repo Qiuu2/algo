@@ -41,6 +41,14 @@
 - 适用范围：所有 teammate、所有代码/文档交付物；唯一豁免 = critic 明文预先豁免的纯笔误级修正（critic 自己指定措辞的 Fix 落地）。
 - **Fallback 条款（2026-06-04 补，缘起 F7 偏差#2）**：若指定 critic 实例无法续（transcript 失效/socket 死），teammate **不得**以"在自己上下文里调用 critic skill"充当独立门——那仍是自审。正确动作 = **停在未 commit 状态、回报 lead**，由 lead spawn 全新独立 critic teammate 补门。F7（e338288）即此情形：dsp 以 in-context skill 自门并 commit → lead 事后补真·独立 critic（PASS，未致损），按规上报 CTO。
 
+## Three-gate verification (2026-06-04, CTO-mandated — POLICY v1.8 §4B)
+- **每一轮 workflow 产出（含修正稿）都可能引入新错——包括修正错误的那一轮。** 三道关缺一不可：
+  ① 自动 verify（workflow 内部自检）= **初筛，NOT 门**（同上下文可被同一盲点污染，甚至撤销自己已做对的纠正）；
+  ② **独立 critic teammate**（全新上下文，`reviewer: critic @ <model> / <date>`）= **唯一放行门**（in-context critic skill 自审不算，与 Commit-discipline 一致）；
+  ③ **CTO 常识合理性审** = 最后兜底（量级/方向/口径 sanity）。
+- **不得假设"修过即对"。** 修正稿同等过三道关。lead 在派单 prompt 中对「修正/二次修正」任务**显式重申**此条。
+- **缘起**：R8（synthesizer 撤销自家 verifier 已纠正的 21.7 MCPS 错下界）+ R9（STEER-2 「49x」修正稿自带 2.55x/3-cyc-MAC 两处偏乐观新错）。两案证明 workflow 自检不足，独立 critic + CTO 常识审是命门。
+
 ## Change control (audit)
 - Changing any role's model = edit this table + log the change (old->new, date, reason) in decisions_log, per POLICY-PROV-001 change-trail discipline.
 
