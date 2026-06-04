@@ -1,15 +1,27 @@
 /**
  * @file    tfb_8ch.h
- * @brief   8ch broadside DAS 包裹层（core-only G2 适配）— 核外层包裹
+ * @brief   8ch independent filterbank wrapper (core-only G2) -- 8-in-8-out
  *
- * ⚠️ 不碰算法核签名/算法：只在 tree_filterbank.c 的 tfb_* 之上做 8ch 循环 +
- *    broadside 等增益求和（增益钩子=1.0）+ 合成×1。核 verbatim 复制（md5 一致）。
+ * F5-B structural change (plan sprint4/dsp/fira/F5_F7_PLAN.md sec.2): the
+ * former 8-in-1-out digital-sum wrapper (per-subband w_add_i32 across channels
+ * + single synthesize) was a WCET-era verification wrapper, NOT product
+ * datapath. CTO-locked product topology = 8 channels each output to its own
+ * DAC (each driving an A/B series element pair); broadside = ACOUSTIC
+ * superposition, NO digital sum in the DSP. This wrapper now mirrors that:
+ *   for c in 0..7: tfb_analyze(&ana[c], in[c]) -> tfb_synthesize(&syn[c], out[c])
+ * Per-channel, fully independent, zero cross-channel ops (NO int32 sum node).
  *
- * 结构（计划 §1 G2）：
- *   8 份 TreeChannelState（分析）+ 1 份独立 syn 状态（合成×1，参 tree_verify.c:70）。
- *   帧回调：for c in 0..7  tfb_analyze(&g_ana[c], in[c], ...);
- *           broadside 各子带 sat_add_i32 求和（沿用核饱和纪律，避免 8 路叠加溢出）;
- *           tfb_synthesize(&g_syn, sb_sum..., out)  ×1。
+ * Does NOT touch the algorithm core (tree_filterbank.c tfb_* signatures /
+ * implementation; core stays verbatim, md5 identical). The single-channel
+ * tfb_analyze/tfb_synthesize chain is the frozen golden (S2 CRC 0x90556BC7);
+ * with gain 1.0, out[c] for channel c MUST equal that single-channel chain
+ * bit-exactly for identical input (the F5-B sanity, plan sec.2 / FG1).
+ *
+ * Per-channel gain hook: held at 1.0 here; Dolph-Chebyshev -20dB per-channel
+ * weights land in F5-C (not present in DSP code yet). Removing the sum node
+ * means broadside summation no longer exists in the DSP -> GAP-SAT closed by
+ * topology (residual premise "all weights <= 1.0" pending-on-F5C, see
+ * decisions_log.md).
  */
 #ifndef ITC_TFB_8CH_H
 #define ITC_TFB_8CH_H
@@ -18,26 +30,27 @@
 #include "tree_filterbank.h"
 
 #define TFB8_NCH    8
-#define TFB8_FRAME  64   /* 8 的倍数；与 tree_verify FRAME 一致 */
+#define TFB8_FRAME  64   /* multiple of 8; same as tree_verify FRAME */
 
-/* 8ch broadside 包裹状态（核外层；不修改 TreeChannelState 定义） */
+/* 8ch independent wrapper state (does NOT modify TreeChannelState). */
 typedef struct {
-    TreeChannelState ana[TFB8_NCH];   /* 8 路阵元分析状态，严格独立（R-G2-2） */
-    TreeChannelState syn;             /* 合成单路（broadside DAS 输出 ×1） */
+    TreeChannelState ana[TFB8_NCH];   /* 8 per-element analyze states, strictly independent */
+    TreeChannelState syn[TFB8_NCH];   /* 8 per-channel synthesize states, strictly independent */
     uint8_t          initialized;
 } Tfb8State;
 
-/** @brief 初始化 8ch 包裹（清零全部子状态）。 */
+/** @brief Init 8ch wrapper (zero all sub-states). */
 void tfb8_init(Tfb8State *st);
 
 /**
- * @brief 一帧 8ch broadside DAS：分析×8 → 各子带等增益(1.0)求和 → 合成×1。
- * @param[in]  st     8ch 包裹状态
- * @param[in]  in     8 路输入 [TFB8_NCH][frame] @48kHz Q31
- * @param[in]  frame  帧长（8 的倍数）
- * @param[out] out    重建单路 [frame] @48kHz Q31
+ * @brief One frame, 8 independent channels: per-channel analyze -> synthesize.
+ *        NO cross-channel sum (product topology = 8 DACs, acoustic superposition).
+ * @param[in]  st     8ch wrapper state
+ * @param[in]  in     8 input rows [TFB8_NCH][frame] @48kHz Q31
+ * @param[in]  frame  frame length (multiple of 8)
+ * @param[out] out    8 output rows [TFB8_NCH][frame] @48kHz Q31 (one per channel)
  */
 void tfb8_process(Tfb8State *st, const int32_t in[TFB8_NCH][TFB8_FRAME],
-                  uint16_t frame, int32_t *out);
+                  uint16_t frame, int32_t out[TFB8_NCH][TFB8_FRAME]);
 
 #endif /* ITC_TFB_8CH_H */

@@ -7,9 +7,11 @@
  *       且断言 ntaps==63（CTO 盯点①，防 437-tap 误接）。
  *   (B) golden 权威 = host 重跑参考单通道链导出整数 y[]（走 tree_verify 同一路径），
  *       tree_io_*.csv 仅作参考（其 %.10e 字符串不作权威）（CTO 盯点②）。
- *   (C) 8ch 包裹 bit-exact：1 路有效 + 7 路零、broadside 增益 1.0 求和 → 与参考
- *       单通道链整数域逐位一致（容差 0）。验 G2 包裹未改变核数值。
- *   (D) 8ch broadside smoke：8 路同信号求和，跑通无崩溃，报饱和/重建概况。
+ *   (C) 8ch 独立 bit-exact（F5-B）：8 路同信号、增益 1.0、8 条独立链 →
+ *       每路 out[c] 与参考单通道链整数域逐位一致（容差 0, 8/8 路）。
+ *       验删求和节点后核数值不变、每路独立链 == 单通道 golden（FG1 依赖滤波）。
+ *   (D) 8ch 互等性（F5-B）：8 路同输入 → 8 个输出两两逐位一致（无跨通道串扰、
+ *       等增益钩子=1.0）。删求和后不再有「8x 饱和」smoke, 改为独立性核对。
  *
  * 两套构建：
  *   sat   : gcc 默认（sat_i64_to_i32 / sat_add_i32 激活）
@@ -72,7 +74,6 @@ static void make_halfband_live(void) {
 }
 
 static int32_t to_q31(double v){ double s=v*2147483648.0; if(s>2147483647.0)s=2147483647.0; if(s<-2147483648.0)s=-2147483648.0; return (int32_t)s; }
-static double  from_q31(int32_t v){ return (double)v/2147483648.0; }
 
 /* chirp 激励：与 tree_verify.c:101-109 同口径（0.289 = -6dBFS + -4.8dB headroom） */
 static void gen_chirp(int32_t *x, double *xf) {
@@ -90,8 +91,8 @@ static void gen_chirp(int32_t *x, double *xf) {
 static int32_t x[N_TOTAL];
 static double  xf[N_TOTAL];
 static int32_t y_ref[N_TOTAL];     /* 参考单通道链 golden（整数 Q31，权威） */
-static int32_t y_wrap[N_TOTAL];    /* 8ch 包裹（1 有效+7 零）输出 */
 static int32_t in8[TFB8_NCH][TFB8_FRAME];
+static int32_t out8[TFB8_NCH][TFB8_FRAME];   /* 8 路独立输出（F5-B 8-in-8-out） */
 
 int main(void) {
     int rc_total = 0;   /* 累计失败计数；0 = 全 PASS */
@@ -143,49 +144,61 @@ int main(void) {
         printf("  注: tree_io_%s.csv 仅作参考 (其 %%.10e 字符串非权威; 整数域比对)\n", BUILD_TAG);
     }
 
-    /* ---------- (C) 8ch 包裹 bit-exact vs 参考链（容差 0） ---------- */
-    printf("\n[C] 8ch 包裹 bit-exact 预验 (1 路有效 + 7 路零, broadside 增益 1.0)\n");
+    /* ---------- (C) 8ch 独立 bit-exact vs 单通道 golden（容差 0, 8/8 路）---------- */
+    printf("\n[C] 8ch 独立 bit-exact 预验 (F5-B: 8 路同信号, 增益 1.0, 8 条独立链)\n");
     {
         Tfb8State st;
         tfb8_init(&st);
+        long diffC[TFB8_NCH]; int firstC[TFB8_NCH];
+        for (int c = 0; c < TFB8_NCH; c++) { diffC[c] = 0; firstC[c] = -1; }
         for (int f = 0; f < N_FRAMES; f++) {
-            /* ch0 = 信号, ch1..7 = 0 ; broadside 求和 = ch0 (增益 1.0) */
-            memset(in8, 0, sizeof(in8));
-            for (int i = 0; i < FRAME; i++) in8[0][i] = x[f*FRAME + i];
-            tfb8_process(&st, in8, FRAME, &y_wrap[f*FRAME]);
+            /* 8 路同信号; 每路独立链 -> 每路应 == 参考单通道 golden */
+            for (int i = 0; i < FRAME; i++)
+                for (int c = 0; c < TFB8_NCH; c++) in8[c][i] = x[f*FRAME + i];
+            tfb8_process(&st, in8, FRAME, out8);
+            for (int c = 0; c < TFB8_NCH; c++)
+                for (int i = 0; i < FRAME; i++) {
+                    int gi = f*FRAME + i;
+                    if (out8[c][i] != y_ref[gi]) { if (firstC[c] < 0) firstC[c] = gi; diffC[c]++; }
+                }
         }
-        long diffC = 0; int first = -1;
-        for (int i = 0; i < N_TOTAL; i++) {
-            if (y_wrap[i] != y_ref[i]) { if (first < 0) first = i; diffC++; }
-        }
-        if (diffC == 0) {
-            printf("  PASS: 8ch 包裹输出 == 参考单通道 golden, 逐位一致 (diff=0 / %d samples)\n", N_TOTAL);
+        long totC = 0; int firstBadCh = -1;
+        for (int c = 0; c < TFB8_NCH; c++) { totC += diffC[c]; if (diffC[c] && firstBadCh < 0) firstBadCh = c; }
+        if (totC == 0) {
+            printf("  PASS: 8/8 路 out[c] == 参考单通道 golden, 逐位一致 (diff=0, 每路 %d samples)\n", N_TOTAL);
         } else {
-            printf("  FAIL: diff=%ld / %d samples; first@%d wrap=%d ref=%d\n",
-                   diffC, N_TOTAL, first, y_wrap[first], y_ref[first]);
+            printf("  FAIL: 跨路总 diff=%ld; 首坏路 ch%d diffC=%ld first@%d out=%d ref=%d\n",
+                   totC, firstBadCh, diffC[firstBadCh], firstC[firstBadCh],
+                   out8[firstBadCh][firstC[firstBadCh]%FRAME], y_ref[firstC[firstBadCh]]);
             rc_total++;
         }
     }
 
-    /* ---------- (D) 8ch broadside smoke（8 路同信号求和） ---------- */
-    printf("\n[D] 8ch broadside smoke (8 路同信号, 增益 1.0 求和)\n");
+    /* ---------- (D) 8ch 互等性（8 路同输入 -> 8 输出两两逐位一致）---------- */
+    printf("\n[D] 8ch 互等性 (F5-B: 8 路同输入 -> 8 输出无串扰, 增益 1.0 全等)\n");
     {
         Tfb8State st;
         tfb8_init(&st);
-        long satN = 0; double maxabs = 0;
+        long diffD = 0; int firstD = -1; int firstCh = -1;
         for (int f = 0; f < N_FRAMES; f++) {
             for (int i = 0; i < FRAME; i++)
                 for (int c = 0; c < TFB8_NCH; c++) in8[c][i] = x[f*FRAME + i];
-            int32_t out[FRAME];
-            tfb8_process(&st, in8, FRAME, out);
-            for (int i = 0; i < FRAME; i++) {
-                if (out[i] == INT32_MAX || out[i] == INT32_MIN) satN++;
-                double a = fabs(from_q31(out[i]));
-                if (a > maxabs) maxabs = a;
-            }
+            tfb8_process(&st, in8, FRAME, out8);
+            /* 每帧: 路 1..7 应逐位 == 路 0（同输入+同增益+独立链, 零跨通道串扰） */
+            for (int c = 1; c < TFB8_NCH; c++)
+                for (int i = 0; i < FRAME; i++)
+                    if (out8[c][i] != out8[0][i]) {
+                        if (firstD < 0) { firstD = f*FRAME + i; firstCh = c; }
+                        diffD++;
+                    }
         }
-        printf("  PASS(smoke): 8 路求和跑通无崩溃; 输出峰值=%.3f FS; 钳位样本数=%ld\n", maxabs, satN);
-        printf("  (8 路同信号 -> ~8x 必触饱和[sat] / 环绕[unsat], 属预期; 仅 smoke 不作 bit-exact)\n");
+        if (diffD == 0) {
+            printf("  PASS: 8 路同输入 -> 8 输出两两逐位一致 (diff=0; 证独立链无串扰、等增益)\n");
+        } else {
+            printf("  FAIL: 互等 diff=%ld; first@ch%d sample%d (out[%d]!=out[0])\n",
+                   diffD, firstCh, firstD, firstCh);
+            rc_total++;
+        }
     }
 
     /* ---------- 参考: tree_io_*.csv 对照（非权威, 仅信息） ---------- */

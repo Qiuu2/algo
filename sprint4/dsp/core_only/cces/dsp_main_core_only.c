@@ -32,8 +32,9 @@ void core_only_init(void)
     tfb8_init(&g_tfb8);
 }
 
-/* 帧回调 (S4-S5 cycle 计数时用 TFB_LOAD_START/STOP 包住; 见 tree_filterbank.h:74-93) */
-void core_only_frame(const int32_t in[TFB8_NCH][TFB8_FRAME], int32_t *out)
+/* 帧回调 (S4-S5 cycle 计数时用 TFB_LOAD_START/STOP 包住; 见 tree_filterbank.h:74-93)
+ * F5-B: 8-in-8-out (8 路独立链, 无数字求和); out 现为 8 行 -> 8 DAC (声学叠加). */
+void core_only_frame(const int32_t in[TFB8_NCH][TFB8_FRAME], int32_t out[TFB8_NCH][TFB8_FRAME])
 {
     TFB_LOAD_START();
     tfb8_process(&g_tfb8, in, TFB8_FRAME, out);

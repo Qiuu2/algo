@@ -90,9 +90,13 @@ int bench_run(BenchResult *r){
         uint32_t t1=BENCH_CYC();
         tfb_synthesize(&syn,sb0,sb1,sb2,sb3,BENCH_FRAME,out1);
         uint32_t t2=BENCH_CYC();
-        /* 8ch 满负载（sat 激励：8 路同信号 → ~8x 触饱和，WCET 路径） */
+        /* 8ch 满负载: 8 路同信号, 8 条独立链 analyze->synthesize.
+         * F5-B 语义变更: cyc_8ch_frame 现在量的是「8 条独立链」一帧 wall cycle,
+         * 不再含跨通道数字求和(求和节点已删, 见 tfb_8ch.c). 旧值含 8x 求和+饱和钳位
+         * 的 WCET 路径; 新值 = 纯 8x (analyze+synthesize), 无 acc 累加/无 w_add_i32.
+         * 8 路同信号 -> 8 个相同输出(各自独立链), 不触发任何跨通道饱和. out 现 8 行. */
         for(int i=0;i<BENCH_FRAME;i++) for(int c=0;c<TFB8_NCH;c++) s_in8[c][i]=CHIRP_INPUT[4*BENCH_FRAME+i];
-        int32_t out8[BENCH_FRAME];
+        int32_t out8[TFB8_NCH][BENCH_FRAME];
         uint32_t t3=BENCH_CYC();
         tfb8_process(&st8, s_in8, BENCH_FRAME, out8);
         uint32_t t4=BENCH_CYC();

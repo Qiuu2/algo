@@ -19,7 +19,7 @@ typedef struct {
     /* S3-S5 cycle（host=占位无意义[L2]；target=真 CCNT[L1/EZKIT]） */
     uint32_t cyc_analyze_1ch;  /* 单通道 tfb_analyze 每帧 cycle */
     uint32_t cyc_synth_1ch;    /* 单通道 tfb_synthesize 每帧 cycle */
-    uint32_t cyc_8ch_frame;    /* tfb8_process 每帧 cycle（8ch 满负载） */
+    uint32_t cyc_8ch_frame;    /* tfb8_process 每帧 cycle（8 条独立链, 无跨通道求和; F5-B 后语义=8x analyze+synth） */
     /* 派生（换算式见 bench_harness.c；CCLK 实测填入 cclk_hz 后算） */
     double   mcps_8ch;         /* = cyc_8ch_frame * (FS/FRAME) / 1e6 */
     double   mcps_16ch_est;    /* = (cyc_8ch_frame + 8*cyc_analyze_1ch)*(FS/FRAME)/1e6 */
