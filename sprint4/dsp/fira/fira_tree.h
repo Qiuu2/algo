@@ -17,8 +17,9 @@
  * |    (hereafter MCP.c):243-285.                                         |
  * |  - each unverified assumption explicitly marked [ASSUME] / [L1/EZKIT].|
  * |  - NEVER claims "compiled / bit-exact passed / measured cycle".       |
- * |  - real compile + board R14 bit-exact(crc==0x90556BC7) + measured     |
- * |    cycle = bench backfill.                                            |
+ * |  - real compile + board R14 bit-exact (per-SUBBAND criterion,         |
+ * |    DEC-S4-R14-GRANULARITY; e2e crc==0x90556BC7 RETIRED -> self-check   |
+ * |    only) + measured cycle = bench backfill.                           |
  * +-----------------------------------------------------------------------+
  *
  * Mode: **LEGACY** (F1 locked, DOC-S4-FIRA-F1-01 S2).
@@ -41,8 +42,9 @@
  *   input format enum only has UNSIGNED/SIGNED_INTEGER (legacy hdr:42-43). Q format conversion points see
  *   FIRA_IMPL.md S3, **each marked "high bit-deviation risk, must board bit-by-bit"**; cannot confirm on desktop.
  *
- * Red-line (iron rule 8 / C9): before board R14 crc==0x90556BC7 passes, FIRA benefit/margin must not be written into
- *   any selection basis (violation = BLOCKER). This file contains no performance numbers.
+ * Red-line (iron rule 8 / C9): before board R14 passes (per-SUBBAND criterion -- F4 single-channel +
+ *   F5-A 8-channel sb0..3==core; the e2e crc==0x90556BC7 is RETIRED as the pass criterion), FIRA
+ *   benefit/margin must not be written into any selection basis (violation = BLOCKER). No perf numbers here.
  */
 #ifndef ITC_FIRA_TREE_H
 #define ITC_FIRA_TREE_H
@@ -159,7 +161,8 @@ int fira_tree_setup(void);
 
 /* ============================================================
  * Frame-level Split-Task orchestration (draft): interface deliberately **same signature** as tfb_analyze/tfb_synthesize,
- *   so bench_harness / fira_regression can directly substitute the convolution segment for CRC comparison (crc==0x90556BC7).
+ *   so bench_harness / fira_regression can directly substitute the convolution segment for the per-SUBBAND
+ *   CRC comparison (DEC-S4-R14-GRANULARITY; the e2e crc==0x90556BC7 is RETIRED, telescoping-blind).
  * ============================================================ */
 void fira_tfb_analyze(FiraChannelState *ch, const int32_t *in, uint16_t frame,
                       int32_t *sb0, int32_t *sb1, int32_t *sb2, int32_t *sb3);

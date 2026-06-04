@@ -53,6 +53,24 @@ extern volatile int32_t  g_f4_dump_fira[32]; /* paired FIRA sb3 samples (all-zer
 extern volatile int      g_f4_dump_idx0;     /* sb3 flattened index where the 32-sample dump starts */
 volatile int      g_fira_f4_pass = -99;      /* F4b verdict: 1=PASS / 0=mismatch / -99 not-run */
 volatile uint32_t g_fira_f4_crc  = 0;        /* F4b FIRA-subband CRC */
+
+/* F5-A: 8-channel subband bit-exact (fira_regression.c). Per-channel readout (NO aggregate masking).
+ *   Criterion is PER-CHANNEL subband: for each c, FIRA sb0..3 == core sb0..3 over chirp*w[c], and the
+ *   live core CRC == the frozen per-channel golden g_f5_golden_crc[c] (dolph_f5_goldens.h, 8 DISTINCT). */
+extern int      fira_r14_regression_8ch(void);
+extern volatile int      g_f5_pass[8];          /* per channel 1=PASS/0=FAIL */
+extern volatile uint32_t g_f5_crc_fira[8];      /* per channel FIRA subband CRC */
+extern volatile uint32_t g_f5_crc_core[8];      /* per channel live core CRC (== frozen golden g_f5_golden_crc[c]) */
+extern volatile int      g_f5_mismatch_sb[8];   /* per channel first-mismatch subband (-1 none) */
+extern volatile int      g_f5_mismatch_idx[8];  /* per channel first-mismatch index (-1 none) */
+extern volatile int32_t  g_f5_mismatch_core[8]; /* per channel core value at first mismatch */
+extern volatile int32_t  g_f5_mismatch_fira[8]; /* per channel FIRA value at first mismatch */
+extern volatile int      g_f5_pass_all;         /* convenience AND over channels (-99 not-run) */
+extern volatile int      g_f5_fail_chan;        /* first failing channel (-1 none); selects the dump */
+extern volatile int32_t  g_f5_dump_core[32];    /* first-failing-channel sb3 core 32-dump */
+extern volatile int32_t  g_f5_dump_fira[32];    /* paired FIRA sb3 samples */
+extern volatile int      g_f5_dump_idx0;        /* sb3 flattened index where the dump starts (-1 none) */
+volatile int g_fira_f5_pass = -99;              /* F5-A overall verdict mirror: 1=all8 PASS/0=FAIL/-99 not-run */
 #endif
 
 /* ---- target CCNT read (true CCLK cycles) ----
@@ -132,6 +150,29 @@ void main(void)
     g_fira_f4_pass = fira_r14_regression((uint32_t *)&g_fira_f4_crc);
     /* breakpoint here: g_fira_f4_pass / g_fira_f4_crc / g_f4_crc_core(==0x2E0D8C6E) / g_f4_mismatch_sb /
      *   g_f4_mismatch_idx / g_f4_probe_core[] / g_f4_probe_fira[] / g_f4_dump_core[] / g_f4_dump_fira[] */
+
+    /* ---- F5-A: 8-channel SUBBAND bit-exact (8 independent FIRA chains, per-channel Dolph weight) ----
+     * Runs AFTER F4 (sequenced; its own fira_tree_setup/teardown; channel-major serial on the shared
+     *   handle s_hFir -- 8ch x 9seg = 72 serial QueueTask, [ASSUME-A1] single-threaded, no shared-static
+     *   overwrite window; fa[8] keep per-channel cross-frame history).
+     * The Dolph -20dB weight w[c] (dolph_w8_q15.h) is applied at INPUT-SCALE on BOTH the FIRA and the
+     *   core side, so the per-channel compare is apples-to-apples (weight INSIDE the bit-exact boundary).
+     *
+     * CRITERION = PER-CHANNEL subband (NOT a single constant). g_fira_f5_pass==1  <=>  for EVERY c:
+     *   g_f5_pass[c]==1, i.e. g_f5_mismatch_idx[c]==-1 AND g_f5_crc_fira[c]==g_f5_crc_core[c]
+     *   AND g_f5_crc_core[c]==g_f5_golden_crc[c]. A placeholder FIRA (segs=0) FAILs every channel.
+     * SELF-CHECK ANCHOR = the 8 PER-CHANNEL goldens (dolph_f5_goldens.h), NOT a single constant:
+     *   g_f5_crc_core[c] MUST equal g_f5_golden_crc[c]  ->  {0x8E807729, 0xB2F1E13F, 0x7B109C71,
+     *   0xD7BD23E7, 0xA000D606, 0x2403E085, 0xB88D91B5, 0x2E0D8C6E} for c=0..7 (8 DISTINCT; c=7 unity
+     *   == the F4 baseline 0x2E0D8C6E -> F4 continuity cross-check). If any g_f5_crc_core[c] differs from
+     *   its golden, the core path/chirp/weight drifted on board -> diagnosis invalid, fix that first.
+     * FAIL (iterate): g_f5_pass_all==0; read g_f5_fail_chan (first failing channel), then that channel's
+     *   g_f5_mismatch_sb[c] / g_f5_mismatch_idx[c] / g_f5_mismatch_core[c] / g_f5_mismatch_fira[c], plus
+     *   the sb3 32-dump g_f5_dump_core[0..31] vs g_f5_dump_fira[0..31] (idx0 = g_f5_dump_idx0). */
+    g_fira_f5_pass = fira_r14_regression_8ch();
+    /* breakpoint here: g_fira_f5_pass / g_f5_pass_all / g_f5_pass[0..7] / g_f5_crc_fira[0..7] /
+     *   g_f5_crc_core[0..7] (== per-channel goldens above) / g_f5_fail_chan / g_f5_mismatch_sb[] /
+     *   g_f5_mismatch_idx[] / g_f5_dump_core[] / g_f5_dump_fira[] */
 #endif
 
     /* ---- breakpoint here, emulator read g_bench_result:

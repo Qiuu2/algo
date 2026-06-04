@@ -32,7 +32,10 @@
  * ------------------------------------------------------------
  * These must stay in core: FIRA only does MAC, no Q31 saturation / vector sub / vector add semantics.
  *   Semantics bit-identical to tree_filterbank.c:47-61 (sat_i64_to_i32 / sat_add_i32).
- *   R14 comparison verifies FIRA path numerically equivalent to core path (crc==0x90556BC7).
+ *   R14 comparison verifies the FIRA path is numerically equivalent to the core path.
+ *   (RETIRED criterion: the old e2e crc==0x90556BC7 is telescoping-blind -> replaced by the
+ *    per-SUBBAND criterion, DEC-S4-R14-GRANULARITY: F4 single-channel sb0..3==core (anchor
+ *    0x2E0D8C6E) and F5-A per-channel sb0..3==core over chirp*w[c] (dolph_f5_goldens.h).)
  * ============================================================ */
 #ifdef TFB_DISABLE_SAT
 static inline int32_t f_sat_i64_to_i32(int64_t v) { return (int32_t)v; }
@@ -116,7 +119,9 @@ void fira_channel_init(FiraChannelState *ch, uint16_t frame)
  * R14-3 (HIGH): fixed-point format not set here (no Legacy field); set at runtime by adi_fir_FixedPointEnable
  *   (hTask, SIGNED_INTEGER). signed-fractional used as SIGNED_INTEGER -> fractional-point
  *   semantics lost, needs x2 scaling + decimate post-processing + core-side >>15 unification (see fira_postscale_*).
- *   **This mapping cannot be confirmed on desktop, must do board bit-by-bit regression golden 0x90556BC7**.
+ *   **This mapping cannot be confirmed on desktop, must do board bit-by-bit subband regression**
+ *   (per-SUBBAND golden, DEC-S4-R14-GRANULARITY; the e2e 0x90556BC7 is RETIRED as the pass
+ *    criterion -- telescoping-blind -- and survives only as fira_harness_selfcheck infra check).
  */
 static ADI_FIR_CHANNEL_INFO fira_make_channel(FiraSegKind kind, uint16_t window,
                                               const int32_t *coeff,
