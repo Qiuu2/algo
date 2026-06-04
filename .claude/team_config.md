@@ -34,6 +34,12 @@
 - Lead remains the ONLY node reporting to the CTO (synthesis), but no longer the mandatory relay between dsp <-> critic.
 - Previously (rounds 1-3 of the FIRA contract fix) the lead manually relayed dsp<->critic; from now the two converse directly and the lead receives the converged result + any escalation.
 
+## Commit discipline (2026-06-04, CTO-mandated after the F5-A deviation — HARD RULE)
+- **不得在独立 critic verdict 前 commit。** Teammate 自己的对抗式自审**不满足门禁**——只有独立 critic teammate 出具的、带 `reviewer: critic @ <exact model ID> / <date>` 标记的 verdict 才能放行 commit。
+- **硬顺序**：实现 → 桌面自验 → SendMessage critic → **收到独立 verdict** → PASS 才 commit ／ BLOCKER/MAJOR 则修复后重新 challenge。lead 在**每份派单 prompt** 中显式写入此顺序；任何先 commit 后 verdict 的行为 = 流程偏差，必须**原样上报 CTO**（不得自行消化）。
+- **理由**：先 commit 的代码若随后被裁 BLOCKER 而已被下游引用，回退成本非零。缘起：2026-06-04 F5-A——dsp 在自审后、独立 verdict 前提交（verdict 事后 PASS、未致损，但口子是真的）。
+- 适用范围：所有 teammate、所有代码/文档交付物；唯一豁免 = critic 明文预先豁免的纯笔误级修正（critic 自己指定措辞的 Fix 落地）。
+
 ## Change control (audit)
 - Changing any role's model = edit this table + log the change (old->new, date, reason) in decisions_log, per POLICY-PROV-001 change-trail discipline.
 
