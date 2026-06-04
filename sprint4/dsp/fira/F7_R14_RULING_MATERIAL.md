@@ -26,11 +26,14 @@ Cross-check vs prior: core-only run `cyc_8ch_frame` = 1,451,030 [L1/EZKIT, F7_MA
 
 ## 1. Arithmetic verification + L-grades (NO rubber-stamp)
 
-### 1A. Net speedup — CONFIRMED
-`1,451,030 / 463,273 = 3.1321x`. **CTO's 3.132x CONFIRMED.** This is the net per-frame speedup of the
-full 8ch FIRA path (incl. ALL orchestration overhead) vs the core 8ch path, at FRAME=64.
-Grade: **[L1-derived, provisional pending the §1E re-read of `g_f7_cyc_8ch_core`]** — ratio of two
-[L1/EZKIT] board cycle counts, but the denominator's build-identity is in question (see 1E).
+### 1A. Net speedup — OFFICIAL VALUE RULED (re-read 2026-06-04)
+**OFFICIAL net speedup = 3.07x [L1-derived]** = `g_f7_cyc_8ch_core(in-build) / g_f7_cyc_8ch_fira`
+= `1,420,543 / 463,273 = 3.0663x`. This is the same-build / same-input / same-loop A/B (only the kernel
+differs: FIRA `fira_tfb_*` vs core `tfb_*`, fira_regression.c:615-616 vs :626-627) -- the methodologically
+clean comparison. The earlier `1,451,030 / 463,273 = 3.13x` is RETIRED as a speedup (mixed build: unweighted
++ tfb8_process wrapper + core-only build); 1,451,030 is RETAINED only as the product core-only DEMAND
+(0.92x margin). Cross-validation: 1ch speedup `179,882/56,616 = 3.18x` agrees within ~3.6% (dilution = the
+2.23% per-frame fixed share, §1E/§7B). [L1-derived]
 
 ### 1B. FIRA 8ch demand + margin — CONFIRMED
 - Demand: `463,273 x 750 / 1e6 = 347.45 MCPS` (fpf = BENCH_FS/BENCH_FRAME = 48000/64 = 750,
@@ -75,31 +78,15 @@ Per POLICY-PROV-001: the margin = available_cycles/s / demanded_cycles/s.
   "降为参考 / reference only" (hardware drives 16 elements via 8 A/B pairs, DOC-S4-IO-01). So the 16ch
   margin is informational, not the R1 gate.
 
-### 1E. **EXACT-EQUAL CORE BASELINE — ANOMALY, MY EARLIER PREDICTION WAS WRONG, CRITIC WILL PROBE THIS**
-`g_f7_cyc_8ch_core` (FIRA build) = 1,451,030 **EXACTLY** == core-only run `cyc_8ch_frame` = 1,451,030.
-I previously predicted a small +delta. **From source, the two are NOT the same code path:**
-- core-only `cyc_8ch_frame` (`bench_harness.c:115-118`): **unweighted** same-signal input
-  (`s_in8[c][i]=CHIRP_INPUT[...]`, no weight), ONE call to `tfb8_process(&st8, s_in8, ...)` via the
-  `Tfb8State` wrapper.
-- FIRA-build `g_f7_cyc_8ch_core` (`fira_regression.c:621-630`): a **manual 8-channel loop** that
-  applies `f5_apply_w(w, xin[i])` per channel (8x64 extra 64-bit mult+shift, fira_regression.c:262)
-  then calls `tfb_analyze`/`tfb_synthesize` on `f7_ca[c]` directly (NOT through `tfb8_process`).
-- These differ by (i) the weighting multiply and (ii) wrapper-vs-manual-loop. **Two different code
-  paths landing on the SAME cycle count to the exact cycle is statistically implausible** for a free-
-  running CCNT. My "exactly equal is suspicious-good" read stands.
-- **Most likely explanation [L3, must be confirmed by CTO]:** the value 1,451,030 reported for
-  `g_f7_cyc_8ch_core` was **carried over / substituted from the known core-only run** (it is labeled
-  "in-build baseline") rather than read from the FIRA build's own `g_f7_cyc_8ch_core` global. OR a
-  transcription reused the familiar number.
-- **IMPACT ON THE RULING: NONE for the headline 2.878x.** That margin uses `g_f7_cyc_8ch_fira`
-  (463,273, the FIRA path) and `g_f7_cclk_hz` (1e9) — both unambiguous, both directly measured. The
-  3.132x SPEEDUP RATIO is the only number that depends on the core denominator; if the true in-build
-  `g_f7_cyc_8ch_core` differs slightly (e.g. +the ~weighting overhead), the speedup shifts marginally
-  (a few %), not the realtime margin.
-- **DISCRIMINATOR (cheap, one read):** ask the CTO to re-read the FIRA build's actual
-  `g_f7_cyc_8ch_core` global at idle (and `g_f7_cyc_1ch_fira/analyze/synth`). If it reads 1,451,030
-  exactly, that itself is the anomaly to investigate (shared-buffer/measurement aliasing); if it reads
-  slightly higher (~1.46M), the headline figures are unaffected and the speedup is ~3.13x->~3.15x.
+### 1E. EXACT-EQUAL CORE BASELINE — RESOLVED (re-read 2026-06-04)
+The in-build `g_f7_cyc_8ch_core` re-read = **1,420,543** [L1/EZKIT], NOT the 1,451,030 reported last
+session. => the prior 1,451,030 was a **transcription substitution** of the core-only value (anomaly
+RESOLVED). The true in-build core is **2.1% LOWER** than core-only (1,451,030), not higher as §7A's band
+predicted -- the manual weighted F7 loop is ~2% faster than the unweighted `tfb8_process` wrapper, most
+likely wrapper indirection / struct (`Tfb8State`) / cache-layout overhead exceeding the 512 cheap
+`f5_apply_w` weighting ops [L3, see F7_CLOSING_RECORDS Q1-supplement]. IMPACT: the OFFICIAL speedup uses
+this clean in-build value = 3.07x (§1A); the 2.878x realtime margin is unaffected (uses only
+`g_f7_cyc_8ch_fira` + cclk). §7A prediction logged as direction-agnostic-but-band-wrong (honest miss).
 - **I am NOT rubber-stamping `g_f7_cyc_8ch_core`. The 2.878x realtime margin does not depend on it.**
 
 ---
@@ -202,7 +189,8 @@ section, the natural home for cycle-measurement ops; after the existing 自检 b
 
 ## 5. C9 / R14 framing — closure-ready package (CTO RULES)
 
-**C9 / iron-rule-8 still BINDS:** the FIRA benefit (2.878x, 3.132x speedup) now has **L1 evidence**, but
+**C9 / iron-rule-8 still BINDS:** the FIRA benefit (2.878x realtime margin; **official 3.07x net speedup**
+[in-build A/B, §1A]; 3.132x retired as mixed-build) now has **L1 evidence**, but
 it **does NOT enter any selection /流片 / customer commitment until the CTO explicitly rules R14 CLOSED.**
 This material asserts the facts; it does not relax C9.
 
@@ -226,7 +214,8 @@ all overhead + true CCLK, so the margin is real not assumed.
 - 16ch is reference-only (R1 bound to 8ch); the ~1.44x conservative est is not the gate.
 
 **C9 RELEASE SCOPE if the CTO rules R14 CLOSED:** upon closure, the FIRA cycle/margin numbers
-(`g_f7_cyc_8ch_fira`, 2.878x, 3.132x speedup) may be cited in selection/承诺 basis as [L1/EZKIT]
+(`g_f7_cyc_8ch_fira`, 2.878x margin, **3.07x speedup** [§1A official; 3.132x retired]) may be cited in
+selection/承诺 basis as [L1/EZKIT]
 (no longer frozen as [L4/待验证]); the per-frame steady-state, single-core, algorithm-only, FRAME=64,
 8ch SCOPE caveat travels with them. Until that ruling, they stay [L4/待验证] for selection purposes
 per iron-rule-8 (even though their provenance is L1) — C9 gates USE, not provenance.
@@ -274,6 +263,11 @@ shift is ~3-10 cycles incl. operand moves -> **~1,500-5,200 cycles** added vs th
 e.g. if it reads 1,454,000: `1,454,000 / 463,273 = 3.139x` (vs the 3.132x using the substituted value) —
 a ~0.2% shift, **does NOT move the headline 2.878x realtime margin** (which uses neither core value).
 
+> **ACTUAL (2026-06-04):** `g_f7_cyc_8ch_core = 1,420,543` -> outcome was "resolved as substitution" but
+> the value came in LOWER (1.4205M), **outside the predicted 1.4525-1.4562M band** (the band assumed
+> weighting ADDED cost; wrapper overhead REMOVED more -> net lower). Speedup recompute -> **3.07x official**
+> (§1A). Band-miss logged honestly; the worksheet above is retained as the pre-read record.
+
 ### 7B. Re-read `g_f7_cyc_1ch_fira` / `g_f7_cyc_analyze_fira` / `g_f7_cyc_synth_fira`
 
 These three are computed for the c=7 unity channel (fira_regression.c:632-646):
@@ -314,6 +308,17 @@ These three are computed for the c=7 unity channel (fira_regression.c:632-646):
      when 1.73x is cited. The truly conservative bound remains naive-2x = 1.44x. Present BOTH; CTO picks
      which convention governs the (reference-only) 16ch figure. 16ch is NOT the R1 gate (R1 bound to 8ch,
      DEC-S4-R1-8CH-01).
+
+> **ACTUAL (2026-06-04):** `g_f7_cyc_1ch_fira = 56,616` [L1] -> `8 x 56,616 = 452,928` vs `463,273` ->
+> per-frame fixed share = **10,345 cyc = 2.23%** (consistent, flat per-channel cost). BUT
+> `g_f7_cyc_analyze_fira` / `g_f7_cyc_synth_fira` read ERROR in CCES Expressions (suspected symbol-name /
+> read-side issue, NOT missing data -- `1ch_fira` is their literal sum at fira_regression.c:648 and read
+> fine, proving both were written; "hardware integrated, no split" is contradicted by source :641/:645).
+> RETRY with exact spellings `g_f7_cyc_analyze_fira` / `g_f7_cyc_synth_fira` (note `synth`, not
+> `synthesize`) or Memory-browser at `&g_f7_cyc_1ch_fira`+adjacent. With 1ch_fira=56,616 the analyze
+> expectation refines to **~37.5k** (66% of 56,616), giving the convention 16ch margin ~1.75x — still in
+> the 1.72-1.74x band's neighborhood. Until recovered, the 16ch convention estimate STAYS [L3]; the
+> naive-2x 1.44x conservative bound is unaffected.
 
 ---
 
