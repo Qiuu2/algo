@@ -77,7 +77,24 @@ int bench_run(BenchResult *r){
 
     /* ---- S3 cycle：稳态单帧 analyze / synth / 8ch（扣首帧冷 cache，取稳态中位近似） ---- */
     {
-        TreeChannelState ana, syn; Tfb8State st8;
+        /* F7-FIX2 (board crash PC=0x1 in bench_run): st8 (~37KB Tfb8State) + out8 (~2KB) as STACK
+         * locals made bench_run's frame ~43KB. The e338288 F7 block added ~36KB of new .bss statics
+         * (f7_fa[8]/f7_ca[8] in fira_regression.c) which shrank the RESERVE_EXPAND L1 stack remainder
+         * (proxy app.ldf: initial reserve :241-244, RESERVE_EXPAND stack/heap split :1334-1343 of the
+         * leftover L1 Block0) -> bench_run's pre-existing frame now overflows the smaller stack and
+         * smashes the return address (vector to 0x1). Moving the two large locals to file-scope static
+         * (same discipline e338288 used for f7_fa/f7_ca) keeps the computation unchanged (bench is
+         * single-call/non-reentrant; both call sites one-shot, build-exclusive).
+         * [L3/PROXY-ldf inference] st8/out8 move from stack to .bss; BOTH reside in L1 Block-0
+         * (stack = RESERVE_EXPAND remainder), so net Block-0 demand is ~unchanged -- the gain is
+         * converting a silent runtime stack-overflow into a link-time-checked .bss placement. If total
+         * L1 Block-0 demand exceeds capacity the LINK fails loudly (caught pre-board). Confirm via
+         * .map L1 Block-0 occupancy + on-board SP-vs-ldf_stack symbols. If the link DOES fail, the
+         * real fix is moving these statics to L2/L3 via #pragma section (CROSS_BUILD_NOTES.md:61) --
+         * escalate, do not shrink the algorithm. Logic/buffers/values: host S2 CRC 0x90556BC7
+         * re-verified byte-identical on patched source. */
+        static Tfb8State st8;
+        TreeChannelState ana, syn;
         int32_t sb0[BENCH_FRAME/8], sb1[BENCH_FRAME/4], sb2[BENCH_FRAME/2], sb3[BENCH_FRAME];
         int32_t out1[BENCH_FRAME];
         tfb_channel_init(&ana); tfb_channel_init(&syn); tfb8_init(&st8);
@@ -96,7 +113,7 @@ int bench_run(BenchResult *r){
          * 的 WCET 路径; 新值 = 纯 8x (analyze+synthesize), 无 acc 累加/无 w_add_i32.
          * 8 路同信号 -> 8 个相同输出(各自独立链), 不触发任何跨通道饱和. out 现 8 行. */
         for(int i=0;i<BENCH_FRAME;i++) for(int c=0;c<TFB8_NCH;c++) s_in8[c][i]=CHIRP_INPUT[4*BENCH_FRAME+i];
-        int32_t out8[TFB8_NCH][BENCH_FRAME];
+        static int32_t out8[TFB8_NCH][BENCH_FRAME];   /* F7-FIX2: static (off stack, see note above) */
         uint32_t t3=BENCH_CYC();
         tfb8_process(&st8, s_in8, BENCH_FRAME, out8);
         uint32_t t4=BENCH_CYC();
