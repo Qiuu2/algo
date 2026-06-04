@@ -71,6 +71,20 @@ extern volatile int32_t  g_f5_dump_core[32];    /* first-failing-channel sb3 cor
 extern volatile int32_t  g_f5_dump_fira[32];    /* paired FIRA sb3 samples */
 extern volatile int      g_f5_dump_idx0;        /* sb3 flattened index where the dump starts (-1 none) */
 volatile int g_fira_f5_pass = -99;              /* F5-A overall verdict mirror: 1=all8 PASS/0=FAIL/-99 not-run */
+
+/* F7: per-frame wall-cycle measurement + CCLK read (G6). RAW counters / Hz ONLY (no margin/benefit -- C9).
+ *   Defined in fira_regression.c. Runs AFTER F4/F5 with its OWN setup/state/buffers (does NOT perturb
+ *   the F4/F5 PASS paths). All g_f7_* are [L1/EZKIT] board-measured; ALL derived results (margin vs >=10x,
+ *   FIRA-vs-core ratio) are [L4/to-verify] and MUST NOT enter selection until the CTO rules R14 CLOSED. */
+extern int      fira_f7_measure(void);
+extern volatile uint32_t g_f7_cyc_8ch_fira;     /* full 8ch FIRA path (analyze+synth) one steady frame, ALL overhead */
+extern volatile uint32_t g_f7_cyc_8ch_core;     /* core-only 8ch (8 indep chains, NO sum; new F5-B semantic) same frame */
+extern volatile uint32_t g_f7_cyc_1ch_fira;     /* one-channel FIRA (analyze+synth) steady frame (c=7 unity) */
+extern volatile uint32_t g_f7_cyc_analyze_fira; /* one-channel FIRA analyze-only (overhead-breakdown split, c=7) */
+extern volatile uint32_t g_f7_cyc_synth_fira;   /* one-channel FIRA synthesize-only (split, c=7) */
+extern volatile uint32_t g_f7_cclk_hz;          /* measured core clock Hz (G6); 0 = not read / desktop */
+extern volatile int      g_f7_valid;            /* 1 = ran on board with FIRA; 0 = desktop/no-FIRA (numbers meaningless) */
+volatile int g_fira_f7_done = -99;              /* F7 measure ran: 1=on-board w/ FIRA / 0=desktop no-FIRA / -99 not-run */
 #endif
 
 /* ---- target CCNT read (true CCLK cycles) ----
@@ -173,6 +187,20 @@ void main(void)
     /* breakpoint here: g_fira_f5_pass / g_f5_pass_all / g_f5_pass[0..7] / g_f5_crc_fira[0..7] /
      *   g_f5_crc_core[0..7] (== per-channel goldens above) / g_f5_fail_chan / g_f5_mismatch_sb[] /
      *   g_f5_mismatch_idx[] / g_f5_dump_core[] / g_f5_dump_fira[] */
+
+    /* ---- F7: per-frame wall-cycle (full 8ch FIRA analyze+synth, ALL overhead) + core-only 8ch on the
+     *   SAME frame + CCLK read (G6). Steady-state (warm-up frames then ONE measured frame). RAW NUMBERS
+     *   ONLY -- the margin = (g_f7_cclk_hz * BENCH_FRAME/BENCH_FS) / g_f7_cyc_8ch_fira (criterion >=10x)
+     *   and the FIRA-vs-core ratio are computed OFF-BOARD by PM/CTO; this code bakes in NO conclusion.
+     *   Runs with its OWN FIRA setup/state/buffers AFTER F4/F5 -> does not perturb their PASS paths.
+     *   C9 / iron rule 8: all derived results are [L4/to-verify], MUST NOT enter selection until R14 CLOSED.
+     *   SEMANTIC CAVEAT (off-board): BOTH g_f7_cyc_8ch_fira and g_f7_cyc_8ch_core differ from the OLD
+     *   1,006,935 cyc [L1/EZKIT, DEC-S4-R1-8CH-01] (that was the 8-in-1-out SUMMED-WCET incl. the
+     *   cross-channel digital sum F5-B has since removed) -- do not ratio against it without noting this. */
+    g_fira_f7_done = fira_f7_measure();
+    /* breakpoint here: g_f7_valid (1=on-board) / g_f7_cclk_hz (G6, vs ~1GHz CGU + g_ccnt_selftest sanity) /
+     *   g_f7_cyc_8ch_fira / g_f7_cyc_8ch_core / g_f7_cyc_1ch_fira / g_f7_cyc_analyze_fira / g_f7_cyc_synth_fira
+     *   -> off-board: margin vs >=10x + FIRA-vs-core ratio, ALL [L4/to-verify] until CTO rules R14 closed. */
 #endif
 
     /* ---- breakpoint here, emulator read g_bench_result:

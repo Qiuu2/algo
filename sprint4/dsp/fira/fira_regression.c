@@ -418,8 +418,219 @@ int fira_r14_regression_8ch(void)
 }
 
 /* ============================================================
- * cycle plan (plan S5.1 F8): FIRA version cyc_8ch_frame measured with existing CCNT (bench_cyc_target)
- *   -> compare to pure core 1,006,935 -> compute new margin + 16ch deadline.
- * [L1/EZKIT] bench-side; iron rule 8/C9: before R14 (fira_r14_regression_8ch==1, on board) passes,
- *   cycle/margin benefit **must not be written into any selection basis** (violation = BLOCKER). This file contains no benefit numbers.
+ * F7: per-frame wall-cycle measurement (plan section 4) + CCLK read (G6). RAW NUMBERS ONLY.
+ * ------------------------------------------------------------
+ * Purpose: measure the REAL per-frame steady-state work of the 8-channel FIRA path INCLUDING all
+ *   FIRA orchestration overhead, plus the core-only 8ch on the SAME frame for an apples-to-apples
+ *   FIRA-vs-core ratio, plus the actual CCLK (closes G6).  All arithmetic on these numbers (the
+ *   margin = CCLK*frame_period / wall_cycle, the FIRA-vs-core ratio) is done OFF-BOARD by PM/CTO --
+ *   this code exposes ONLY raw cycles and Hz.  NO margin/benefit/conclusion is computed here.
+ *
+ *  +------------------------------------------------------------------------------------------+
+ *  | C9 / IRON-RULE-8 (HARD):  the FIRA cycle/margin numbers answer "is FIRA WORTH using".     |
+ *  |   They are R14-GATED: until the CTO rules R14 CLOSED, they are [L4/to-verify] and MUST NOT |
+ *  |   enter ANY selection / commitment / customer basis.  This block computes NO benefit       |
+ *  |   number and bakes in NO conclusion -- it only records raw counters for the CTO to rule on. |
+ *  +------------------------------------------------------------------------------------------+
+ *
+ * WHAT THE FIRA SPAN COVERS (no flattering exclusions -- excluding any of these would be a
+ *   cycle-form C2 overclaim that under-reports the real per-frame cost):
+ *   For EACH of the 8 channels, the measured span runs the FULL per-frame product chain:
+ *     input-scale weight apply (f5_apply_w, 64 samples)
+ *       -> fira_tfb_analyze   (3 DEC + 3 ana_int FIRA segments)
+ *       -> fira_tfb_synthesize(3 syn_int FIRA segments)
+ *   i.e. 8ch x 9 FIRA segments = 72 per-frame FIRA segment invocations, and EACH FIRA segment
+ *   (fira_run_segment) pays its FULL real-time overhead INSIDE the measured span:
+ *     CreateTask + FixedPointEnable(SIGNED) + QueueTask + spin-on-ALL_CHANNEL_DONE + cache-invalidate
+ *     (flush_data_buffer) + fira_postscale (80-bit reassemble / >>15 / x2 / software decimate).
+ *   ONLY the one-time device Open/RegisterCallback/Close (fira_tree_setup / fira_tree_teardown) is
+ *   OUTSIDE the span -- and that is CORRECT: in the real-time app the device is opened ONCE at init,
+ *   not per frame (fira_tree.h SB notes "CreateTask...once at init, not in frame budget" applies to
+ *   Open; CreateTask itself is per-segment and IS inside the span).  Including Open/Close in a
+ *   per-frame number would OVER-report, so they are excluded as init cost (documented, not hidden).
+ *
+ * WHY analyze + synthesize (NOT analyze-only like the F5-A regression):
+ *   fira_r14_regression_8ch() runs analyze-only because the per-SUBBAND bit-exact CRITERION only
+ *   needs the analyze subbands.  But the REAL per-frame PRODUCT work (post F5-B 8-in-8-out topology:
+ *   8 channels each producing one DAC stream = analyze THEN synthesize) is analyze+synthesize.
+ *   Measuring analyze-only would UNDER-COUNT the real per-frame FIRA work (the 3 syn_int segments
+ *   per channel = 24 more FIRA segment invocations would be silently dropped) -> a flattering
+ *   exclusion.  F7 therefore measures the FULL analyze+synthesize chain = the honest per-frame cost.
+ *
+ * STEADY-STATE DISCIPLINE (same pattern as bench_harness.c:84-86): warm up F7_WARM frames per channel
+ *   (prime cache + fill the cross-frame history fa[c].hist[]) BEFORE the measured frame, so the
+ *   measured frame is steady-state (not cold-cache / empty-history).  The measured span is ONE frame
+ *   across all 8 channels (channel-major, serial on the shared s_hFir -- same [ASSUME-A1] discipline
+ *   as F5-A).
+ *
+ * APPLES-TO-APPLES CORE-ONLY 8ch (g_f7_cyc_8ch_core): on the SAME warmed frame, run the core path
+ *   8 x (weight + tfb_analyze + tfb_synthesize) and time it.  This is the post-F5-B NEW core semantic
+ *   = 8 INDEPENDENT chains, NO cross-channel digital sum.
+ *   CAVEAT (documented, plan Fix-3): BOTH g_f7_cyc_8ch_fira AND g_f7_cyc_8ch_core differ SEMANTICALLY
+ *   from the OLD baseline 1,006,935 cyc [L1/EZKIT, decisions_log DEC-S4-R1-8CH-01].  That old value
+ *   was the SUMMED-WCET semantic (8-in-1-out: 8 analyze + 8 synthesize + the cross-channel w_add_i32
+ *   digital sum + Q31 saturating clamp on the sum), measured by tfb8_process BEFORE F5-B removed the
+ *   sum.  The new core-8ch here has NO sum/clamp path (F5-B deleted it).  So a direct ratio of any F7
+ *   number to 1,006,935 mixes two semantics; the off-board analysis MUST note this when comparing.
+ *
+ * CCLK (G6): adi_pwr_GetCoreClkFreq(0, &cclk) returns the core clock in Hz (uint32_t).
+ *   REPO EVIDENCE (real symbol, A5-lesson: do NOT assume -- grep'd the installed-BSP examples):
+ *     knowledge_base/ezkit/vendor_docs/cces_examples/code/Power_On_Self_Test/common/source/post.c:203
+ *       `adi_pwr_GetCoreClkFreq(0, &cclk);`  with cclk a uint32_t (post.c:201), header
+ *       <services/pwr/adi_pwr.h> (post.c:25), on the 21569/sharc EZ-Board example (EV_21569 SOM);
+ *       displayed as cclk/MHZ with MHZ=1000000u (ezboard.h:57) -> cclk is in Hz.
+ *     Corroborated: ADSP21569_DDR/src/main.c:38 (identical call) and sprint4/iface_survey.md:230
+ *       (`adi_pwr_GetCoreClkFreq (nDevNum,*fcclk)` from adi_pwr_2156x.h:663) + G6 row (line 306).
+ *   [ASSUME: symbol per installed BSP -- the <services/pwr/adi_pwr.h> header + adi_pwr_GetCoreClkFreq
+ *    are BSP-supplied (not in this repo); MUST compile+link on board (CCES, -proc ADSP-21569) before
+ *    flashing.  If the installed BSP names it differently, the grep'd example is the authoritative
+ *    reference for the real call.]  [L1/EZKIT]
+ *   G6 PASS criterion (off-board, CTO): the read g_f7_cclk_hz is PLAUSIBLE vs the CGU config (target
+ *    ~1 GHz; CLKIN=25 MHz x CGU multiplier).  Cross-check: g_ccnt_selftest (the known 1e6-iter loop in
+ *    main) is an independent CCLK sanity reference -- its order-of-magnitude must agree with g_f7_cclk_hz
+ *    over the loop's wall time.  (The prior 1.32x margin ASSUMED 1 GHz; F7 MEASURES it.)
+ *
+ * [L1/EZKIT] all cycles/Hz are board-measured.  iron rule 8 / C9: this file contains NO benefit number;
+ *   the margin formula lives only in the comment below for the OFF-BOARD computation.
  * ============================================================ */
+
+/* F7 raw readouts (emulator reads; raw counters + Hz ONLY, no derived margin/benefit -- C9). */
+volatile uint32_t g_f7_cyc_8ch_fira    = 0u;   /* [L1/EZKIT] full 8ch FIRA path (analyze+synth) one steady frame, ALL overhead */
+volatile uint32_t g_f7_cyc_8ch_core    = 0u;   /* [L1/EZKIT] core-only 8ch (8 indep chains, NO sum) same frame (apples-to-apples) */
+volatile uint32_t g_f7_cyc_1ch_fira    = 0u;   /* [L1/EZKIT] one-channel FIRA (analyze+synth) steady frame (cheap split, c=7 unity) */
+volatile uint32_t g_f7_cyc_analyze_fira = 0u;  /* [L1/EZKIT] one-channel FIRA analyze-only (split: orchestration share, c=7) */
+volatile uint32_t g_f7_cyc_synth_fira   = 0u;  /* [L1/EZKIT] one-channel FIRA synthesize-only (split, c=7) */
+volatile uint32_t g_f7_cclk_hz         = 0u;   /* [L1/EZKIT] measured core clock (G6); 0 = not read / desktop */
+volatile int      g_f7_valid           = 0;    /* 1 = ran on board with FIRA; 0 = desktop/no-FIRA (numbers meaningless) */
+
+/* Frame budget / margin formula (OFF-BOARD only; NOT computed here -- C9 keeps benefit out of code):
+ *   frame_period_s = BENCH_FRAME / BENCH_FS = 64 / 48000 = 1.3333... ms
+ *   cycle_budget_per_frame = g_f7_cclk_hz * frame_period_s = g_f7_cclk_hz * BENCH_FRAME / BENCH_FS
+ *   margin = cycle_budget_per_frame / g_f7_cyc_8ch_fira          (criterion: margin >= 10x)
+ *   FIRA-vs-core ratio (reference only) = g_f7_cyc_8ch_fira / g_f7_cyc_8ch_core   [L4/to-verify]
+ *   NOTE old-vs-new semantic caveat above: neither g_f7_cyc_8ch_* is the 1,006,935 summed-WCET value.
+ * ALL results [L4/to-verify] until the CTO rules R14 CLOSED; they MUST NOT enter selection (iron rule 8). */
+#if defined(FIRA_USE_REAL_ADI_FIR_HEADER) && defined(TARGET_SHARC)
+#include <services/pwr/adi_pwr.h>   /* [L1/EZKIT] adi_pwr_GetCoreClkFreq (BSP-supplied; see G6 evidence above) */
+#endif
+
+extern uint32_t bench_cyc_target(void);   /* CCLK cycle counter (clock()); defined bench_main.c (TARGET_SHARC) */
+
+#define F7_WARM 4   /* warm-up frames (== bench_harness.c:84 steady-state discipline) */
+
+/**
+ * F7 per-frame wall-cycle + CCLK measurement.  Populates the g_f7_* raw readouts above.  RAW ONLY:
+ *   no margin, no ratio, no benefit conclusion (computed off-board by PM/CTO -- C9 / iron rule 8).
+ *   @return 1 if measured on board with FIRA; 0 on desktop / no-FIRA (g_f7_* left 0, honest FAIL).
+ * [L1/EZKIT] must run on board.  Desktop: fira_tree_setup()<0 -> returns 0, numbers stay 0 (no faking).
+ * Runs AFTER F4/F5 and is INDEPENDENT of them: own setup/teardown, own per-channel state arrays,
+ *   own buffers -> does NOT perturb the F4/F5 PASS paths (their globals/flow are untouched).
+ */
+int fira_f7_measure(void)
+{
+    g_f7_cyc_8ch_fira = 0u; g_f7_cyc_8ch_core = 0u;
+    g_f7_cyc_1ch_fira = 0u; g_f7_cyc_analyze_fira = 0u; g_f7_cyc_synth_fira = 0u;
+    g_f7_cclk_hz = 0u; g_f7_valid = 0;
+
+    /* ---- CCLK read (G6): independent of FIRA; do it first so even a no-FIRA build records CCLK ---- */
+#if defined(FIRA_USE_REAL_ADI_FIR_HEADER) && defined(TARGET_SHARC)
+    {
+        uint32_t cclk = 0u;
+        /* power service already initialized by adi_initComponents() at boot (see main). */
+        (void)adi_pwr_GetCoreClkFreq(0u, &cclk);   /* [L1/EZKIT] Hz; G6 evidence: post.c:203 */
+        g_f7_cclk_hz = cclk;
+    }
+#endif
+
+    /* [L1/EZKIT] bench: fira_tree_setup() (Open/RegisterCallback). Desktop returns -1 -> honest 0. */
+    if (fira_tree_setup() != 0) {
+        return 0;   /* no FIRA on this host: cycles stay 0, never fake a number (FG2) */
+    }
+
+    {
+        const int32_t *chirp = bench_chirp_input();
+        /* OWN state arrays (NOT the F5 fa[]/ca[]) so F7 cannot perturb F5's PASS path. static = avoid
+         * a ~37 KB stack frame on the SHARC bench (same discipline as fira_r14_regression_8ch). */
+        static FiraChannelState f7_fa[DOLPH_W8_NCH];
+        static TreeChannelState f7_ca[DOLPH_W8_NCH];
+        int32_t fsb0[BENCH_FRAME/8], fsb1[BENCH_FRAME/4], fsb2[BENCH_FRAME/2], fsb3[BENCH_FRAME];
+        int32_t csb0[BENCH_FRAME/8], csb1[BENCH_FRAME/4], csb2[BENCH_FRAME/2], csb3[BENCH_FRAME];
+        int32_t fout[BENCH_FRAME], cout[BENCH_FRAME];
+        int32_t xw[BENCH_FRAME];
+        uint32_t t0, t1, t2, t3, t4, t5;
+        int c, f, i;
+
+        tfb_set_coeffs(g_hb63_q15, FIR_HB63_NTAPS);   /* core (golden) Q15 coeffs; FIRA coeffs set in setup */
+
+        for (c = 0; c < DOLPH_W8_NCH; c++) {
+            fira_channel_init(&f7_fa[c], BENCH_FRAME);
+            tfb_channel_init(&f7_ca[c]);
+        }
+
+        /* ---- warm-up: prime cache + fill cross-frame history fa[c].hist[] for F7_WARM frames ----
+         * (steady-state discipline, bench_harness.c:84-86). Run BOTH FIRA and core warm so the
+         * measured frame is steady-state for both paths. */
+        for (f = 0; f < F7_WARM; f++) {
+            const int32_t *xin = &chirp[f * BENCH_FRAME];
+            for (c = 0; c < DOLPH_W8_NCH; c++) {
+                const int32_t w = g_dolph_w8_q15[c];
+                for (i = 0; i < BENCH_FRAME; i++) xw[i] = f5_apply_w(w, xin[i]);
+                fira_tfb_analyze(&f7_fa[c], xw, BENCH_FRAME, fsb0, fsb1, fsb2, fsb3);
+                fira_tfb_synthesize(&f7_fa[c], fsb0, fsb1, fsb2, fsb3, BENCH_FRAME, fout);
+                tfb_analyze(&f7_ca[c], xw, BENCH_FRAME, csb0, csb1, csb2, csb3);
+                tfb_synthesize(&f7_ca[c], csb0, csb1, csb2, csb3, BENCH_FRAME, cout);
+            }
+        }
+
+        /* ---- measured steady-state frame = frame index F7_WARM ----
+         * Span 1: full 8ch FIRA path (weight + analyze + synthesize) per channel, ALL FIRA overhead
+         *         inside (CreateTask/FixedPointEnable/QueueTask/spin/postscale/cache-invalidate, 72
+         *         analyze + 24 synth FIRA segment invocations across 8 channels). */
+        {
+            const int32_t *xin = &chirp[F7_WARM * BENCH_FRAME];
+            t0 = bench_cyc_target();
+            for (c = 0; c < DOLPH_W8_NCH; c++) {
+                const int32_t w = g_dolph_w8_q15[c];
+                for (i = 0; i < BENCH_FRAME; i++) xw[i] = f5_apply_w(w, xin[i]);
+                fira_tfb_analyze(&f7_fa[c], xw, BENCH_FRAME, fsb0, fsb1, fsb2, fsb3);
+                fira_tfb_synthesize(&f7_fa[c], fsb0, fsb1, fsb2, fsb3, BENCH_FRAME, fout);
+            }
+            t1 = bench_cyc_target();
+            g_f7_cyc_8ch_fira = t1 - t0;
+
+            /* Span 2: core-only 8ch on the SAME frame (8 indep chains, NO sum -- new F5-B semantic). */
+            t2 = bench_cyc_target();
+            for (c = 0; c < DOLPH_W8_NCH; c++) {
+                const int32_t w = g_dolph_w8_q15[c];
+                for (i = 0; i < BENCH_FRAME; i++) xw[i] = f5_apply_w(w, xin[i]);
+                tfb_analyze(&f7_ca[c], xw, BENCH_FRAME, csb0, csb1, csb2, csb3);
+                tfb_synthesize(&f7_ca[c], csb0, csb1, csb2, csb3, BENCH_FRAME, cout);
+            }
+            t3 = bench_cyc_target();
+            g_f7_cyc_8ch_core = t3 - t2;
+
+            /* Cheap per-channel + analyze/synth split for ONE channel (c=7 unity), next frame so its
+             * cross-frame history is also steady.  Helps the off-board overhead-breakdown (orchestration
+             * vs MAC) without re-running all 8.  c=7 (unity weight) = the F4-baseline channel. */
+            {
+                const int32_t *xin2 = &chirp[(F7_WARM + 1) * BENCH_FRAME];
+                const int32_t w = g_dolph_w8_q15[DOLPH_W8_NCH - 1];   /* c=7 unity */
+                /* keep histories steady: advance the OTHER channels' core path is not needed; only c=7. */
+                for (i = 0; i < BENCH_FRAME; i++) xw[i] = f5_apply_w(w, xin2[i]);
+                t4 = bench_cyc_target();
+                fira_tfb_analyze(&f7_fa[DOLPH_W8_NCH - 1], xw, BENCH_FRAME, fsb0, fsb1, fsb2, fsb3);
+                t5 = bench_cyc_target();
+                g_f7_cyc_analyze_fira = t5 - t4;
+                t4 = bench_cyc_target();
+                fira_tfb_synthesize(&f7_fa[DOLPH_W8_NCH - 1], fsb0, fsb1, fsb2, fsb3, BENCH_FRAME, fout);
+                t5 = bench_cyc_target();
+                g_f7_cyc_synth_fira = t5 - t4;
+                g_f7_cyc_1ch_fira = g_f7_cyc_analyze_fira + g_f7_cyc_synth_fira;
+            }
+        }
+        g_f7_valid = 1;
+    }
+
+    fira_tree_teardown();
+    return 1;
+}
