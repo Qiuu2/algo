@@ -39,6 +39,7 @@
 - **硬顺序**：实现 → 桌面自验 → SendMessage critic → **收到独立 verdict** → PASS 才 commit ／ BLOCKER/MAJOR 则修复后重新 challenge。lead 在**每份派单 prompt** 中显式写入此顺序；任何先 commit 后 verdict 的行为 = 流程偏差，必须**原样上报 CTO**（不得自行消化）。
 - **理由**：先 commit 的代码若随后被裁 BLOCKER 而已被下游引用，回退成本非零。缘起：2026-06-04 F5-A——dsp 在自审后、独立 verdict 前提交（verdict 事后 PASS、未致损，但口子是真的）。
 - 适用范围：所有 teammate、所有代码/文档交付物；唯一豁免 = critic 明文预先豁免的纯笔误级修正（critic 自己指定措辞的 Fix 落地）。
+- **Fallback 条款（2026-06-04 补，缘起 F7 偏差#2）**：若指定 critic 实例无法续（transcript 失效/socket 死），teammate **不得**以"在自己上下文里调用 critic skill"充当独立门——那仍是自审。正确动作 = **停在未 commit 状态、回报 lead**，由 lead spawn 全新独立 critic teammate 补门。F7（e338288）即此情形：dsp 以 in-context skill 自门并 commit → lead 事后补真·独立 critic（PASS，未致损），按规上报 CTO。
 
 ## Change control (audit)
 - Changing any role's model = edit this table + log the change (old->new, date, reason) in decisions_log, per POLICY-PROV-001 change-trail discipline.
