@@ -26,6 +26,7 @@
   - ⚠️ **诚实标注**：0.289 单通道**不触发饱和** → **SAT≡UNSAT**（CRC 均 `0x90556BC7`，gen_golden 两 build 实测一致）；故双套比同一 golden=两 build 都复现核路径 bit-exact。饱和原语 bit-exact 不被此输入覆盖（**GAP-SAT 已正式登记**：decisions_log「关联覆盖缺口 GAP-SAT」，挂 R14、暂不阻塞 R1；台架处置见 BENCH_OPS_CARD **13b** 反汇编饱和钳位：无分支→不影响 R1 算力 / 是分支→补满载 WCET）。
 - **S3-S5 cycle**：CCNT（host=clock 占位 cyc_valid=0；**target 待回填真 CCNT**=1 [L1/EZKIT]）；量 analyze/synth/8ch 每帧 cycle；换算 `MCPS_8ch=cyc8×750/1e6`、`MCPS_16ch=(cyc8+8×analyze)×750/1e6`（Fs48k/FRAME64/帧周期1.333ms）。
 - **R1 判据**（写死，实测待台架）：满负载 16ch WCET<1.333ms 且 裕量×=预算/实测MCPS≥10× 且 满 PF-1。
+  〔注 2026-06-04：>=10x **已退役**（DEC-S4-CRITERION-01）——板上实测推翻桌面 33×/17×；改「实时下限+余量政策」，临时下限 >=1.0x，正式阈值待 item-3 EQ 链 PRD + WCET 实测。原文存史。〕
 
 ## 4. host 预验真实结果（[L2 host 预验]，PM 直跑）
 - gcc 编译 `bench_harness.c`（-Wall -Wextra，含 M_PI fallback 防 cc21k 严格）：sat/unsat **0 错 0 警告**。

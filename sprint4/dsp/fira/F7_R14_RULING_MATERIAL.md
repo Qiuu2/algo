@@ -35,11 +35,18 @@ clean comparison. The earlier `1,451,030 / 463,273 = 3.13x` is RETIRED as a spee
 (0.92x margin). Cross-validation: 1ch speedup `179,882/56,616 = 3.18x` agrees within ~3.6% (dilution = the
 2.23% per-frame fixed share, §1E/§7B). [L1-derived]
 
+> **DEC-S4-C9-RELEASE-01: 3.07x is the LOCKED official speedup. 3.13x is BANNED from any selection /
+>   external material (mixed-build artifact); it may appear ONLY in historical / anomaly-trail context.**
+
 ### 1B. FIRA 8ch demand + margin — CONFIRMED
 - Demand: `463,273 x 750 / 1e6 = 347.45 MCPS` (fpf = BENCH_FS/BENCH_FRAME = 48000/64 = 750,
   `bench_harness.c:123`). **CONFIRMED 347.45.**
 - Margin: `1000 / 347.45 = 2.878x`. Equivalently `cclk / (cyc x fpf) = 1e9 / (463273 x 750) = 2.878x`.
   **CTO's 2.878x CONFIRMED.**
+
+> **DEC-S4-C9-RELEASE-01 PAIRING (mandatory): 2.878x is the ALGORITHM-CORE 8ch margin. It MUST NOT be
+>   presented standalone. Paired denominator = §8 unaccounted items (43-379 MCPS) -> whole-system residual
+>   margin 1.38-2.56x [L4]. Cite 2.878x only alongside that range.**
 
 ### 1C. L-GRADE OF THE MARGIN — now an arithmetic on TWO L1 values. 1 GHz ASSUMPTION RETIRED.
 Per POLICY-PROV-001: the margin = available_cycles/s / demanded_cycles/s.
@@ -189,6 +196,12 @@ section, the natural home for cycle-measurement ops; after the existing 自检 b
 
 ## 5. C9 / R14 framing — closure-ready package (CTO RULES)
 
+> **STATUS UPDATE 2026-06-04: THE CTO HAS NOW RULED — R14 CLOSED (DEC-S4-R14-RULING-01), >=10x retired
+>   -> realtime-floor+headroom, interim >=1.0x (DEC-S4-CRITERION-01), C9 RELEASED with the §8 honest
+>   denominator (DEC-S4-C9-RELEASE-01). The conditional "if the CTO rules" language below is now ACTUAL.
+>   Official speedup LOCKED 3.07x (in-build); 3.13x banned from selection/external material. Any citation
+>   of 2.878x / 3.07x MUST appear paired with the §8 unaccounted list (43-379 MCPS, residual 1.38-2.56x).**
+
 **C9 / iron-rule-8 still BINDS:** the FIRA benefit (2.878x realtime margin; **official 3.07x net speedup**
 [in-build A/B, §1A]; 3.132x retired as mixed-build) now has **L1 evidence**, but
 it **does NOT enter any selection /流片 / customer commitment until the CTO explicitly rules R14 CLOSED.**
@@ -213,7 +226,7 @@ all overhead + true CCLK, so the margin is real not assumed.
 - 未计入项 (§3a.1-5: codec/IO, interrupts, mixing, control, WCET) — scope caveat on "够用", not a closure blocker.
 - 16ch is reference-only (R1 bound to 8ch); the ~1.44x conservative est is not the gate.
 
-**C9 RELEASE SCOPE if the CTO rules R14 CLOSED:** upon closure, the FIRA cycle/margin numbers
+**C9 RELEASE SCOPE (NOW IN EFFECT, DEC-S4-C9-RELEASE-01):** upon closure, the FIRA cycle/margin numbers
 (`g_f7_cyc_8ch_fira`, 2.878x margin, **3.07x speedup** [§1A official; 3.132x retired]) may be cited in
 selection/承诺 basis as [L1/EZKIT]
 (no longer frozen as [L4/待验证]); the per-frame steady-state, single-core, algorithm-only, FRAME=64,

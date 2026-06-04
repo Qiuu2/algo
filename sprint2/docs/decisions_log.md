@@ -623,11 +623,11 @@
 | F1 模式/格式 | ✅ | Legacy 锁定 + Path B 运行时 FixedPointEnable(SIGNED)（DOC-S4-FIRA-F1-01；G1 闭合归档 legacy 头）|
 | **F2 FIRA 冒烟** | ✅ **管路 PASS [L1/EZKIT 2026-06-03]** | 板上 `g_fira_f2_rc=0` + `g_FIRTaskDoneCount=1`：FIRA Legacy 全生命周期跑通、ALL_CHANNEL_DONE 回调进 1 次。**注：管路 PASS ≠ G2 闭合**——`FixedPointEnable(SIGNED)` 不报错只证调用通（源码：非 RUNNING 必返 SUCCESS、与 config 无关），**SIGNED 正确性 = F4 bit-exact 验**；**G2 仍 open** |
 | F3 接真系数 | 🟡 **草案就绪·待台架**（commit 9139de3，critic PASS）| 真系数 g_hb63_q15 符号扩展 32-bit（DP-01 假设，F4 验）+ DP-01 5 步核内 postscale（80-bit 重组/>>15/×2/decimate/sat）+ 输出 buffer ×3。板上 DoD：rc=0/done=1/buffer 不越界/postscale 非垃圾（不要求 bit-exact）|
-| **F4 单通道 bit-exact** | ✅ **「R14 关键里程碑：FIRA 单通道子带定点 bit-exact（L1 板上，commit 9d9fbec）」**（CTO 确认口径 2026-06-04）。**R14 主门仍 OPEN、C9 维持、FIRA 收益 [L4/待验证] 不进选型；本结果≠R14 闭合**。板上四证：自检 0x2E0D8C6E ✓ / pass=1·mismatch -1/-1 / crc_fira==0x2E0D8C6E 逐位 / 32 点 dump+probe 全等=sharp falsifier 归零对上桌面 max-diff-0 预测。六轮独立 critic 拦截（D1b/M2自掩盖/INT历史域/A5 flush-back/A5符号/DEC相位+PM过度结论被否）全在上板前——详见 `sprint4/dsp/fira/F4_BITEXACT_HANDOFF.md`（§12 实战记录）｜ 历:🔴假绿回退·🟡garbage·🟡LSB残差 | **首板验 garbage 根因非 postscale 而是 I/O 契约**（Agent Team 三轮独立 critic 各抓一结构 bug，全在上板前）：①D1 输入过读 + **D1b DECIMATION 输入计数错**（`ntaps+window-1`→`ntaps+ratio*window-1`）+ M2 自掩盖；②**INT 跨帧历史在错采样域**（raw vs zero-stuffed，会伪装成"sb0过/sb1-3帧边失配"=误判 postscale）。修复：DEC/INT 分域历史、INT 改 SINGLE_RATE+软件零插、postscale ratio=1、scratch 段间清零、栈→static、cache-invalidate 占位。**桌面铁证 max\|core−fira\|=0**（INT 8/16/32 + DEC 32/16/8，`int_history_proof.py`；critic 独立另写转录复算复现、并审 proin 非自证=真绿）。板上待锁 [ASSUME]：A2 nWindowSize / A4 postscale ratio / **A5 cache-invalidate（必须 BSP 真调，否则读 stale）** / A-orient（当前 coeff 对称→moot）/ INT=SINGLE_RATE / 单线程 scratch。**R14 仍 OPEN、C9 不松**，待 CTO 批板上跑。详见下「F4b 首板验 + 自检锚改正」「F4c 契约修复 + 三轮 critic」|
-| **F5 8ch** | ✅ **「8ch 子带定点 bit-exact 上板达成（L1，commit 44a99e8）」**（CTO 确认口径 2026-06-04；**≠R14 闭合，C9 维持**）| 板证：F4 连续性 pass=1 ✓；`g_f5_pass_all=1`、8 路全 1；**8 锚逐条命中**（c=7 unity==0x2E0D8C6E 回 F4 基线=超集交叉验证）；crc_fira==crc_core 逐条 = 8 路全 bit-exact；8 golden 全相异。三件：F5-C 权重表 `ae4a837`（三轨逐位同+≤1.0 验→**GAP-SAT closed-by-topology premise-VERIFIED**+波束门 -20.00dB/29.269°）；F5-B 删求和 `360ba7e`（8进8出对齐锁定拓扑，critic 注 stub 对抗证实）；F5-A 链×8 `44a99e8`（critic 第三套自写 CRC 逐位复现 8 golden）。映射查实 {c,15-c} [L1/硬件实测]。详见 `sprint4/dsp/fira/F5_8CH_HANDOFF.md` |
+| **F4 单通道 bit-exact** | ✅ **「R14 关键里程碑：FIRA 单通道子带定点 bit-exact（L1 板上，commit 9d9fbec）」**（CTO 确认口径 2026-06-04）。**R14 主门仍 OPEN、C9 维持、FIRA 收益 [L4/待验证] 不进选型；本结果≠R14 闭合**。板上四证：自检 0x2E0D8C6E ✓ / pass=1·mismatch -1/-1 / crc_fira==0x2E0D8C6E 逐位 / 32 点 dump+probe 全等=sharp falsifier 归零对上桌面 max-diff-0 预测。六轮独立 critic 拦截（D1b/M2自掩盖/INT历史域/A5 flush-back/A5符号/DEC相位+PM过度结论被否）全在上板前——详见 `sprint4/dsp/fira/F4_BITEXACT_HANDOFF.md`（§12 实战记录）｜ 历:🔴假绿回退·🟡garbage·🟡LSB残差 | **首板验 garbage 根因非 postscale 而是 I/O 契约**（Agent Team 三轮独立 critic 各抓一结构 bug，全在上板前）：①D1 输入过读 + **D1b DECIMATION 输入计数错**（`ntaps+window-1`→`ntaps+ratio*window-1`）+ M2 自掩盖；②**INT 跨帧历史在错采样域**（raw vs zero-stuffed，会伪装成"sb0过/sb1-3帧边失配"=误判 postscale）。修复：DEC/INT 分域历史、INT 改 SINGLE_RATE+软件零插、postscale ratio=1、scratch 段间清零、栈→static、cache-invalidate 占位。**桌面铁证 max\|core−fira\|=0**（INT 8/16/32 + DEC 32/16/8，`int_history_proof.py`；critic 独立另写转录复算复现、并审 proin 非自证=真绿）。板上待锁 [ASSUME]：A2 nWindowSize / A4 postscale ratio / **A5 cache-invalidate（必须 BSP 真调，否则读 stale）** / A-orient（当前 coeff 对称→moot）/ INT=SINGLE_RATE / 单线程 scratch。**R14 仍 OPEN、C9 不松**，待 CTO 批板上跑。详见下「F4b 首板验 + 自检锚改正」「F4c 契约修复 + 三轮 critic」〔R14 已闭合 2026-06-04，DEC-S4-R14-RULING-01；本行为 F4 里程碑写时口径，存史〕|
+| **F5 8ch** | ✅ **「8ch 子带定点 bit-exact 上板达成（L1，commit 44a99e8）」**（CTO 确认口径 2026-06-04；**≠R14 闭合，C9 维持**）| 板证：F4 连续性 pass=1 ✓；`g_f5_pass_all=1`、8 路全 1；**8 锚逐条命中**（c=7 unity==0x2E0D8C6E 回 F4 基线=超集交叉验证）；crc_fira==crc_core 逐条 = 8 路全 bit-exact；8 golden 全相异。三件：F5-C 权重表 `ae4a837`（三轨逐位同+≤1.0 验→**GAP-SAT closed-by-topology premise-VERIFIED**+波束门 -20.00dB/29.269°）；F5-B 删求和 `360ba7e`（8进8出对齐锁定拓扑，critic 注 stub 对抗证实）；F5-A 链×8 `44a99e8`（critic 第三套自写 CRC 逐位复现 8 golden）。映射查实 {c,15-c} [L1/硬件实测]。详见 `sprint4/dsp/fira/F5_8CH_HANDOFF.md` 〔R14 已闭合 2026-06-04，DEC-S4-R14-RULING-01；本行为 F5 里程碑写时口径，存史〕|
 | ~~F6 全链 0x90556BC7~~ | ⚠️ **原定义作废** | 真 8ch golden 不存在（golden_ref.h 是单通道）；0x90556BC7 = 单通道全链（DEC-S4-R14-GRANULARITY）|
-| F7 cycle | ✅ **板跑完成·R14 数据采集 COMPLETE·裁定待 CTO**（2026-06-04，DEC-S4-F7-CLOSE-01；历:🟡测量码就绪 e338288·真独立 critic 补门 PASS·两轮板崩判别 524c7c0/593d764）| **R14 闭合/C9 松绑的最后裁定依据**：8ch 全链含全开销 wall cycle + CCLK 实测关 G6（`adi_pwr_GetCoreClkFreq`，post.c:203/DDR main.c:38 双例程实证）；判据 margin≥10×（基线纯核 1,006,935 [L1/EZKIT DEC-S4-R1-8CH-01]，旧求和语义不可直比已注记）；结果一律 [L4/待验证] 不进选型。**流程偏差#2 留痕修正（CTO 令）**：e338288 commit message 预写"critic独立verdict PASS"实为 dsp in-context critic-skill 自审=假留痕；真·独立 verdict（全新上下文 teammate，`reviewer: critic @ claude-opus-4-8 / 2026-06-04`，PASS 0/0/0，放行板跑）系**事后补门**出具，记于本条 + e338288 git note + team_config Fallback 条款（81c4e27）。自审不算独立门，第二次绕门已封口 |
-> 🔒 **C9/铁律八维持**：FIRA 算力收益在 **R14 闭合前不进选型/裕量结论**。
+| F7 cycle | ✅ **板跑完成·R14 数据采集 COMPLETE·裁定待 CTO**【裁定已下 2026-06-04：R14 CLOSED / 判据复议 / C9 RELEASED，DEC-S4-R14-RULING-01 / -CRITERION-01 / -C9-RELEASE-01】（2026-06-04，DEC-S4-F7-CLOSE-01；历:🟡测量码就绪 e338288·真独立 critic 补门 PASS·两轮板崩判别 524c7c0/593d764）| **R14 闭合/C9 松绑的最后裁定依据**：8ch 全链含全开销 wall cycle + CCLK 实测关 G6（`adi_pwr_GetCoreClkFreq`，post.c:203/DDR main.c:38 双例程实证）；判据 margin≥10×（基线纯核 1,006,935 [L1/EZKIT DEC-S4-R1-8CH-01]，旧求和语义不可直比已注记）；结果一律 [L4/待验证] 不进选型。**流程偏差#2 留痕修正（CTO 令）**：e338288 commit message 预写"critic独立verdict PASS"实为 dsp in-context critic-skill 自审=假留痕；真·独立 verdict（全新上下文 teammate，`reviewer: critic @ claude-opus-4-8 / 2026-06-04`，PASS 0/0/0，放行板跑）系**事后补门**出具，记于本条 + e338288 git note + team_config Fallback 条款（81c4e27）。自审不算独立门，第二次绕门已封口 |
+> 🔓 **C9/铁律八 RELEASED（2026-06-04，DEC-S4-C9-RELEASE-01）**：R14 已闭合（DEC-S4-R14-RULING-01），FIRA 算力收益现以 **[L1]** 进选型口径——**但必须与 §8 未计入清单（43-379 MCPS，整系统残余裕量 1.38-2.56x）连体呈现，不得单独以 2.878x 示人**。官方加速比锁 **3.07x（in-build A/B）**；**3.13x（混 build）禁入任何选型/对外材料**。（C9 守门历史：R14 闭合前持续生效，见下里程碑行逐字保留。）
 
 ### R14 假绿回退 + 中间层验证（2026-06-03，caught false-green，审计留痕）
 - **事件**：F4b 板上读 `pass=1`/`crc_fira=0x90556BC7`/`mismatch_idx=-1`，CTO 防假绿自查（要求贴码）→ 抓出**假绿**：`fira_tfb_analyze/synthesize`（fira_tree.c §D）FIRA 段全 `memset 0`、`fira_postscale` 从未调用（`(void)` 弃用），输出 `out=in`（输入直通）；核 golden = PR telescoping `out=in`（精确）→ **两者撞 golden，零真 FIRA**。**桌面铁证**：占位 `fira_tfb_*` 过 chirp → `crc=0x90556BC7`、`out==in`。
@@ -703,6 +703,7 @@
 | **DEC-S4-R1-8CH-01** | R1 WCET/裕量判据 16ch→**8ch**（硬件 8 路 A/B 驱 16 单元、DAC 用 8ch 无 16 独立通道，DOC-S4-IO-01）；R1 绑定 `cyc_8ch_frame=1,006,935`[L1/EZKIT] 裕量 1.32×（按1GHz，CCLK待实测）；旧 16ch est 降参考；R1 未闭合(1.32×<10×)靠 FIRA/优化 | ✅ APPROVED |
 | **DEC-S4-R14-GRANULARITY** | R14 闭合粒度=**单通道全链 crc 0x90556BC7**（证据 gen_golden.c:71-75 单 TreeChannelState 全4子带链；非8ch）；原"F6=全链"作废（真8ch golden 不存在）；GAP-SAT 低优先 tracked→F5；R14 完整闭合定义 F5 再定 | ✅ APPROVED |
 | **DEC-S4-F7-CLOSE-01** | R14 cycle/CCLK 数据采集完成；官方加速比 3.07x[L1-derived]（in-build A/B 1,420,543/463,273），3.13x 退役（混 build）；8ch 裕量 2.878x[L1-derived]（CCLK 1e9 实测关 G6）；数据 COMPLETE，R14/判据/C9 裁定 PENDING CTO；C9 续 | ✅ 录数据（裁定 PENDING）|
+| **R14 三裁定** | ✅ **R14 CLOSED + 判据复议 + C9 RELEASED（CTO 正式裁定 2026-06-04）** | 三条：DEC-S4-R14-RULING-01（R14 闭合，证据侧 §5 全绿，FIRA 2.878x 裕量/3.07x 加速 L1 坐实，bit-exact 逐位不变；8ch_core 复读=非阻塞尾巴）｜DEC-S4-CRITERION-01（>=10x 退役→「实时下限+余量政策」，临时下限 >=1.0x，正式阈值待 item-3 EQ链 PRD + WCET 实测）｜DEC-S4-C9-RELEASE-01（C9 松绑附诚实分母：FIRA 收益 [L1] 进选型但必须与 §8 未计入清单 43-379 MCPS 连体呈现；官方加速比锁 3.07x in-build；3.13x 混 build 禁入选型/对外）。详见下「R14 三裁定」节 + `sprint4/dsp/fira/F7_R14_RULING_MATERIAL.md` |
 
 ### 锁定基线一览（2026-05-29 几何统一修正后更新）
 > **自研基线（单一，d=55 统一，DEC-S3-GEOM-01）**：N = 16 / d = 55mm / L = 825mm / Dolph-Chebyshev -20dB（d=30 已撤销 ⚠️PF-8；自研与竞品几何统一，受 SC-S3-GEOM-01 永久边界约束）
@@ -745,12 +746,43 @@
 - **异常解决留痕**：上轮 g_f7_cyc_8ch_core 报 1,451,030（与核-only 逐字节相等=可疑）→ 本轮实读 1,420,543
   （低 2.1%）→ 确诊上轮为 **转录替代**（误填核-only 值）。低 2% 方向：手写加权循环比 tfb8_process wrapper 快,
   疑 wrapper 间接寻址/struct/cache 开销 > 512 次 f5_apply_w 加权 [L3]。不影响裁定（3.07x 用 in-build 干净值）。
-- **C9/铁律八仍约束**：FIRA 收益虽 L1 出处, 在 CTO 裁 R14 闭合前不进选型/承诺（C9 管 USE 非 provenance）。
+- **C9/铁律八仍约束**：FIRA 收益虽 L1 出处, 在 CTO 裁 R14 闭合前不进选型/承诺（C9 管 USE 非 provenance）。〔写时口径；裁定已下 2026-06-04：C9 RELEASED 附诚实分母，DEC-S4-C9-RELEASE-01，见下「R14 三裁定」节〕
 - **R14 数据采集 = COMPLETE**；R14 闭合/判据/C9 松绑 = **裁定 PENDING CTO**。证据齐：F4/F5 逐位 [L1] +
   cycle 含全开销 [L1] + CCLK 实测 [L1]。判据(>=10x vs 实时floor+headroom) = CTO 政策选择, 见
   F7_R14_RULING_MATERIAL ADDENDUM B 残差裕量 1.38x-2.56x[L4]（5 未计入项）。
 - critic 门链：R3(v1 材料)/R4(v2 终版)/R5(addendum)/R6(收官记录) 全 CONDITIONAL→预豁免落地→放行，
   verdict 均 `reviewer: critic @ claude-opus-4-8 / 2026-06-04`。
+
+
+## R14 三裁定（2026-06-04，CTO 正式裁定；裁定权在 CTO，本节录裁定与依据）
+
+### DEC-S4-R14-RULING-01：R14 主门 CLOSED
+- **裁定**：R14 **CLOSED**。
+- **依据（逐字 CTO）**：证据侧 §5 SATISFIED 全绿，FIRA offload 收益（2.878x 裕量、3.07x 加速）已坐实 L1，bit-exact 证明算法输出逐位不变。仅 8ch_core 复读为非阻塞尾巴。FIRA 把系统从纯软 0.92x（跑不动）救到能实时——R14 工程目标达成。
+- **证据集 [L1/EZKIT 2026-06-04]**：F4 单通道子带 bit-exact（crc 0x2E0D8C6E）+ F5 8ch 逐位（g_f5_pass_all=1，8 锚命中）+ F7 含全开销 cycle（g_f7_cyc_8ch_fira=463,273）+ CCLK 实测（g_f7_cclk_hz=1e9，G6 CLOSED）→ 裕量 2.878x [L1-derived]、加速 3.07x [L1-derived]。
+- **非阻塞尾巴**：g_f7_cyc_analyze_fira/synth_fira CCES Expressions 读 ERROR（疑符号名/读侧，数据在板上=1ch_fira 字面和证；不阻塞，待重读升 16ch 为 L1-derived）。
+- **状态**：R14 **CLOSED**；下游 F4/F5/F7 里程碑行「R14 主门 OPEN/C9 维持」为写时历史，逐字保留并加「(R14 已闭合 2026-06-04 DEC-S4-R14-RULING-01)」尾注。
+
+### DEC-S4-CRITERION-01：R1 算力判据 >=10x 退役 → 「实时下限 + 余量政策」
+- **裁定**：>=10x **复议**，改「实时下限+余量政策」，**正式阈值暂不拍**。
+- **依据（逐字 CTO）**：原 10x 基础（桌面 33×/17×）被板上推翻；但整系统残余 1.38-2.56x、EQ 最坏 ~1.0x，现在拍 >=2x 可能被 EQ 规格打穿。暂挂 **>=1.0x 实时底线为临时下限**；正式阈值等 item-3（EQ 链）PRD 钉死 + WCET 实测收窄后再定。
+- **退役口径**：原 >=10x（出处 GRAFT_PLAN.md:28 / CCNT_source.md:47「写死」R1 判据，源自 dsp_8ch_report 桌面 33×/17× [L2] 投影）**退役**，不删，加注「retired-by-DEC-S4-CRITERION-01」。
+- **临时下限**：>=1.0x 实时底线。残差范围（§8/ADDENDUM B）最坏 1.38x > 1.0x **在 item-3（EQ/mixing）≤150 MCPS 的 [L4] 包络下成立**；若产品加重型多频段 EQ+限幅链（板上 ~30 cyc/MAC 可达 ~250-290 MCPS，>150），最坏残差被拉向 ~1.0x。故 >=1.0x 系统级达成 **须待 item-3 PRD 钉死后方可无条件断言**（与 CTO 裁定二「EQ 最坏 ~1.0x」一致）。
+- **待办（不阻塞）**：item-3 EQ 链 PRD 规格化 + WCET 实测（F7_WARM=0）收窄 → 定正式阈值。
+
+### DEC-S4-C9-RELEASE-01：C9/铁律八 RELEASED（附诚实分母）
+- **裁定**：C9 **RELEASED**，附诚实分母。
+- **依据（逐字 CTO）**：FIRA 收益以 [L1] 进选型口径，但必须与 §8 未计入清单（43-379 MCPS）连体呈现，不得单独以 2.878x 示人（整系统残余 1.38-2.56x）。加速比官方值锁 3.07x（in-build）；3.13x 混 build 不进任何选型/对外材料。
+- **松绑条件（强制连体）**：任何引 FIRA 收益（2.878x / 3.07x）的选型/对外材料，**必须同页并列** §8 未计入五项（codec/IO DMA 5-30、中断 2-15、EQ/mixing 0-150、控制 1-10、WCET +34.7-173.7 MCPS）+ 整系统残余裕量 **1.38-2.56x [L4]**。单独示 2.878x = 违裁定三。
+- **加速比锁定**：官方 = **3.07x [L1-derived]**（in-build 1,420,543/463,273，同 build/输入/循环 A/B）。**3.13x（核-only 1,451,030/463,273）= 混 build 伪值，禁入选型/对外材料**（可作历史/异常留痕，见 F7_CLOSING_RECORDS）。
+- **C9 守门历史**：R14 闭合前 C9 持续生效（六轮 critic 拦截、F4/F5/F7 全程 [L4/待验证]），该历史逐字保留；C9 现状 = RELEASED-with-denominator。
+
+### 后续待办（不阻塞 R14 闭合）
+1. item-3 EQ 链 PRD 规格化 → 定正式阈值（DEC-S4-CRITERION-01 悬项）。
+2. WCET 实测（F7_WARM=0 冷 cache 帧 + DMA 并发）收窄 §8 item-5 → [L1]。
+3. DMA/中断小 harness（Pipelined ADC→DAC passthrough）量 §8 item-1/2 → [L1]。
+4. 非阻塞：重读 g_f7_cyc_analyze_fira/synth_fira（正确符号名）→ 16ch 约定估算升 [L1-derived]。
+
 
 ---
 

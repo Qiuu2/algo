@@ -1,3 +1,5 @@
+> **状态更新 2026-06-04：R14 已 CLOSED（DEC-S4-R14-RULING-01），>=10x 判据已退役→实时下限+余量（DEC-S4-CRITERION-01），C9 已 RELEASED 附诚实分母（DEC-S4-C9-RELEASE-01）。本文以下为写时口径，存史。**
+
 # F4 Session Handoff — FIRA 单通道子带定点 bit-exact 里程碑（§12 实战记录）
 
 **日期**：2026-06-04 ｜ **作者**：Project Manager Agent（lead, claude-opus-4-8）｜ **状态**：CTO 已确认口径
