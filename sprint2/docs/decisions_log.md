@@ -707,6 +707,8 @@
 | **STEER v1 路线** | ✅ **v1=聚焦/分区（现板固件线）；角度偏转=独立立项（CTO 后评 ROI）**（DEC-S5-STEER-V1-01，2026-06-04）| 转向定义二选一已裁：v1 走 broadside 聚焦/分区（现板可负担，算法侧最坏 margin **2.04x**）；角度偏转拓扑数学不可达 [L1]，须 16ch 硬件叉 + SC-S3-GEOM-01 d 重议，单独立项。聚焦增量 **86–144 MCPS [L4]**（2.88 MMAC/s × 30–50 cyc/MAC 板证包络），聚焦后算法侧 margin **2.04–2.31x**（口径修正见 STEER scan R9 台账：49x/340x 同源 1cyc/MAC 理想记账双双作废）。详见「STEER v1 路线」节 |
 | **STEER 优化排序** | ✅ **HW-1(IIR EQ offload) 最高优先 + item-3 EQ PRD 同推**（DEC-S5-OPT-ORDER-01，2026-06-04）| 基于修正后真实余量 2.04–2.31x：(1) HW-1 IIR 加速器 EQ offload 评估 = 最高优先（聚焦后余量紧，EQ=§8 item-3 最大威胁，且为聚焦/分区成立前提钥匙）+ item-3 EQ 链 PRD 规格化（joint）；(2) 聚焦增量上板小 harness（86–144 [L4]→L1）；(3) FRAME/ORCH 按收益排后；ORCH-4 = measure-first likely KEEP（CTO 认可）。依赖：DEC-S4-CRITERION-01 正式阈值与 item-3/WCET 共依赖 |
 | **三道关新政** | ✅ **workflow 产出三道关，含修正稿**（DEC-S5-POLICY-3GATE-01，POLICY v1.8，2026-06-04）| 任何 workflow/多 agent 产出（**含修正稿**）须过：自动 verify(初筛) → 独立 critic 门 → CTO 常识合理性审，缺一不可，**不得假设「修过即对」**。缘起 R8（synthesizer 撤销自家 verifier 的纠正）+ R9（修正稿自带两处偏乐观新错）。详见 POLICY-PROV-001 §4B + CLAUDE.md/team_config 同步 |
+| **v1 范围收窄** | ✅ **v1=近场高频展区分区（2–5m, 有用带 ≥4kHz）；车站 zoning 剔除（broadside 定向保留）；PRD 重写**（DEC-S5-V1-SCOPE-01，2026-06-05）| 走 FOCUS_EFFICACY 选项(a)：聚焦效能仅在高频近距物理真实（4k/6k@2–3m 焦点增益 4.85–8.09dB、聚焦超额最高 3.9dB；语音主带 0.3–3kHz 近乎为空；车站 12–15m 宽带物理为空，efficacy_sim §3 [L2/仿真]）。双线 AND **对收窄范围 SATISFIED**（算力 [L4] AND 声学 CTO 裁为「足够-for-收窄范围」）。验收指标 = **PRD OPEN ITEM**：「高频近场净隔离 ≥ X dB @ 消声室 L1」，X 待 CTO/PRD 定（不臆造）。详见「v1 收窄」节 |
+| **item-3 = O1** | ✅ **EQ 取 O1（LEAN master-bus 2–3 biquad 整形 EQ + 保护限幅器 REQUIRED）**（DEC-S5-EQ-O1-01，2026-06-05）| O1 成本 **29–60 MCPS [L4]**（20–25 MAC/samp×48k×{30,50}cyc/MAC）；整形 EQ→master-bus（broadside 同信号 + LTI 可交换双基础，约 1/8 成本）；**保护限幅器 REQUIRED 入 PRD**（per-channel，阈值按权重缩放 T_k=T·w_k，D14 防锥度劣化）；band 数终调待 R3 消声室正轴向响应；功放选型 caveat（TAS5825M 会把 EQ 账外置）。详见「item-3 O1」节 |
 
 ### 锁定基线一览（2026-05-29 几何统一修正后更新）
 > **自研基线（单一，d=55 统一，DEC-S3-GEOM-01）**：N = 16 / d = 55mm / L = 825mm / Dolph-Chebyshev -20dB（d=30 已撤销 ⚠️PF-8；自研与竞品几何统一，受 SC-S3-GEOM-01 永久边界约束）
@@ -829,6 +831,49 @@
   自带两处偏乐观新错：2.55x 低端应 2.31x、3 cyc/MAC 下界无板证）。两轮均「修正动作本身引入/遗漏错」。
 - **落点**：POLICY-PROV-001 v1.8 §4B（全文，见本包 §2）+ CLAUDE.md 治理摘要同步（§3）+ team_config 团队
   法同步（§4）。critic 评审时显式列三道关状态（与 C1–C10 并列）。
+
+## v1 收窄 + EQ=O1 双裁定（2026-06-05，CTO 正式裁定；本节录裁定与依据）
+
+### DEC-S5-V1-SCOPE-01：v1 = 近场高频展区分区；车站 zoning 剔除；PRD 重写
+- **裁定（substance 逐字）**：走 (a)，v1 收窄为近场高频展区分区。
+- **范围定义**：v1 zoning 能力 = **近场高频展区分区，工作距离 2–5m，有用频段 ≥4kHz**（博物馆/商场近端展区）。
+  **车站广播场景的 zoning 能力剔除**——车站保留 broadside 定向音柱产品角色（指向性产品不变），**不承诺深度分区**。
+- **物理依据 [L2/仿真，efficacy_sim FOCUS_EFFICACY_REPORT.md]**：
+  - 聚焦效能由近场瑞利极限 R=2L²/λ 严格门控；可观焦点增益（4.85–8.09dB）+ 净聚焦超额（最高 3.9dB）
+    仅在 **高频(4k/6k)+近距(2–3m)**（efficacy §2/§3）。
+  - 语音主能量带 0.3–3kHz：全距离焦点增益/聚焦超额都很小（频带错配，efficacy:118）。
+  - 车站 5–15m 宽带：12–15m 远超绝大多数频段瑞利极限，深度分区**物理为空**（efficacy:116/139）→ 剔除正确。
+- **双线 AND（收窄范围）= SATISFIED**：
+  - 算力侧：聚焦增量 86–144 MCPS [L4]，聚焦后算法侧 margin 2.04–2.31x [L4]（DEC-S5-STEER-V1-01）。
+  - 声学侧：CTO 裁「足够-for-收窄范围」（高频近距 efficacy 真实，剔除物理不达标的车站宽带 zoning）。
+  - **注**：efficacy 全为 [L2/仿真]，无 L1；点声源各向同性、自由场（无混响）= 高估隔离（efficacy:124/125）。
+    **L2→L1 缺口**：任何进选型/承诺/PRD 的聚焦效能数字须消声室+现场实测升 L1（efficacy:129）。
+- **PRD 重写 mandated**：v1 能力定义、场景表（车站 zoning 剔除）、新增验收指标占位（见 §3 PRD change blocks）。
+- **验收指标 = PRD OPEN ITEM（不臆造 X）**：建议口径「**高频近场净隔离 ≥ X dB @ 消声室 L1**」（扣除 1/r 几何扩散后
+  只认聚焦净贡献，efficacy:140 归因纪律）。**X 由 CTO/PRD 定**；efficacy 自由场上界参考 ~3.9dB@6k 近距（混响后更低）。
+- **状态**：v1=近场高频展区分区锁定；车站 zoning 剔除；角度偏转仍独立项（DEC-S5-STEER-V1-01）。
+
+### DEC-S5-EQ-O1-01：item-3 = O1（LEAN master-bus EQ + 保护限幅 REQUIRED）
+- **裁定（substance 逐字）**：EQ 取 O1。
+- **O1 规格（EQ_PRD_DECISION_MATERIAL.md:69 + §2.2 结构规则）**：
+  - **整形 EQ**：2–3 biquad，**master-bus（fan-out 前一次处理）**。基础 = broadside 同信号 + 整形 EQ/per-ch 延迟
+    均 LTI 可交换（master-bus EQ→fan-out→per-ch 延迟 ≡ per-ch EQ→延迟，频谱整形等价），broadside 与聚焦下
+    均成立、约 1/8 成本（EQ_PRD §2.2:50/52）。
+  - **保护限幅器 = REQUIRED 入 PRD**（三场景皆需；3W 实测低功率喇叭[L1]+D 类功放，削波灌音圈风险，EQ_PRD §2:44）。
+    **摆位 = per-channel（D-C 权重 fan-out 之后）**：各通道 D-C 权重不同（中心 w=1.0、次边 w≈0.50，~6dB 跨度），
+    单一 master 限幅器保护不了最高权重通道（SN-5）。**阈值按权重缩放 T_k=T·w[k]**（D14）以保锥度——
+    共阈值 per-channel 限幅会先削高权重通道、把锥度推向均匀加权 → 旁瓣抬升、-20dB SLL 劣化（EQ_PRD §2.2:54）。
+    限幅器标量/近零 MAC，8 个 per-channel 可忽略。
+  - **band 数 = 终调待 R3**：是否真需 EQ、几频段取决于实测正轴向响应（R3 消声室，待 T/S 2–4 周，EQ_PRD:45）。
+  - **功放选型 caveat**：Plan A=ACM3128A（无内置 DSP，EQ 在主芯片）；备选 **TAS5825M 含集成 DSP/可软配 EQ**
+    → 会把 EQ 账外置（EQ_PRD:28）。功放未锁；选型变更须重算 item-3 算力账。
+- **成本 [L4]**：29–60 MCPS（=20–25 MAC/samp×48000×{30,50}cyc/MAC；28.8@2bq/30cyc → 60.0@3bq/50cyc）。
+- **O1 系统 margin（EQ_PRD 口径 = 聚焦+O1 项，critic R11 修正）= 1.81x–2.16x**
+  （best=1000/(347.45+86+29)=2.16x；worst=1000/(347.45+144+60)=1.81x）。**注：2.04–2.31x 是无-EQ 基线值，
+  非 O1 值——勿混（EQ_PRD:69 critic 修正记录）。**
+- **HW-1 条件性（O1）= 有价值但非承重**（EQ_PRD:81）：offload 2–3 biquad 后 core 仅余限幅+编排；
+  **不 offload 也守 ≥1.0x**。详见 §2 CONSEQUENCE。
+- **状态**：item-3 PRD 规格 = O1 锁定；限幅 REQUIRED 入 PRD；EQ band 数待 R3 实测。
 
 ---
 

@@ -1,5 +1,7 @@
 # v1 在轴聚焦 / 深度分区 声学效能仿真报告（DRAFT）
 
+> 裁定注记 (2026-06-05)：CTO 已裁 v1=近场高频展区分区（2–5m,≥4kHz），走本报告选项(a)；车站 zoning 剔除（车站=broadside 定向）。DEC-S5-V1-SCOPE-01。本报告 [L2/仿真] 效能进 PRD/承诺前须消声室+现场实测升 L1（§129 缺口）。验收 X dB = PRD OPEN ITEM。
+
 > PREREQUISITE #2（CTO 令）· Sprint5 / efficacy_sim · 2026-06-04
 > 角色定位：**POLICY v1.8 三道关 — 仅第一道关（gate-1 screening）。只产出指标，不下「够不够格」效能裁决。**
 > 全部场仿真结果 = **[L2/仿真，双轨 numpy主 + MATLAB R2026a独立核]**；近场可行性表 = **[L3/解析]**；本轮**无 L1 实测**。
