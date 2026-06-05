@@ -60,6 +60,12 @@
 - 缘起：R14 H1 zero_recovers 假 FAIL（identity 在被 focus/nofocus 推进后的态上比 nofocus 态 → 必失配）；
   R15 修法 = h1_state_save/restore 同态比较。host test 须扩展覆盖**有状态比较契约**（非仅无状态 kernel）。
 
+- **TARGET-guarded 代码对桌面 gcc 不可见 — 必跑 guard-stub 检查**：任何 `#if defined(...TARGET_SHARC...)`
+  守区的 harness，plain `gcc -fsyntax-only`（不带宏）**不编译该区**，声明序/符号用零覆盖（缘起 R15→R16：
+  s_h1_fa declare-before-use 在 guarded 区，桌面「gcc clean」失明，CCES build 才暴露）。gate-① 必含
+  guard-stub 语法检查（带 -D守宏 + mock 仅 BSP-not-in-repo 符号，例 sprint5/dsp/harness/run_guard_check.sh），
+  并以**证伪**自证（对 broken 版 FAIL、fixed 版 PASS）。
+
 ## Change control (audit)
 - Changing any role's model = edit this table + log the change (old->new, date, reason) in decisions_log, per POLICY-PROV-001 change-trail discipline.
 

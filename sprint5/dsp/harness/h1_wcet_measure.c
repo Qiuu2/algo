@@ -103,6 +103,29 @@ volatile int      g_h1_valid           = 0;    /* 1 = ran on board with FIRA; 0 
  * unused-symbol warnings. Coeffs are a windowed-sinc-style stand-in; values are arbitrary but
  * NON-trivial so the FG "output differs" check is real. Q15, applied with arithmetic shift. */
 #if defined(FIRA_USE_REAL_ADI_FIR_HEADER) && defined(TARGET_SHARC)
+/* =====================================================================================
+ * ALL file-scope static STATE for the FIRA build is declared HERE, in one block at the
+ * TOP of the guarded region, BEFORE any function that uses it. This is R16 hardening:
+ * the R15 fix placed h1_state_save/restore/dcache helpers BEFORE the s_h1_fa declaration
+ * (C declare-before-use violation) -- it compiled "clean" on desktop ONLY because the whole
+ * block is TARGET-guarded and gcc never saw it. Consolidating the decls makes the file
+ * robust against future function reordering (no helper can precede a state decl).
+ * ===================================================================================== */
+
+/* FIRA chain per-channel state (cross-frame history; advanced by fira_tfb_analyze/synthesize). */
+static FiraChannelState s_h1_fa[DOLPH_W8_NCH];
+/* snapshot of the clean steady state (R15 same-state A/B + continuity probe). */
+static FiraChannelState s_h1_fa_snap[DOLPH_W8_NCH];
+
+/* per-(channel,subband) frac-delay history (cross-frame tail, H1_FDTAPS-1 each). */
+static int32_t s_fd_hist[DOLPH_W8_NCH][4][H1_FDTAPS - 1];
+/* snapshot of the focus-FIR history (R15). */
+static int32_t s_fd_hist_snap[DOLPH_W8_NCH][4][H1_FDTAPS - 1];
+
+/* focus fractional-delay coeffs: 8 distinct Q15 sets = 8 distinct delays (mirror-symmetric,
+ * {c,15-c} pair-locked). zero-delay identity = a true PASS-THROUGH (use_identity SKIPS the focus
+ * stage; 32767/32768 != 1 so a Q15 unity tap would not be bit-exact). Coeffs arbitrary but
+ * NON-trivial so the FG "output differs" check is real. */
 static const int16_t s_fd_coeff[DOLPH_W8_NCH][H1_FDTAPS] = {
     /* c=0 (delay ~0.1) */ {  1100, 28000,  6200, -1400,   500,  -200,    90,   -40 },
     /* c=1 (~0.2)       */ { -1500, 25000, 10500, -2600,   950,  -380,   160,   -70 },
@@ -113,23 +136,13 @@ static const int16_t s_fd_coeff[DOLPH_W8_NCH][H1_FDTAPS] = {
     /* c=6 (~0.2 mirror)*/ { -1500, 25000, 10500, -2600,   950,  -380,   160,   -70 },
     /* c=7 (~0.1 mirror)*/ {  1100, 28000,  6200, -1400,   500,  -200,    90,   -40 }
 };
-/* zero-delay identity = a true PASS-THROUGH (copy), NOT a Q15 tap (32767/32768 != 1 would not be
- * bit-exact). The continuity control runs the SAME analyze->synthesize chain with the focus stage as
- * an identity copy, so it must reproduce the no-focus path EXACTLY. Signaled by use_identity in the
- * frame fn (h1_focus_subband is simply NOT called for the identity case -> exact copy). */
 
-/* per-(channel,subband) frac-delay history (cross-frame tail, H1_FDTAPS-1 each). static = off-stack. */
-static int32_t s_fd_hist[DOLPH_W8_NCH][4][H1_FDTAPS - 1];
-
-/* ---- R15 fix: state snapshot for the same-state A/B + continuity probe ----
+/* ---- R15 fix: same-state snapshot/restore (now AFTER all state decls above) ----
  * The FIRA chain (s_h1_fa) AND the focus-FIR history (s_fd_hist) are stateful cross-frame. The R14
  * probe compared identity-vs-nofocus on DIFFERENT advanced states (ST1 cross-state CRC flaw) -> false
  * FG fail. Fix: snapshot the clean steady state ONCE after warm-up, then RESTORE before each of the
  * three compared frames (focus-ON / focus-OFF / identity) so all run from the IDENTICAL state on the
  * SAME input. Restore is done OUTSIDE the timed span (memcpy must not pollute the cycle count). */
-static FiraChannelState s_h1_fa_snap[DOLPH_W8_NCH];           /* FIRA chain state snapshot */
-static int32_t s_fd_hist_snap[DOLPH_W8_NCH][4][H1_FDTAPS - 1];/* focus-FIR history snapshot */
-
 static void h1_state_save(void)
 {
     int c, sb, i;
@@ -212,9 +225,7 @@ static uint32_t h1_crc32(uint32_t c, const int32_t *d, int n)
 /* ---- one 8ch FIRA frame: analyze -> (optional focus on subbands) -> synthesize ----
  * focus_enable: 1 = apply per-(ch,sb) focus FIR; 0 = no-focus path (analyze->synthesize).
  * use_identity: 1 = zero-delay pass-through (skip the focus stage) = continuity control.
- * returns CRC of the 8-channel synth output (FG check). */
-static FiraChannelState s_h1_fa[DOLPH_W8_NCH];
-
+ * returns CRC of the 8-channel synth output (FG check). (s_h1_fa declared in the top state block.) */
 static uint32_t h1_fira_frame(const int32_t *xin, int focus_enable, int use_identity,
                               int32_t *fsb0, int32_t *fsb1, int32_t *fsb2, int32_t *fsb3,
                               int32_t *fout, int32_t *xw, int32_t *scr)
