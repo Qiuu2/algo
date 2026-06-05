@@ -89,6 +89,13 @@ extern volatile uint32_t g_f7_cclk_hz;          /* measured core clock Hz (G6); 
 extern volatile int      g_f7_valid;            /* 1 = ran on board with FIRA; 0 = desktop/no-FIRA (numbers meaningless) */
 extern volatile int      g_f7_pwrinit_rc;       /* F7-FIX: adi_pwr_Init rc (0=SUCCESS); -99 not-run/desktop */
 extern volatile int      g_f7_cclk_rc;          /* F7-FIX: adi_pwr_GetCoreClkFreq rc (0=SUCCESS); -99 not-run/desktop */
+/* H1 (WO-S5-H1): focusing-increment + WCET combined measure (defined in sprint5/dsp/harness/h1_wcet_measure.c) */
+extern int      h1_wcet_measure(void);
+extern volatile uint32_t g_h1_cyc_8ch_focus, g_h1_cyc_8ch_nofocus, g_h1_cyc_focus_only;
+extern volatile uint32_t g_h1_cyc_8ch_cold, g_h1_cyc_8ch_warm, g_h1_cyc_8ch_max, g_h1_cyc_8ch_min;
+extern volatile uint32_t g_h1_cclk_hz, g_h1_focus_crc, g_h1_nofocus_crc;
+extern volatile int      g_h1_cclk_rc, g_h1_fg_focus_differs, g_h1_fg_zero_recovers, g_h1_valid;
+volatile int g_h1_done = -99;   /* 1=on-board w/ FIRA / 0=desktop no-FIRA / -99 not-run */
 volatile int g_fira_f7_done = -99;              /* F7 measure ran: 1=on-board w/ FIRA / 0=desktop no-FIRA / -99 not-run */
 #endif
 
@@ -224,6 +231,17 @@ void main(void)
     /* breakpoint here: g_f7_valid (1=on-board) / g_f7_cclk_hz (G6, vs ~1GHz CGU + g_ccnt_selftest sanity) /
      *   g_f7_cyc_8ch_fira / g_f7_cyc_8ch_core / g_f7_cyc_1ch_fira / g_f7_cyc_analyze_fira / g_f7_cyc_synth_fira
      *   -> off-board: margin vs >=10x + FIRA-vs-core ratio, ALL [L4/to-verify] until CTO rules R14 closed. */
+
+    /* ---- H1 (WO-S5-H1): focusing-increment same-build A/B + WCET cold/warm/max. Runs AFTER F7 with
+     *   its OWN setup/state/buffers -> does NOT perturb F4/F5/F7 PASS paths. RAW counters only (C9).
+     *   FREE-RUN: read g_h1_* at idle only (no mid-loop breakpoints). ---- */
+    g_h1_done = h1_wcet_measure();
+    /* breakpoint here (idle, after the run): read
+     *   A focus increment: g_h1_cyc_8ch_focus - g_h1_cyc_8ch_nofocus (= g_h1_cyc_focus_only) [L1 cyc]
+     *   B WCET (LOWER BOUND, cold=PARTIAL proxy I-cache warm): g_h1_cyc_8ch_cold/warm + g_h1_cyc_8ch_max/min
+     *   C sanity: g_h1_cclk_hz(==1e9?)/g_h1_cclk_rc(==0?) + FG g_h1_fg_focus_differs(==1)/g_h1_fg_zero_recovers(==1)
+     *   off-board: focus MCPS = increment*750/1e6; WCET multiplier = max/warm (lower-bound caveat); pair section-8 denom (C9). */
+
 #endif
 
     /* ---- breakpoint here, emulator read g_bench_result:
