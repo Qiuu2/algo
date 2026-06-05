@@ -96,6 +96,13 @@ extern volatile uint32_t g_h1_cyc_8ch_cold, g_h1_cyc_8ch_warm, g_h1_cyc_8ch_max,
 extern volatile uint32_t g_h1_cclk_hz, g_h1_focus_crc, g_h1_nofocus_crc;
 extern volatile int      g_h1_cclk_rc, g_h1_fg_focus_differs, g_h1_fg_zero_recovers, g_h1_valid;
 volatile int g_h1_done = -99;   /* 1=on-board w/ FIRA / 0=desktop no-FIRA / -99 not-run */
+/* H2 (WO-S5-H2): DMA/ISR contention measure (defined in sprint5/dsp/harness/h2_dma_isr_measure.c) */
+extern int      h2_dma_isr_measure(void);
+extern volatile uint32_t g_h2_cyc_frame_base, g_h2_cyc_frame_dma, g_h2_cyc_frame_isr;
+extern volatile uint32_t g_h2_cyc_frame_both_max, g_h2_cyc_frame_both_min, g_h2_inc_dma, g_h2_inc_isr;
+extern volatile uint32_t g_h2_isr_count, g_h2_isr_count_off;
+extern volatile int      g_h2_fg_dma_loads, g_h2_fg_isr_fires, g_h2_valid;
+volatile int g_h2_done = -99;
 volatile int g_fira_f7_done = -99;              /* F7 measure ran: 1=on-board w/ FIRA / 0=desktop no-FIRA / -99 not-run */
 #endif
 
@@ -241,6 +248,13 @@ void main(void)
      *   B WCET (LOWER BOUND, cold=PARTIAL proxy I-cache warm): g_h1_cyc_8ch_cold/warm + g_h1_cyc_8ch_max/min
      *   C sanity: g_h1_cclk_hz(==1e9?)/g_h1_cclk_rc(==0?) + FG g_h1_fg_focus_differs(==1)/g_h1_fg_zero_recovers(==1)
      *   off-board: focus MCPS = increment*750/1e6; WCET multiplier = max/warm (lower-bound caveat); pair section-8 denom (C9). */
+
+    /* ---- H2 (WO-S5-H2): DMA contention + ISR preemption. Own state/buffers; does NOT perturb F4/F5/F7/H1.
+     *   RAW counters only (C9). FREE-RUN: read g_h2_* at idle only. Needs board hooks (h2_board_hooks_*.c). ---- */
+    g_h2_done = h2_dma_isr_measure();
+    /* breakpoint here (idle): g_h2_valid / g_h2_fg_dma_loads(==1) / g_h2_fg_isr_fires(==1) /
+     *   g_h2_inc_dma / g_h2_inc_isr / g_h2_cyc_frame_both_max / g_h2_cyc_frame_base / g_h2_isr_count(_off==0)
+     *   off-board: io MCPS = inc_dma*750/1e6 ; irq MCPS = inc_isr*750/1e6 ; WCET mult = both_max/base ; sec-8 paired. */
 
 #endif
 
