@@ -1,5 +1,7 @@
 # WO-S5-H1: Focusing-increment + WCET combined measurement (H1) — WORK ORDER DRAFT
 
+> 〔H1 v2 已板跑：focus_only=49.03 MCPS[L1]，173-288 yardstick settle，实测 8.51 cyc/MAC<30-50 类；DEC-S5-BUDGET-L1-01〕
+
 > 三道关自指：本工单 = workflow 产出 → 关①已过（本 teammate 自验 + 桌面 gcc + host run）；
 >   **关② = critic R14（独立门，待）**；**关③ = CTO 常识审 + C10 bringup checklist（板跑前，待）**。
 > 缘起：DEC-S5-OPT-ORDER-02（CTO 2026-06-05）执行顺序第 1 项「focusing-harness + WCET 同板跑」。

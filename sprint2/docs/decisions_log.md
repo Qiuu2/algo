@@ -703,12 +703,16 @@
 | **DEC-S4-R1-8CH-01** | R1 WCET/裕量判据 16ch→**8ch**（硬件 8 路 A/B 驱 16 单元、DAC 用 8ch 无 16 独立通道，DOC-S4-IO-01）；R1 绑定 `cyc_8ch_frame=1,006,935`[L1/EZKIT] 裕量 1.32×（按1GHz，CCLK待实测）；旧 16ch est 降参考；R1 未闭合(1.32×<10×)靠 FIRA/优化 | ✅ APPROVED |
 | **DEC-S4-R14-GRANULARITY** | R14 闭合粒度=**单通道全链 crc 0x90556BC7**（证据 gen_golden.c:71-75 单 TreeChannelState 全4子带链；非8ch）；原"F6=全链"作废（真8ch golden 不存在）；GAP-SAT 低优先 tracked→F5；R14 完整闭合定义 F5 再定 | ✅ APPROVED |
 | **DEC-S4-F7-CLOSE-01** | R14 cycle/CCLK 数据采集完成；官方加速比 3.07x[L1-derived]（in-build A/B 1,420,543/463,273），3.13x 退役（混 build）；8ch 裕量 2.878x[L1-derived]（CCLK 1e9 实测关 G6）；数据 COMPLETE，R14/判据/C9 裁定 PENDING CTO；C9 续 | ✅ 录数据（裁定 PENDING）|
-| **R14 三裁定** | ✅ **R14 CLOSED + 判据复议 + C9 RELEASED（CTO 正式裁定 2026-06-04）** | 三条：DEC-S4-R14-RULING-01（R14 闭合，证据侧 §5 全绿，FIRA 2.878x 裕量/3.07x 加速 L1 坐实，bit-exact 逐位不变；8ch_core 复读=非阻塞尾巴）｜DEC-S4-CRITERION-01（>=10x 退役→「实时下限+余量政策」，临时下限 >=1.0x，正式阈值待 item-3 EQ链 PRD + WCET 实测）｜DEC-S4-C9-RELEASE-01（C9 松绑附诚实分母：FIRA 收益 [L1] 进选型但必须与 §8 未计入清单 43-379 MCPS 连体呈现；官方加速比锁 3.07x in-build；3.13x 混 build 禁入选型/对外）。详见下「R14 三裁定」节 + `sprint4/dsp/fira/F7_R14_RULING_MATERIAL.md` |
+| **R14 三裁定** | ✅ **R14 CLOSED + 判据复议 + C9 RELEASED（CTO 正式裁定 2026-06-04）** | 三条：DEC-S4-R14-RULING-01（R14 闭合，证据侧 §5 全绿，FIRA 2.878x 裕量/3.07x 加速 L1 坐实，bit-exact 逐位不变；8ch_core 复读=非阻塞尾巴）｜DEC-S4-CRITERION-01（>=10x 退役→「实时下限+余量政策」，临时下限 >=1.0x，正式阈值待 item-3 EQ链 PRD + WCET 实测）｜DEC-S4-C9-RELEASE-01（C9 松绑附诚实分母：FIRA 收益 [L1] 进选型但必须与 §8 未计入清单 43-379 MCPS 连体呈现；官方加速比锁 3.07x in-build；3.13x 混 build 禁入选型/对外）。详见下「R14 三裁定」节 + `sprint4/dsp/fira/F7_R14_RULING_MATERIAL.md`〔正式阈值已定 T2 ≥1.5x，2026-06-05 DEC-S4-CRITERION-01-FINAL；临时下限 1.0x 被 T2 取代〕 |
 | **STEER v1 路线** | ✅ **v1=聚焦/分区（现板固件线）；角度偏转=独立立项（CTO 后评 ROI）**（DEC-S5-STEER-V1-01，2026-06-04）| 转向定义二选一已裁：v1 走 broadside 聚焦/分区（现板可负担，算法侧最坏 margin **2.04x**）；角度偏转拓扑数学不可达 [L1]，须 16ch 硬件叉 + SC-S3-GEOM-01 d 重议，单独立项。聚焦增量 **86–144 MCPS [L4]**（2.88 MMAC/s × 30–50 cyc/MAC 板证包络），聚焦后算法侧 margin **2.04–2.31x**（口径修正见 STEER scan R9 台账：49x/340x 同源 1cyc/MAC 理想记账双双作废）。详见「STEER v1 路线」节 |
 | **STEER 优化排序** | ✅ **HW-1(IIR EQ offload) 最高优先 + item-3 EQ PRD 同推**（DEC-S5-OPT-ORDER-01，2026-06-04）| 基于修正后真实余量 2.04–2.31x：(1) HW-1 IIR 加速器 EQ offload 评估 = 最高优先（聚焦后余量紧，EQ=§8 item-3 最大威胁，且为聚焦/分区成立前提钥匙）+ item-3 EQ 链 PRD 规格化（joint）；(2) 聚焦增量上板小 harness（86–144 [L4]→L1）；(3) FRAME/ORCH 按收益排后；ORCH-4 = measure-first likely KEEP（CTO 认可）。依赖：DEC-S4-CRITERION-01 正式阈值与 item-3/WCET 共依赖 |
 | **三道关新政** | ✅ **workflow 产出三道关，含修正稿**（DEC-S5-POLICY-3GATE-01，POLICY v1.8，2026-06-04）| 任何 workflow/多 agent 产出（**含修正稿**）须过：自动 verify(初筛) → 独立 critic 门 → CTO 常识合理性审，缺一不可，**不得假设「修过即对」**。缘起 R8（synthesizer 撤销自家 verifier 的纠正）+ R9（修正稿自带两处偏乐观新错）。详见 POLICY-PROV-001 §4B + CLAUDE.md/team_config 同步 |
-| **执行序重排** | ✅ **harness+WCET 同板跑优先；R3 第二；HW-1 降可选**（DEC-S5-OPT-ORDER-02，2026-06-05，取代 DEC-S5-OPT-ORDER-01 排序）| CTO 确认：EQ 威胁坍缩（0-150→29-60, 非承重）→ HW-1 不再紧迫；**WCET 才是正式阈值卡点**（DEC-S4-CRITERION-01 最后依赖）。(1) 聚焦增量 harness + WCET 实测同一次板跑（WO-S5-H1，cold=部分冷代理 I-cache 已热低估真冷，critic R14）；(2) R3 消声室（EQ band 数+疗效，待 T/S 2-4 周）；(3) HW-1 可选，WCET 后若争 ≥2x 再启。验收 X 保持 OPEN 至 R3 出实际可达值 |
-| **H1 FG-BLOCKER→R15** | ✅ **ST1 自检缺陷诊断确认·数据 quarantined 不 salvage·fix+re-run·MAC-2x 发现**（2026-06-05）| R14 H1 板跑 g_h1_fg_zero_recovers=0：根因=**ST1 跨态 CRC 自检设计缺陷**（identity probe 在被 focus/nofocus 推进后的 FIRA 态上比 nofocus 态→有状态链必假失配；非聚焦机制 bug——focus_differs=1 证 focus 真算）。host test 当初漏=只测无状态 kernel。CTO 批 fix(a) snapshot/restore 同态比较 + 不 salvage quarantined（focus=590,137/nofocus=524,727/focus_only=65,410）。**MAC-2x 发现**：harness sz[]=8+16+32+64=120 samp/frame（sb3 未抽取）=真值；cost-model 2.88 MMAC/s 误设 60 samp→真 5.76 MMAC/s（2x），envelope 重标 86-144→**173-288 MCPS**[L4]；DEC-S5-V1-SCOPE-01 focus 预算疑 2x 低估（FLAG CTO，待板 focus_only[L1] settle）。三硬化入档（critic ST1-E 枚举消费者/harness probe-态隔离/PM cross-item checklist）。fix→critic R15→re-run（C10）。详见 sprint5/H1_R15_FIX_PACKAGE.md |
+| **执行序重排** | ✅ **harness+WCET 同板跑优先；R3 第二；HW-1 降可选**（DEC-S5-OPT-ORDER-02，2026-06-05，取代 DEC-S5-OPT-ORDER-01 排序）| CTO 确认：EQ 威胁坍缩（0-150→29-60, 非承重）→ HW-1 不再紧迫；**WCET 才是正式阈值卡点**（DEC-S4-CRITERION-01 最后依赖）。(1) 聚焦增量 harness + WCET 实测同一次板跑（WO-S5-H1，cold=部分冷代理 I-cache 已热低估真冷，critic R14）；(2) R3 消声室（EQ band 数+疗效，待 T/S 2-4 周）；(3) HW-1 可选，WCET 后若争 ≥2x 再启。验收 X 保持 OPEN 至 R3 出实际可达值〔focus 已实测 49.03 MCPS[L1]，DEC-S5-BUDGET-L1-01；86-144 退役〕 |
+| **H1 FG-BLOCKER→R15** | ✅ **ST1 自检缺陷诊断确认·数据 quarantined 不 salvage·fix+re-run·MAC-2x 发现**（2026-06-05）| R14 H1 板跑 g_h1_fg_zero_recovers=0：根因=**ST1 跨态 CRC 自检设计缺陷**（identity probe 在被 focus/nofocus 推进后的 FIRA 态上比 nofocus 态→有状态链必假失配；非聚焦机制 bug——focus_differs=1 证 focus 真算）。host test 当初漏=只测无状态 kernel。CTO 批 fix(a) snapshot/restore 同态比较 + 不 salvage quarantined（focus=590,137/nofocus=524,727/focus_only=65,410）。**MAC-2x 发现**：harness sz[]=8+16+32+64=120 samp/frame（sb3 未抽取）=真值；cost-model 2.88 MMAC/s 误设 60 samp→真 5.76 MMAC/s（2x），envelope 重标 86-144→**173-288 MCPS**[L4]；DEC-S5-V1-SCOPE-01 focus 预算疑 2x 低估（FLAG CTO，待板 focus_only[L1] settle）。三硬化入档（critic ST1-E 枚举消费者/harness probe-态隔离/PM cross-item checklist）。fix→critic R15→re-run（C10）。详见 sprint5/H1_R15_FIX_PACKAGE.md〔R16 build 修 + v2 板跑全绿，FG 双门过，focus_only=65,371 BOOKED[L1]=49.03 MCPS；173-288 退役（kernel 类对=8.51 cyc/MAC）；FG-BLOCKER CLOSED 2026-06-05〕 |
+| **DEC-S5 预算修正 [L1]** | ✅ **focus 86-144[L4] → 49.03 MCPS [L1/EZKIT]；整系统残余 1.46-2.14x**（DEC-S5-BUDGET-L1-01，2026-06-05）| H1 v2 板跑（FG 双门过 focus_differs=1/zero_recovers=1，R15 snapshot 板证）focus_only=65,371 cyc → 49.03 MCPS [L1-derived]（×750/1e6）；cyc/MAC=8.51（@7,680 MAC=8tap×120samp×8ch，源 sz[]）；可复现（prior 65,410 差 39 cyc=0.060%）。残差超越链闭合：1.38-2.56→1.28-1.98→1.08-1.69→**1.46-2.14x [L4]**（L1 focus 抬两端）。MAC-2x 收口：cycle 分不出 120 vs 60 MAC 基准（8.51 vs 17.02 cyc/MAC 均可能），120 由源码 sz[] 定非 cycle 反推=诚实极限入档；86-144(误 2.88)/173-288(对 5.76 但错 cyc/MAC 类)双退役，实测优于双估。详见「DEC-S5 预算修正」节 + sprint5/H1_FINAL_RULING_MATERIAL.md |
+| **正式阈值 = T2** | ✅ **DEC-S4-CRITERION-01 FINAL = >=1.5x（T2）带闭合条件**（DEC-S4-CRITERION-01-FINAL，2026-06-05）| 现状 best 2.14x 达标 / worst 1.46x 差 2.7% 未达系统级 → 状态标「**算法-best 侧 ≥1.5x 达标（产品级锚=整系统 best 2.14x，纯算法 2.52x[L1] 为 L1 锚非产品级）/ 系统-worst 侧 1.46x 待 harness 闭合 [L4]**」。闭合路径=派 DMA/ISR small harness 实测收窄 WCET +10-50% 保守项，目标 worst 端抬过 1.5x（WO-S5-H2）。不选 T1（1.0x 边际过薄，对未含 EQ/DMA/ISR/未来功能无成长空间）；不选 T3（>=2x 纯核不达需押 HW-1，HW-1 暂可选不为达阈强行上，T2 闭合后再评 2x）。CLOSES 判据项（>=10x 退役→实时+余量→临时 1.0x→今 FINAL T2）。残余风险册认可。详见「正式阈值 T2」节 |
+| **WO-S5-H2 登记** | 🟡 **DMA/ISR small harness（T2 闭合路径，待 CTO 排期）**（2026-06-05）| 测 §8 item-1（codec/IO DMA 5-30）+ item-2（中断 2-15）+ 收窄 WCET 未测保守项（I-cold 仍 C10 待）。EZKIT passthrough + ISR-load harness（scope sketch only，未实现）。CTO 排期。是 DEC-S4-CRITERION-01-FINAL 的系统侧闭合钥匙 |
+| **H1 FG-BLOCKER** | ✅ **CLOSED（R15 板证 + R16 build 修 + v2 全绿）**（2026-06-05）| 〔状态更新〕R14 zero_recovers=0（ST1 自检缺陷）→ R15 snapshot/restore 修 → R16 declare-before-use build 修 + guard-stub 检查 → v2 板跑 FG 双门过（1/1）数据 BOOKED [L1]。episode 闭环 |
 | **v1 范围收窄** | ✅ **v1=近场高频展区分区（2–5m, 有用带 ≥4kHz）；车站 zoning 剔除（broadside 定向保留）；PRD 重写**（DEC-S5-V1-SCOPE-01，2026-06-05）| 走 FOCUS_EFFICACY 选项(a)：聚焦效能仅在高频近距物理真实（4k/6k@2–3m 焦点增益 4.85–8.09dB、聚焦超额最高 3.9dB；语音主带 0.3–3kHz 近乎为空；车站 12–15m 宽带物理为空，efficacy_sim §3 [L2/仿真]）。双线 AND **对收窄范围 SATISFIED**（算力 [L4] AND 声学 CTO 裁为「足够-for-收窄范围」）。验收指标 = **PRD OPEN ITEM**：「高频近场净隔离 ≥ X dB @ 消声室 L1」，X 待 CTO/PRD 定（不臆造）。详见「v1 收窄」节 |
 | **item-3 = O1** | ✅ **EQ 取 O1（LEAN master-bus 2–3 biquad 整形 EQ + 保护限幅器 REQUIRED）**（DEC-S5-EQ-O1-01，2026-06-05）| O1 成本 **29–60 MCPS [L4]**（20–25 MAC/samp×48k×{30,50}cyc/MAC）；整形 EQ→master-bus（broadside 同信号 + LTI 可交换双基础，约 1/8 成本）；**保护限幅器 REQUIRED 入 PRD**（per-channel，阈值按权重缩放 T_k=T·w_k，D14 防锥度劣化）；band 数终调待 R3 消声室正轴向响应；功放选型 caveat（TAS5825M 会把 EQ 账外置）。详见「item-3 O1」节 |
 
@@ -776,6 +780,7 @@
 - **退役口径**：原 >=10x（出处 GRAFT_PLAN.md:28 / CCNT_source.md:47「写死」R1 判据，源自 dsp_8ch_report 桌面 33×/17× [L2] 投影）**退役**，不删，加注「retired-by-DEC-S4-CRITERION-01」。
 - **临时下限**：>=1.0x 实时底线。残差范围（§8/ADDENDUM B）最坏 1.38x > 1.0x **在 item-3（EQ/mixing）≤150 MCPS 的 [L4] 包络下成立**；若产品加重型多频段 EQ+限幅链（板上 ~30 cyc/MAC 可达 ~250-290 MCPS，>150），最坏残差被拉向 ~1.0x。故 >=1.0x 系统级达成 **须待 item-3 PRD 钉死后方可无条件断言**（与 CTO 裁定二「EQ 最坏 ~1.0x」一致）。
 - **待办（不阻塞）**：item-3 EQ 链 PRD 规格化 + WCET 实测（F7_WARM=0）收窄 → 定正式阈值。
+〔FINAL 2026-06-05：正式阈值 = T2 ≥1.5x 带闭合条件，DEC-S4-CRITERION-01-FINAL；本节为复议阶段口径，存史〕
 
 ### DEC-S4-C9-RELEASE-01：C9/铁律八 RELEASED（附诚实分母）
 - **裁定**：C9 **RELEASED**，附诚实分母。
@@ -876,6 +881,39 @@
 - **HW-1 条件性（O1）= 有价值但非承重**（EQ_PRD:81）：offload 2–3 biquad 后 core 仅余限幅+编排；
   **不 offload 也守 ≥1.0x**。详见 §2 CONSEQUENCE。
 - **状态**：item-3 PRD 规格 = O1 锁定；限幅 REQUIRED 入 PRD；EQ band 数待 R3 实测。
+
+## 算力线收官双槌（2026-06-05，CTO 正式裁定）
+
+### DEC-S5-BUDGET-L1-01：DEC-S5 聚焦预算 86-144[L4] → 49.03 MCPS [L1/EZKIT]（槌一）
+- **裁定（substance 逐字）**：focus 86-144[L4] → 49.03 MCPS [L1/EZKIT]；整系统残余更新 1.46-2.14x。
+  MAC-2x 收口认可（cycle 分不出两种 MAC 基准，120 样本源码定，86-144/173-288 双退役，实测优于双估，诚实极限入档）。
+- **L1 数据**：H1 v2 板跑 [L1/EZKIT 2026-06-05]，focus_only=65,371 cyc/frame → **49.03 MCPS**（×750/1e6）；
+  cyc/MAC=**8.51**（@真 7,680 MAC/frame=8tap×120samp×8ch）；可复现（prior quarantined 65,410，差 39 cyc=0.060%）。
+- **MAC-2x 收口（诚实极限）**：真 MAC=120 samp/frame（sb0/8+sb1/16+sb2/32+sb3/64，sb3 未抽取，源 fira_regression.c:193（+ harness sz[]））。
+  **cycle 数本身分不出 120 vs 60**（65,371/7,680=8.51 或 /3,840=17.02 cyc/MAC 均算术可能）→ 120 由**源码 sz[]**
+  定，非 cycle 反推；此诚实极限入档（避循环论证）。86-144（误设 2.88 基准）/173-288（对 5.76 基准但 30-50 cyc/MAC
+  是 FIRA-编排类、非本 flat-FIR 核类=保守）**双退役**；49.03 [L1] 为账面值（kernel 类对=8.51 cyc/MAC 解释好方向）。
+- **残差超越链闭合**：1.38-2.56（no-focus,EQ0-150）→1.28-1.98（focus86-144）→1.08-1.69（focus173-288）→
+  **1.46-2.14x [L4]**（best=1000/(347.45+49.03+29+5+2+1+34.7)=2.14x；worst=1000/(347.45+49.03+60+30+15+10+173.7)=1.46x）。
+- **状态**：聚焦预算 [L1] 入账；残余 1.46-2.14x（连体 §8，DEC-S4-C9-RELEASE-01）。
+
+### DEC-S4-CRITERION-01-FINAL：正式阈值 = T2（>=1.5x）带闭合条件（槌二）
+- **裁定（substance 逐字）**：正式阈值=T2（>=1.5x）。现状 best 2.14x 达标 / worst 1.46x 差 2.7% 未达系统级；
+  闭合路径=派 DMA/ISR small harness 实测收窄 WCET +10-50% 保守项，目标把 worst 端抬过 1.5x；实测闭合前阈值状态
+  标「算法-best 侧 ≥1.5x 达标（产品级锚=整系统 best 2.14x；纯算法 2.52x[L1] 锚非产品级）/ 系统-worst 侧待 harness 闭合 [L4]」。不选 T1（1.0x 边际过薄，对未含 EQ/DMA/ISR/未来功能无成长空间）；
+  不选 T3（>=2x 纯核不达需押 HW-1，HW-1 暂可选不为达阈强行上，T2 闭合后仍要争 2x 再评）。残余风险册认可。算力线收官归档。
+- **CLOSES 判据项**：>=10x（DEC-S4-CRITERION-01，桌面 33×/17× 推翻）退役 → 实时下限+余量政策 → 临时下限 >=1.0x
+  → **FINAL = T2 >=1.5x（本条）**。判据演进链闭合。
+- **达标账（python 双核，critic R18 F18-MAJOR-1 口径修正）**：CTO 裁定依据 = **整系统 best 2.14x ≥ 1.5x 达标**（含 O1-low/io/irq/ctl/WCET-low [L4]）/ worst 1.46x 差 2.7% 未达系统级。另记 **纯算法侧（核+focus=347.45+49.03=396.5 MCPS，不含 O1 EQ）= 2.52x [L1]** 作 L1-grade 锚——注：**2.52x 排除了 v1 必需的 O1 EQ，非产品级口径；产品级达标看 best 2.14x**；
+  系统侧（含 §8 全项）= **1.46-2.14x [L4]**，worst 1.46x 距 1.5x 差 0.041=2.7%（未达系统级）。
+- **状态**：T2 FORMAL；状态标「**算法-best 侧 ≥1.5x 达标**[含 best 2.14x[L4-含L1主项] + 纯算法 2.52x[L1]，产品级达标锚=2.14x] / **系统-worst 侧** 1.46x 待 WO-S5-H2 闭合[L4]」。
+
+### WO-S5-H2（登记，未实现）：DMA/ISR small harness = T2 系统侧闭合路径
+- **目标**：实测 §8 item-1（codec/IO DMA，5-30 MCPS [L3]）+ item-2（中断，2-15 [L3]）→ 收窄 WCET 未测保守项
+  （I-cache cold 仍 C10 待，符号未知）。把 worst 端从 1.46x 抬过 1.5x（T2 系统侧闭合）。
+- **scope sketch（only）**：EZKIT 上跑 Pipelined ADC→DAC passthrough（量 DMA 回调+缓冲服务 core cyc）+ ISR-load
+  （量帧 ISR cadence×cost）。F7/H1 同流程（dsp code→三道关→CTO+C10→板跑）。**未实现，CTO 排期。**
+- **状态**：登记；CTO 排期；DEC-S4-CRITERION-01-FINAL 系统侧闭合钥匙。
 
 ---
 

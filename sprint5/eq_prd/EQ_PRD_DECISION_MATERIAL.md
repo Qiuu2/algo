@@ -1,6 +1,8 @@
 # item-3 EQ/限幅链 PRD 决策材料（DRAFT — 三道关之第②关待过：独立 critic；第③关待过：CTO 常识审）
 
 > 裁定注记 (2026-06-05)：CTO 已裁 item-3=O1（LEAN master-bus 2–3 biquad EQ + 保护限幅 REQUIRED per-ch T_k=T·w_k）。DEC-S5-EQ-O1-01。O1 系统 margin 1.81x–2.16x（算法侧）/ 整系统残余 1.28x–1.98x [L4]。HW-1=有价值非承重。band 数待 R3。
+> 更新 2026-06-05（DEC-S5-BUDGET-L1-01）：focus 实测 49.03 MCPS [L1]→整系统残余 **1.46-2.14x [L4]**（取代 1.28-1.98）；
+>   正式阈值 T2 ≥1.5x（DEC-S4-CRITERION-01-FINAL；算法侧达标[L1]/系统侧待 WO-S5-H2[L4]）。O1 系统 margin 口径同步。
 
 > 生成: 2026-06-04, workflow eq-prd-material (28 agents, 4 维证据扫描 + 逐发现对抗证伪 = 三道关第①关已过).
 > 状态: surviving findings 23 / refuted 0. 本材料不给推荐项, O0-O3 供 CTO 裁 PRD.

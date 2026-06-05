@@ -203,8 +203,10 @@
 | **保护限幅器** | **REQUIRED**，per-channel，阈值按 D-C 权重缩放 **T_k=T·w[k]** | 防烧功放/喇叭（3W 实测低功率喇叭[L1]+D 类功放）；per-channel 因各路权重不同；权重缩放阈值保 -20dB 锥度（D14，否则旁瓣抬升）。限幅阈值待 U3/T-S 实测 |
 | **实现路线** | EQ=IIR 可 offload 到 IIR 加速器（可选，非承重）；限幅器非线性留 core | HW-1 IIR-offload 在 O1 下=有价值非承重；功放若选 TAS5825M（含 DSP）则 EQ 账外置 |
 
-> 算力账：item-3=O1 锁定 29–60 MCPS [L4]；聚焦后整系统残余 margin **1.28x–1.98x [L4]**（连体 §8 未计入清单
->   呈现，DEC-S4-C9-RELEASE-01）；守 ≥1.0x 实时底线，正式阈值待 WCET 实测（DEC-S4-CRITERION-01）。
+> 算力账（DEC-S5-BUDGET-L1-01 / DEC-S4-CRITERION-01-FINAL 2026-06-05 更新）：focus 增量实测 **49.03 MCPS
+>   [L1/EZKIT]**（H1 v2 板跑，超越旧 86-144 估）；item-3=O1 29–60 MCPS [L4]；聚焦后整系统残余 margin
+>   **1.46x–2.14x [L4]**（连体 §8 未计入清单，DEC-S4-C9-RELEASE-01）。**正式阈值 = T2（≥1.5x）**：算法侧
+>   达标锚 = 整系统 best 2.14x（产品级，含 O1）；纯算法侧 2.52x [L1]（不含 O1 EQ，非产品级口径）；系统侧 worst 1.46x 待 DMA/ISR harness（WO-S5-H2）收窄 WCET 闭合 [L4]。
 
 ### 3.4 功耗与散热指标
 

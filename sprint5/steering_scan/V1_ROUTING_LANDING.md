@@ -1,5 +1,8 @@
 # v1 路线裁定 + 三道关新政 — 落地包 DRAFT（不 commit；critic R10 先门，lead 过门后 apply+commit）
 
+> 算力线收官 2026-06-05：focus 实测 49.03 MCPS [L1]（本文 86-144[L4] 退役）；算法侧 margin 由 2.04-2.31 升
+>   实测口径，整系统残余 1.46-2.14x[L4]；正式阈值 T2 ≥1.5x。DEC-S5-BUDGET-L1-01/-CRITERION-01-FINAL。本文以下存史。
+
 > 缘起：CTO v1 路线三裁定 + POLICY 新条（三道关），2026-06-04。裁定substance逐字采纳，不改写。
 > 原则：历史按写时为真；活状态/路线落 decisions_log；规则落 POLICY/CLAUDE/team_config。引用 file:line。
 > 两线数字零交叉纪律不变（FIRA/算力线 vs 声学/几何线）。

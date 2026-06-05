@@ -1,5 +1,9 @@
 # NEXT SESSION BOOTSTRAP — H1 线现场快照（2026-06-05，compact 前存档）
 
+> 收官 2026-06-05：H1 v2 已板跑全绿 [L1]，focus_only=49.03 MCPS（本文 173-288 yardstick 已 settle，实测更优）；
+>   残余 1.46-2.14x[L4]；正式阈值 T2 ≥1.5x（算法侧达标[L1]/系统侧待 WO-S5-H2[L4]）；1.0× 刀刃口径作废（实测非刀刃）。
+>   本文以下为板跑前指引，存史。DEC-S5-BUDGET-L1-01/-CRITERION-01-FINAL。
+
 > 用途：会话压缩/重启后恢复现场。配合 memory/（r14-closed-fira-ruling / steering-v1-focusing / workflow-three-gate-rule / h1-line-state）使用。
 > 当前 HEAD：`11a701d`。critic 轮次计数：**R1–R15 已用，下一轮 = R16**。
 
