@@ -1,0 +1,69 @@
+{
+  "_meta": {
+    "track": "track1_numpy",
+    "spec": "sprint5/spl_redo/SPL_MODEL_SPEC.md",
+    "grade_system_sens": "[L2 model]",
+    "caveat_SPLo_absolute_level": "[L2-conditions-undetermined] (distance/voltage/baffle/smoothing unstamped; shape is [L1])",
+    "caveat_1m": "far-field extrapolated sensitivity @1m (825mm aperture HF not far-field; honest convention per spec sec.2f)",
+    "anti_double_count": "series-pair on-axis +6dB NOT added; subsumed in +10log10(16) array gain (spec sec.2e)",
+    "Re_caliber": "Re feed = unit-level 7.600 ohm [L1]; 15 ohm = channel-level series-pair DC [L1]; 2.83V uses Z_ch=15 ohm",
+    "csv_cross_check_max_dev_track1_vs_track2": 2.339684002095055e-12,
+    "date": "2026-06-05"
+  },
+  "ideal_array_gain_dB": 12.041199826559248,
+  "taper_loss_dB": -0.17305512070596213,
+  "system_sens_1W_total_dB": 94.02914470585328,
+  "system_sens_283V_per_ch_dB": 100.3348606957017,
+  "intermediates": {
+    "N": 16,
+    "SPLo_dB": 82.161,
+    "weights_w8_track1_scipy": [
+      0.8668296927388105,
+      0.5043100646541281,
+      0.6216704381816565,
+      0.7333793765883259,
+      0.8327331038598036,
+      0.9135146112868511,
+      0.9705186581255053,
+      1.0
+    ],
+    "weights_w16_mirrored": [
+      0.8668296927388105,
+      0.5043100646541281,
+      0.6216704381816565,
+      0.7333793765883259,
+      0.8327331038598036,
+      0.9135146112868511,
+      0.9705186581255053,
+      1.0,
+      1.0,
+      0.9705186581255053,
+      0.9135146112868511,
+      0.8327331038598036,
+      0.7333793765883259,
+      0.6216704381816565,
+      0.5043100646541281,
+      0.8668296927388105
+    ],
+    "pairs_w8": [
+      "{0,15}",
+      "{1,14}",
+      "{2,13}",
+      "{3,12}",
+      "{4,11}",
+      "{5,10}",
+      "{6,9}",
+      "{7,8}"
+    ],
+    "sum_w": 12.885911890870162,
+    "sum_w2": 10.799803268614895,
+    "P_283ch_W": 0.5339266666666667,
+    "P_283total_W": 4.271413333333333,
+    "P_ref_W": 1.0,
+    "offset_283_dB": 6.305715989848428,
+    "Z_ch_ohm_channel_level": 15.0,
+    "Re_unit_ohm_unit_level": 7.6,
+    "N_CH": 8,
+    "V_283": 2.83
+  }
+}

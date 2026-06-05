@@ -1,0 +1,76 @@
+{
+  "track": "track2_matlab",
+  "spec": "SPL_MODEL_SPEC.md",
+  "date": "2026-06-05",
+  "matlab_version": "26.1.0.3251617 (R2026a) Update 2",
+  "independence": "independent: implemented from SPEC only; did NOT read spl_model_numpy.py / track-1 code",
+  "grade_overall": "[L2 model]",
+  "inputs": {
+    "SPLo_dB": 82.161,
+    "SPLo_grade": "[L1 instrument] (LEAP ref sensitivity)",
+    "SPLo_caveat": "[L2-condition-undetermined]: absolute-level conditions (distance/voltage/baffle/smoothing) not stated; carried through",
+    "N": 16,
+    "Z_ch_ohm": 15,
+    "Z_ch_grade": "[L1] channel-level (series-pair DC ~2x7.4); NOT unit Re",
+    "Re_unit_ohm": 7.6,
+    "Re_unit_grade": "[L1 instrument] LEAP Revc; unit-level; DC 7.4 teardown cross-check; not used in main/secondary caliber",
+    "V_per_ch": 2.83,
+    "weights_source": "sprint4/dsp/fira/dolph_w8_q15.csv col w_float_track1_scipy (Dolph -20dB w8)"
+  },
+  "weights_dualtrack": {
+    "col_used": "w_float_track1_scipy",
+    "col_check": "w_float_track2_recurrence",
+    "max_abs_diff": 2.3396840020950549E-12,
+    "tol": 1E-9,
+    "pass": true
+  },
+  "intermediates": {
+    "w16": [
+      0.8668296927388105,
+      0.50431006465412809,
+      0.62167043818165646,
+      0.73337937658832586,
+      0.83273310385980359,
+      0.91351461128685107,
+      0.97051865812550531,
+      1,
+      1,
+      0.97051865812550531,
+      0.91351461128685107,
+      0.83273310385980359,
+      0.73337937658832586,
+      0.62167043818165646,
+      0.50431006465412809,
+      0.8668296927388105
+    ],
+    "w16_note": "w8 mirrored: pair {c,15-c} shares w8[c]",
+    "sum_w": 12.885911890870162,
+    "sum_w2": 10.799803268614895,
+    "P_283ch_W": 0.53392666666666666,
+    "P_283ch_formula": "(2.83)^2 / Z_ch(=15) ",
+    "P_283total_W": 4.2714133333333333,
+    "P_283total_formula": "8 * P_283ch",
+    "P_ref_W": 1,
+    "offset_283_dB": 6.3057159898484283,
+    "offset_283_formula": "10*log10(P_283total/1W) = 10*log10(8*2.83^2/15)"
+  },
+  "outputs": {
+    "ideal_array_gain_dB": 12.041199826559248,
+    "ideal_array_gain_formula": "+10*log10(N), N=16 (TOTAL-1W power-share caliber; NOT 20log10N)",
+    "taper_loss_dB": -0.17305512070596213,
+    "taper_loss_formula": "20*log10(sum_w / sqrt(N*sum_w2)), w16 mirror",
+    "system_sens_1W_total_dB": 94.029144705853284,
+    "system_sens_1W_total_formula": "SPLo + ideal_array_gain_dB + taper_loss_dB",
+    "system_sens_1W_total_grade": "[L2 model] @1m far-field-extrapolated, on-axis, free-field, coherent; SPLo abs-level [L2-cond-undetermined]",
+    "system_sens_283V_per_ch_dB": 100.33486069570171,
+    "system_sens_283V_per_ch_formula": "system_sens_1W_total_dB + offset_283_dB",
+    "system_sens_283V_per_ch_grade": "[L2 model]; Z_ch=15ohm (nameplate 2.83V/8ohm=1W does NOT hold)"
+  },
+  "caveats": {
+    "far_field": "@1m = far-field extrapolated (825mm aperture; @1m not far-field for HF) - honest convention",
+    "SPLo_ref_band": "SPLo=82.161 is reference single-value; ref band not annotated in KB; NOT per-frequency over 500Hz-6k",
+    "series_no_double_count": "series +6dB on-axis NOT added to array gain (already in +10log10(16)); series only changes impedance accounting"
+  },
+  "out_of_scope": "max SPL / enclosure / room / off-axis / per-frequency - NOT computed (Line-3 / R3)",
+  "no_external_caliber": "no externally-quotable sensitivity until CTO rules; no doc 88->82 change"
+}
