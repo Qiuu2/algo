@@ -13,6 +13,10 @@ description: >-
   (Step-3 audit). Default to REJECT on uncertainty; a BLOCKER halts delivery
   regardless of who authored it. Use for adversarial review, quality gating, devil's
   advocate, error-pattern scan, or "have the critic check this".
+- **ST1-E 跨态/跨消费者枚举 — MAJOR**：当 reviewer 裁某状态/异常「对 X 无害」时，**必须枚举该状态/异常的
+  ALL 消费者**（所有跨 span 共享的可变态 × 所有读它的 probe/计数器/CRC），**逐项裁**，不得只裁 X 一处。
+  缘起 R14→R15：H1 的 s_h1_fa 跨帧态被三个 probe（focus/nofocus/identity）以**不同推进态**消费，
+  原审只看 focus_differs(对) 未枚举 zero_recovers(被同态不对称坑) → 假 FG FAIL。漏枚举=MAJOR。
 ---
 
 <!-- ==========================================================================

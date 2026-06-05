@@ -22,14 +22,24 @@
  *      attempt (the free F7 tail, exact symbols g_f7_cyc_analyze_fira / g_f7_cyc_synth_fira).
  *      F4/F5 continuity is enforced by bench_main.c sequencing (this harness runs AFTER them).
  *
- * FOCUSING FIR DESIGN CHOICE (justified, maps to the costed 2.88 MMAC/s):
+ * FOCUSING FIR DESIGN CHOICE (justified) + MAC ACCOUNTING CORRECTION (critic R15, CTO-flagged 2x):
  *   - 8-tap fractional-delay FIR, applied PER-SUBBAND (4 subbands) PER-CHANNEL on the analyzed
- *     subband outputs (between analyze and synthesize), at the decimated subband rates.
- *   - MMAC mapping: 8 taps x 8 ch x sum(subband rates 3+6+12+24 kHz = 45 kHz) = 2.88 MMAC/s --
- *     EXACTLY the dsp_8ch_report.md:59 "frac-delay FIR x 4 subbands, 8 ch = 2.88 MMAC/s" accounting (critic R14: :59 is the frac-delay row; :60 is weighted-sum 0.36).
- *     (A full-rate 16-tap pre-analyze choice would be 6.14 MMAC/s = ~2.1x heavier; rejected so the
- *      harness measures the COSTED envelope, not an inflated one. The board cyc it returns is the
- *      truth; desktop MMAC is only the design anchor.)
+ *     subband outputs (between analyze and synthesize).
+ *   - TRUE subband sample counts THIS tree produces per 64-sample frame (source: fira_regression.c:193 + this file's sz[],
+ *     and F4/F5 sb sizing fira_regression.c:193): sb0=frame/8=8, sb1=frame/4=16, sb2=frame/2=32,
+ *     sb3=frame=64 (sb3 is the UNDECIMATED detail branch, sb3[i]=in[i]-r1[i]). Sum = 120 samp/frame/ch.
+ *     => subband RATES sum = 120 x 750 fps = 90 kHz (NOT the 45 kHz the cost-model assumed).
+ *   - TRUE harness MAC: 8 taps x 120 samp x 8 ch = 7,680 MAC/frame -> 7,680 x 750 = 5.76 MMAC/s.
+ *   - *** CORRECTION ***: the earlier "EXACTLY 2.88 MMAC/s (dsp_8ch_report:59)" claim was WRONG by 2x.
+ *     The cost-model 2.88 assumed 60 samp/frame/ch (45 kHz); the REAL dyadic tree has 120 samp/frame/ch
+ *     (90 kHz) because sb3 is undecimated. So this harness implements 5.76 MMAC/s, i.e. 2x the model.
+ *     R14 verified the FORMULA (8tap x N x 8ch x fps) but NOT the sz[] sample counts -> the 2x slipped.
+ *   - YARDSTICK for interpretation: compare the measured board cyc against the RECALIBRATED envelope
+ *     5.76 MMAC/s x (30..50 cyc/MAC) = 173..288 MCPS (NOT the old 86..144, which was 2.88-based).
+ *     Equivalently g_h1_cyc_focus_only/2 vs 86..144. See readout worksheet / WO-S5-H1 for the framing.
+ *   - PRODUCT-COST FLAG (for CTO, do NOT silently change DEC-S5): the product focus applies frac-delay
+ *     to these SAME 120 samp/frame subbands -> true product focus cost is ALSO ~5.76 MMAC/s class, so
+ *     the DEC-S5-V1-SCOPE-01 budget "focus 86-144 MCPS" is likely ~2x UNDERSTATED. Flagged, not changed.
  *   - Per-channel distinct delays: 8 distinct fractional delays (mirror-symmetric focus profile,
  *     {c,15-c} pair phase-locked per STEER-2 physics) via 8 distinct 8-tap coeff sets. Static, set
  *     once (focus delays change at zone-set time, ~0 per-frame update -- matches "static-zone ~0 update").
@@ -79,11 +89,12 @@ volatile int      g_h1_valid           = 0;    /* 1 = ran on board with FIRA; 0 
 
 #if defined(FIRA_USE_REAL_ADI_FIR_HEADER) && defined(TARGET_SHARC)
 #include <services/pwr/adi_pwr.h>   /* adi_pwr_GetCoreClkFreq (BSP; G6 evidence in fira_regression.c) */
+#include <sys/cache.h>              /* R15: flush_data_buffer (A5-established CCES SHARC builtin, fira_tree.c:24) */
 #endif
 
 #define H1_WARM     4    /* warm-up frames (== F7_WARM discipline, bench_harness.c:84) */
 #define H1_NFRAMES  64   /* steady frames swept for max/min jitter (g_h1_cyc_8ch_max/min) */
-#define H1_FDTAPS   8    /* focus fractional-delay FIR taps (maps to 2.88 MMAC/s, see header) */
+#define H1_FDTAPS   8    /* focus frac-delay FIR taps (maps to the 5.76 MMAC/s harness envelope; was 2.88, corrected R15 -- see header) */
 
 /* ---- focusing fractional-delay FIR (8-tap, per subband, per channel) ----
  * Representative cost stand-in. 8 distinct Q15 coeff sets = 8 distinct fractional delays (one per
@@ -109,6 +120,54 @@ static const int16_t s_fd_coeff[DOLPH_W8_NCH][H1_FDTAPS] = {
 
 /* per-(channel,subband) frac-delay history (cross-frame tail, H1_FDTAPS-1 each). static = off-stack. */
 static int32_t s_fd_hist[DOLPH_W8_NCH][4][H1_FDTAPS - 1];
+
+/* ---- R15 fix: state snapshot for the same-state A/B + continuity probe ----
+ * The FIRA chain (s_h1_fa) AND the focus-FIR history (s_fd_hist) are stateful cross-frame. The R14
+ * probe compared identity-vs-nofocus on DIFFERENT advanced states (ST1 cross-state CRC flaw) -> false
+ * FG fail. Fix: snapshot the clean steady state ONCE after warm-up, then RESTORE before each of the
+ * three compared frames (focus-ON / focus-OFF / identity) so all run from the IDENTICAL state on the
+ * SAME input. Restore is done OUTSIDE the timed span (memcpy must not pollute the cycle count). */
+static FiraChannelState s_h1_fa_snap[DOLPH_W8_NCH];           /* FIRA chain state snapshot */
+static int32_t s_fd_hist_snap[DOLPH_W8_NCH][4][H1_FDTAPS - 1];/* focus-FIR history snapshot */
+
+static void h1_state_save(void)
+{
+    int c, sb, i;
+    for (c = 0; c < DOLPH_W8_NCH; c++) {
+        s_h1_fa_snap[c] = s_h1_fa[c];   /* struct copy (plain POD: hist[9][62] + scalars) */
+        for (sb = 0; sb < 4; sb++)
+            for (i = 0; i < H1_FDTAPS - 1; i++) s_fd_hist_snap[c][sb][i] = s_fd_hist[c][sb][i];
+    }
+}
+static void h1_state_restore(void)
+{
+    int c, sb, i;
+    for (c = 0; c < DOLPH_W8_NCH; c++) {
+        s_h1_fa[c] = s_h1_fa_snap[c];
+        for (sb = 0; sb < 4; sb++)
+            for (i = 0; i < H1_FDTAPS - 1; i++) s_fd_hist[c][sb][i] = s_fd_hist_snap[c][sb][i];
+    }
+}
+
+/* R15: invalidate the DATA cache over H1's working set before the cold frame (true-cold-DATA).
+ * flush_data_buffer(start, end, 1) = write-back-and-invalidate over [start,end) (A5 symbol, sys/cache.h).
+ * Working set = the per-frame data the frame touches: the focus subband buffers, output, weight buffer,
+ * scratch, PLUS the persistent FIRA chain state s_h1_fa and the focus history s_fd_hist (so their lines
+ * are also cold). Static coeffs (s_fd_coeff) and the chirp input are READ-ONLY and small; including them
+ * is optional -- we invalidate the mutable working set (the dominant miss source). enInv=1. */
+static void h1_dcache_inval_workingset(int32_t *fsb0, int32_t *fsb1, int32_t *fsb2, int32_t *fsb3,
+                                       int32_t *fout, int32_t *xw, int32_t *scr)
+{
+    flush_data_buffer((void *)fsb0, (void *)(fsb0 + (BENCH_FRAME / 8)), 1);
+    flush_data_buffer((void *)fsb1, (void *)(fsb1 + (BENCH_FRAME / 4)), 1);
+    flush_data_buffer((void *)fsb2, (void *)(fsb2 + (BENCH_FRAME / 2)), 1);
+    flush_data_buffer((void *)fsb3, (void *)(fsb3 + (BENCH_FRAME)),     1);
+    flush_data_buffer((void *)fout, (void *)(fout + BENCH_FRAME),       1);
+    flush_data_buffer((void *)xw,   (void *)(xw   + BENCH_FRAME),       1);
+    flush_data_buffer((void *)scr,  (void *)(scr  + BENCH_FRAME),       1);
+    flush_data_buffer((void *)s_h1_fa,   (void *)(s_h1_fa   + DOLPH_W8_NCH), 1);
+    flush_data_buffer((void *)s_fd_hist, (void *)(s_fd_hist + DOLPH_W8_NCH), 1);
+}
 
 /* Apply the focus FIR to one subband buffer using a scratch out (true FIR, no in-place hazard).
  * Updates hist with the last H1_FDTAPS-1 ORIGINAL input samples. */
@@ -221,11 +280,17 @@ int h1_wcet_measure(void)
             for (sb = 0; sb < 4; sb++)
                 for (i = 0; i < H1_FDTAPS - 1; i++) s_fd_hist[c][sb][i] = 0;
 
-        /* ===== B (cold-PROXY): H1's first frame, NO H1 warm-up -- BUT I-cache is already warm from
-         * F4/F5/F7 (same FIRA code path); only H1-local data buffers are first-touch. This is a
-         * PARTIAL cold proxy that UNDERSTATES true cold WCET (critic R14 F14-MAJOR-1). ===== */
+        /* ===== B (cold: TRUE-cold-DATA / I-cache still warm) =====
+         * R15: invalidate the DATA cache over H1's working set BEFORE the measured cold frame so the
+         * frame pays real D-cache miss penalties (true-cold-DATA). flush_data_buffer(start,end,1) =
+         * flush-and-invalidate (A5-established CCES SHARC builtin, <sys/cache.h>, fira_tree.c:489-500).
+         * SCOPE (honest): this is TRUE-cold-DATA only; the I-CACHE is still warm from F4/F5/F7 (same
+         * FIRA code path) -- there is NO repo-known SHARC I-cache invalidate symbol (desktop), so a full
+         * I+D cold is a C10 board item (I-side symbol TBD). Even I+D cold stays a LOWER BOUND on system
+         * WCET (no SPORT/codec DMA contention, no ISR preemption in this bare-metal free-run bench). */
         {
             const int32_t *xin = &chirp[0];
+            h1_dcache_inval_workingset(fsb0, fsb1, fsb2, fsb3, fout, xw, scr);  /* OUTSIDE the timed span */
             t0 = bench_cyc_target();
             (void)h1_fira_frame(xin, 1, 0, fsb0, fsb1, fsb2, fsb3, fout, xw, scr);
             t1 = bench_cyc_target();
@@ -238,12 +303,21 @@ int h1_wcet_measure(void)
             (void)h1_fira_frame(xin, 1, 0, fsb0, fsb1, fsb2, fsb3, fout, xw, scr);
         }
 
-        /* ===== A (same-build A/B) on the SAME warmed frame index ===== */
+        /* ===== snapshot the CLEAN steady state ONCE (after warm-up, before the compared frames) =====
+         * R15 fix: all three compared frames (focus-ON / focus-OFF / identity) must run from the SAME
+         * filter state on the SAME input. We snapshot here, then h1_state_restore() before each frame
+         * (restore OUTSIDE the timed span so the memcpy does not pollute the cycle count). */
+        h1_state_save();
+
+        /* ===== A (same-build, same-STATE A/B) on one warmed frame =====
+         * METHODOLOGY DELTA vs the R14 quarantined run: the A/B is now same-STATE (each span restored to
+         * the snapshot), so the re-run focus/nofocus/identity numbers SUPERSEDE the quarantined ones. */
         {
             const int32_t *xin = &chirp[(H1_WARM + 1) * BENCH_FRAME];
             uint32_t crc_f, crc_nf;
 
-            /* focus ON */
+            /* focus ON -- restore clean state first (outside the span) */
+            h1_state_restore();
             t0 = bench_cyc_target();
             crc_f = h1_fira_frame(xin, 1, 0, fsb0, fsb1, fsb2, fsb3, fout, xw, scr);
             t1 = bench_cyc_target();
@@ -251,23 +325,28 @@ int h1_wcet_measure(void)
             g_h1_cyc_8ch_warm  = g_h1_cyc_8ch_focus;   /* steady focus-on = warm reference for cold/warm */
             g_h1_focus_crc = crc_f;
 
-            /* focus OFF (no-focus path) -- SAME frame (re-run analyze/synth without focus stage) */
+            /* focus OFF -- restore the SAME clean state -> same-state A/B */
+            h1_state_restore();
             t0 = bench_cyc_target();
             crc_nf = h1_fira_frame(xin, 0, 0, fsb0, fsb1, fsb2, fsb3, fout, xw, scr);
             t1 = bench_cyc_target();
             g_h1_cyc_8ch_nofocus = t1 - t0;
             g_h1_nofocus_crc = crc_nf;
 
-            /* focus-only cost (increment cross-check) = focus - nofocus, recorded raw both ways */
+            /* focus-only cost = focus - nofocus (now a same-state A/B delta) */
             g_h1_cyc_focus_only = (g_h1_cyc_8ch_focus > g_h1_cyc_8ch_nofocus)
                                 ? (g_h1_cyc_8ch_focus - g_h1_cyc_8ch_nofocus) : 0u;
 
-            /* FG: focus output MUST differ from nofocus (delay actually computes) */
+            /* FG-1: focus output MUST differ from nofocus (delay actually computes) -- same state, so a
+             * difference is purely the focus stage. */
             g_h1_fg_focus_differs = (crc_f != crc_nf) ? 1 : 0;
 
-            /* FG continuity: identity (zero-delay) config MUST reproduce the nofocus path */
+            /* FG-2 continuity: identity (zero-delay) from the SAME clean state MUST reproduce nofocus
+             * bit-for-bit. With same-state restore this is now a TRUE continuity gate (R14 flaw fixed). */
             {
-                uint32_t crc_id = h1_fira_frame(xin, 1, 1, fsb0, fsb1, fsb2, fsb3, fout, xw, scr);
+                uint32_t crc_id;
+                h1_state_restore();
+                crc_id = h1_fira_frame(xin, 1, 1, fsb0, fsb1, fsb2, fsb3, fout, xw, scr);
                 g_h1_fg_zero_recovers = (crc_id == crc_nf) ? 1 : 0;
             }
         }

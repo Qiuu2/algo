@@ -1106,6 +1106,10 @@ provenance_mandatory_checks:
 - **IO1 加速器 I/O 缓冲契约 — BLOCKER**：每个 HW（FIRA）段查四点：(a) 输入 buffer 持有 **≥ `nInputBuffCount (= ntaps+window-1)` 个已初始化样本**？（防过读进未初始化/外部内存 = D1）；(b) 后处理**恰填 `out_count` 个样本**？（防双重抽取半填、留未初始化尾 = D2）；(c) 共用 scratch **段间清零**？（防读上一段残留）；(d) DMA 输出**读前 cache 失效**？任一不满足 → BLOCKER。
 - **IO2 布局敏感 = 读未初始化/越界 — BLOCKER**：compute 代码未改、**只改无关全局/链接布局，输出却变** ⇒ 在读未初始化/越界/stale 内存。隔离法：哨兵 A/B（scratch 填 `0x00` 跑一次、填 `0xFF` 跑一次，输出变即坐实）。坐实/隔离前 → BLOCKER。
 - **ST1 流式状态一致 — MAJOR/BLOCKER**：有状态流式滤波（核逐帧延迟线）vs 无状态块加速器调用——加速器路径**是否保持跨帧滤波状态**？不保持则每帧前 ~ntaps 个输出无法对齐有状态 golden。按对 bit-exact 判据的影响判 MAJOR 或 BLOCKER。
+- **ST1-E 跨态/跨消费者枚举 — MAJOR**：当 reviewer 裁某状态/异常「对 X 无害」时，**必须枚举该状态/异常的
+  ALL 消费者**（所有跨 span 共享的可变态 × 所有读它的 probe/计数器/CRC），**逐项裁**，不得只裁 X 一处。
+  缘起 R14→R15：H1 的 s_h1_fa 跨帧态被三个 probe（focus/nofocus/identity）以**不同推进态**消费，
+  原审只看 focus_differs(对) 未枚举 zero_recovers(被同态不对称坑) → 假 FG FAIL。漏枚举=MAJOR。
 
 **§12 红线**：**FG1 / FG2 / IO1 / IO2 任一 FAIL ⇒ 该 DSP/FIRA「bit-exact PASS」主张作废，BLOCKER。**
 

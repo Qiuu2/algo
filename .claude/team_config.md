@@ -49,6 +49,17 @@
 - **不得假设"修过即对"。** 修正稿同等过三道关。lead 在派单 prompt 中对「修正/二次修正」任务**显式重申**此条。
 - **缘起**：R8（synthesizer 撤销自家 verifier 已纠正的 21.7 MCPS 错下界）+ R9（STEER-2 「49x」修正稿自带 2.55x/3-cyc-MAC 两处偏乐观新错）。两案证明 workflow 自检不足，独立 critic + CTO 常识审是命门。
 
+## Harness / probe design (2026-06-05, CTO-mandated — 缘起 R14/R15 H1 ST1 自检缺陷)
+- **自检 probe 与测量 span 不得共享可变态**；若必须共享，**须 snapshot/restore 到同一态再比较**
+  （比较两帧必须同 state + 同 input，否则有状态滤波的 CRC 必假失配 = ST1 类自检缺陷）。
+- **省内存不是充分理由**：把大态设 static 省栈是对的（FIX2），但若该 static 被多 probe 跨态消费，
+  必须记录 trade-off 并加 snapshot/restore。**省内存/省拷贝 vs 自检正确性的取舍必须在代码注释落字。**
+- **有状态链 package 的 critic checklist 强制 cross-item**：派 stateful-chain（FIRA/逐帧延迟线/任何跨帧
+  态）测量或自检 package 时，lead 在派单 prompt 显式要求 critic **枚举所有跨 span 共享态 × 所有读它的
+  probe/计数器，逐格裁**（ST1-E）。不得只裁主路径。缘起 R14/R15 H1。
+- 缘起：R14 H1 zero_recovers 假 FAIL（identity 在被 focus/nofocus 推进后的态上比 nofocus 态 → 必失配）；
+  R15 修法 = h1_state_save/restore 同态比较。host test 须扩展覆盖**有状态比较契约**（非仅无状态 kernel）。
+
 ## Change control (audit)
 - Changing any role's model = edit this table + log the change (old->new, date, reason) in decisions_log, per POLICY-PROV-001 change-trail discipline.
 

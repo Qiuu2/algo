@@ -96,6 +96,46 @@ int main(void)
         if (!fail) printf("PASS check3: identity-recovers + focus-differs CRC anchors hold\n");
     }
 
+    /* CHECK 4 (R15): the STATEFUL comparison contract -- the actual R14 bug + the snapshot/restore fix.
+     * Model the FIRA chain's cross-frame state with a 1-pole accumulator `st` that advances every frame
+     * (stand-in for s_h1_fa). Run the SAME 3-frame sequence the board does:
+     *   nofocus(state) -> focus(state) -> identity(state), each ADVANCING st.
+     * (a) WITHOUT restore: identity runs from an advanced st -> CRC != nofocus CRC = the R14 false FAIL.
+     * (b) WITH restore (snapshot st, restore before each): identity == nofocus = the R15 true continuity.
+     * This is what the host CAN now cover that check1-3 (stateless) could NOT. */
+    {
+        int32_t st0 = 12345;             /* clean steady state (the snapshot) */
+        int32_t buf[32];
+        uint32_t crc_nf_a, crc_id_a, crc_nf_b, crc_id_b;
+
+        /* a stateful frame: y = focus_or_passthrough(x + st-bias); st advances. returns output CRC. */
+        #define STFRAME(STATE, FOCUS) ( { \
+            int32_t _h[H1_FDTAPS-1]; int _i; memset(_h,0,sizeof(_h)); \
+            for(_i=0;_i<n;_i++) buf[_i]=in[_i]+(STATE); \
+            if(FOCUS) focus_subband(s_fd_coeff[3],_h,buf,n,scr); \
+            (STATE) += 7;  /* advance state */ \
+            crc32(0xFFFFFFFFu,buf,n)^0xFFFFFFFFu; } )
+
+        /* (a) NO restore -- reproduces the R14 cross-state mismatch */
+        { int32_t st=st0;
+          crc_nf_a = STFRAME(st, 0);     /* nofocus from st0  */
+          (void)     STFRAME(st, 1);     /* focus, advances   */
+          crc_id_a = STFRAME(st, 0);     /* identity(passthru) from st0+14 != nofocus state */
+        }
+        if (crc_id_a == crc_nf_a) { fail = 1; printf("FAIL check4a: expected R14-style mismatch not reproduced\n"); }
+        else printf("PASS check4a: WITHOUT restore, identity != nofocus (reproduces the R14 false-FAIL)\n");
+
+        /* (b) WITH restore -- the R15 fix: restore st to st0 before each compared frame */
+        { int32_t st;
+          st = st0; crc_nf_b = STFRAME(st, 0);   /* nofocus from st0 */
+          st = st0; (void)     STFRAME(st, 1);   /* focus from st0   */
+          st = st0; crc_id_b = STFRAME(st, 0);   /* identity from st0 -> MUST == nofocus */
+        }
+        if (crc_id_b != crc_nf_b) { fail = 1; printf("FAIL check4b: restore did NOT recover continuity\n"); }
+        else printf("PASS check4b: WITH snapshot/restore, identity == nofocus (R15 fix recovers continuity)\n");
+        #undef STFRAME
+    }
+
     printf(fail ? "==== H1 host self-verify: FAIL ====\n" : "==== H1 host self-verify: PASS ====\n");
     return fail;
 }
