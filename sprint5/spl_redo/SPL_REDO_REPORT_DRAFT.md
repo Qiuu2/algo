@@ -1,5 +1,7 @@
 # SPL_REDO_REPORT_DRAFT — 系统正轴向灵敏度 [L2 模型, 绝对电平条件未定] 重做（DEC-S3-DSP-05 解锁）
 
+> 裁定注记 (2026-06-05, DEC-S5-SPL-CALIBER-01)：内部工程口径采纳 94.0 dB @1W 总输入 [L2 模型,待消声室坐实]（必带标注）；对外/客户/投标冻结至 R3 L1 + CTO 另拍。⚠ PRD:183 对外承诺 ≥90dB 与本值同口径、模型余量仅 ~4dB 且绝对电平未坐实——解冻前须 R3 L1 确认 ≥90 仍守（critic R23 FLAG）。
+
 > 任务：CTO Line-2 指令 — 用已归档 **L1 T/S**（`knowledge_base/hardware_input/KB-DRV-TEST-001_extracted.md`）重做 SPL 模型。
 > 范围：**纯软件 / 不上板 / 不动冻结文件**；写盘只在 `sprint5/spl_redo/`。
 > 流程闸：POLICY v1.8 三门 —— 本工作流 = **门-1 筛查**；**critic 门 R22 先裁口径，结果才正式**；**CTO 裁定在先**。

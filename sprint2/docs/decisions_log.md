@@ -711,6 +711,8 @@
 | **H1 FG-BLOCKER→R15** | ✅ **ST1 自检缺陷诊断确认·数据 quarantined 不 salvage·fix+re-run·MAC-2x 发现**（2026-06-05）| R14 H1 板跑 g_h1_fg_zero_recovers=0：根因=**ST1 跨态 CRC 自检设计缺陷**（identity probe 在被 focus/nofocus 推进后的 FIRA 态上比 nofocus 态→有状态链必假失配；非聚焦机制 bug——focus_differs=1 证 focus 真算）。host test 当初漏=只测无状态 kernel。CTO 批 fix(a) snapshot/restore 同态比较 + 不 salvage quarantined（focus=590,137/nofocus=524,727/focus_only=65,410）。**MAC-2x 发现**：harness sz[]=8+16+32+64=120 samp/frame（sb3 未抽取）=真值；cost-model 2.88 MMAC/s 误设 60 samp→真 5.76 MMAC/s（2x），envelope 重标 86-144→**173-288 MCPS**[L4]；DEC-S5-V1-SCOPE-01 focus 预算疑 2x 低估（FLAG CTO，待板 focus_only[L1] settle）。三硬化入档（critic ST1-E 枚举消费者/harness probe-态隔离/PM cross-item checklist）。fix→critic R15→re-run（C10）。详见 sprint5/H1_R15_FIX_PACKAGE.md〔R16 build 修 + v2 板跑全绿，FG 双门过，focus_only=65,371 BOOKED[L1]=49.03 MCPS；173-288 退役（kernel 类对=8.51 cyc/MAC）；FG-BLOCKER CLOSED 2026-06-05〕 |
 | **WO-S5-H2 实现** | 🟡 **DMA/ISR harness 代码就绪·待 critic R19 + 板 hook + 板跑**（2026-06-05）| H2 测 DMA 争用增量(MDMA proxy, 同聚合字节率 3.072MB/s, 诚实标 proxy 漏回调 core 成本)+ISR 抢占增量(~1kHz timer, 帧 ISR 750Hz 口径)+联合 WCET max/N, 同 build A/B 减同一 baseline(ST1-E)。FG 双门(DMA 真压/ISR 真触+off-count 0)+占位失败。板 hook 4 个 extern(busload/isr start-stop, ISR install 符号=C10 板项 同 I-cache 类)待 bring-up 写。桌面验:desktop 路径+guard-stub(h1+h2 证伪)+host test 全 PASS;ASCII;frozen 未动;RAW only。阈值灵敏度:worst 1.459x 距 1.5x 仅 2.7%;(io+irq+争用WCET+I_cold) L1 之和需 ≤ allowance 210.19 MCPS——板决定,不预判。是 DEC-S4-CRITERION-01-FINAL T2 系统侧闭合钥匙。详见 sprint5/H2_WORKORDER.md |
 | **KB-DRV-TEST-001 入库提取** | ✅ **T/S 实测报告提取归档（raw 6-01 / 提取 6-05，C8 偏差留痕）；SPLo 82.161 解锁 DEC-S3-DSP-05**（2026-06-05）| 拆机单元送测回报（full_teardown_v2:48），raw MD5 同源入库 2026-06-01，**提取/分级/传播逾期 4 天=C8 偏差**（原件入库及时，提取传播逾期，致全队 4 天陈旧「待 T/S」口径）。LEAP-4 双曲线 19 项 T/S [L1/仪器]（iron-rule-7 三方核：dsp+lead 逐项一致，critic R20 第三方读 19/19 一致；Mms 前缀=mg 已由 Fs 自洽核坐实（R20），Vas Gal 唯一仍开）：Revc7.600/Fs235.907/BL2.030/Qts1.463/SPLo82.161 等。**冲突**：SPLo 82.161 [L1] vs 铭牌 88 [L4] ~5.8dB（铁律四）→ **DEC-S3-DSP-05 SPL 重做解锁（BL/Re/Fs/Qts 到齐），driver 单体输入偏低 5.8dB（事实）；系统级结果由重做定（含 ~+12dB 阵列增益），不预判（critic R20 修正）；登记 CTO 排期，本任务不重做**。Re：LEAP 7.600 vs DC 7.4 双轨一致 [L1]（取代估算 7.0）。**未关**：额定功率(thermal Q-②)/Xmax(截图无)/SPL 条件/系统级 R3。详见 KB-DRV-TEST-001_extracted.md |
+| **SPL 口径裁定（线②）** | ✅ **内部采用 94.0 dB @1W 总输入 [L2 模型,待消声室坐实]（必带标注）；对外冻结至 R3 L1**（DEC-S5-SPL-CALIBER-01，2026-06-05）| 内部 PRD/工程文档采用「94.0 dB @1W 总输入 [L2 模型,待消声室坐实]」**必带 [L2 待坐实] 标注，不得裸报不得去标注**；对外/客户/投标/正式商业承诺**继续冻结不引用 94.03**，等 R3 消声室 L1 坐实后另行拍（理由：L2 不作不可逆决策唯一依据，对客户报数=不可逆，POLICY 铁律）。旧 117/88 占位**全库不改维持 R22 grep 结论**；口径差（20logN→10logN，与 decisions_log:395 +12dB 守恒一致）已写明落档防后人错挂。最大 SPL 软化项等线③热功率+Xmax；对外涉「多响」非「灵敏度」另算不混入本裁定。详见「DEC-S5-SPL-CALIBER-01」节 + sprint5/spl_redo/SPL_REDO_REPORT_DRAFT.md |
+| **线③ 厂家函（SPL 三项索取）** | 🟡 **函稿准发：Xmax 大信号页 + 热额定功率 + 绝对电平送测条件**（2026-06-05）| CTO 批准线③函稿准发，向厂家索取三项：① Xmax（先问有无大信号页）② 热额定功率 ③ 绝对电平送测条件（距离/电压/障板/平滑）。回数标 **L1/待核**；到货流程 = dsp 读 → critic 核 → 落档。闭合 SPL 绝对电平条件 caveat + 限幅绝对阈值（Xmax/热功率）。详见「线③」节 |
 | **DEC-S5 预算修正 [L1]** | ✅ **focus 86-144[L4] → 49.03 MCPS [L1/EZKIT]；整系统残余 1.46-2.14x**（DEC-S5-BUDGET-L1-01，2026-06-05）| H1 v2 板跑（FG 双门过 focus_differs=1/zero_recovers=1，R15 snapshot 板证）focus_only=65,371 cyc → 49.03 MCPS [L1-derived]（×750/1e6）；cyc/MAC=8.51（@7,680 MAC=8tap×120samp×8ch，源 sz[]）；可复现（prior 65,410 差 39 cyc=0.060%）。残差超越链闭合：1.38-2.56→1.28-1.98→1.08-1.69→**1.46-2.14x [L4]**（L1 focus 抬两端）。MAC-2x 收口：cycle 分不出 120 vs 60 MAC 基准（8.51 vs 17.02 cyc/MAC 均可能），120 由源码 sz[] 定非 cycle 反推=诚实极限入档；86-144(误 2.88)/173-288(对 5.76 但错 cyc/MAC 类)双退役，实测优于双估。详见「DEC-S5 预算修正」节 + sprint5/H1_FINAL_RULING_MATERIAL.md |
 | **正式阈值 = T2** | ✅ **DEC-S4-CRITERION-01 FINAL = >=1.5x（T2）带闭合条件**（DEC-S4-CRITERION-01-FINAL，2026-06-05）| 现状 best 2.14x 达标 / worst 1.46x 差 2.7% 未达系统级 → 状态标「**算法-best 侧 ≥1.5x 达标（产品级锚=整系统 best 2.14x，纯算法 2.52x[L1] 为 L1 锚非产品级）/ 系统-worst 侧 1.46x 待 harness 闭合 [L4]**」。闭合路径=派 DMA/ISR small harness 实测收窄 WCET +10-50% 保守项，目标 worst 端抬过 1.5x（WO-S5-H2）。不选 T1（1.0x 边际过薄，对未含 EQ/DMA/ISR/未来功能无成长空间）；不选 T3（>=2x 纯核不达需押 HW-1，HW-1 暂可选不为达阈强行上，T2 闭合后再评 2x）。CLOSES 判据项（>=10x 退役→实时+余量→临时 1.0x→今 FINAL T2）。残余风险册认可。详见「正式阈值 T2」节 |
 | **WO-S5-H2 登记** | 🟡 **DMA/ISR small harness（T2 闭合路径，待 CTO 排期）**（2026-06-05）| 测 §8 item-1（codec/IO DMA 5-30）+ item-2（中断 2-15）+ 收窄 WCET 未测保守项（I-cold 仍 C10 待）。EZKIT passthrough + ISR-load harness（scope sketch only，未实现）。CTO 排期。是 DEC-S4-CRITERION-01-FINAL 的系统侧闭合钥匙 |
@@ -916,6 +918,77 @@
 - **scope sketch（only）**：EZKIT 上跑 Pipelined ADC→DAC passthrough（量 DMA 回调+缓冲服务 core cyc）+ ISR-load
   （量帧 ISR cadence×cost）。F7/H1 同流程（dsp code→三道关→CTO+C10→板跑）。**未实现，CTO 排期。**
 - **状态**：登记；CTO 排期；DEC-S4-CRITERION-01-FINAL 系统侧闭合钥匙。
+
+## SPL 口径裁定 + 线③ 函（2026-06-05，CTO 拍板）
+
+### DEC-S5-SPL-CALIBER-01：SPL 内/外口径裁定（线②，不可逆项，CTO 2026-06-05）
+- **裁定（substance 逐字）**：内部 PRD/工程文档采用「94.0 dB @1W 总输入 [L2 模型,待消声室坐实]」，必带 [L2 待坐实]
+  标注不得裸报不得去标注；对外/客户/投标/正式商业承诺继续冻结不引用 94.03，等 R3 消声室 L1 坐实后另行拍（理由：
+  L2 不作不可逆决策唯一依据，对客户报数=不可逆，POLICY 铁律）；旧 117/88 占位全库不改维持 R22 grep 结论，口径差
+  （20logN→10logN，与 decisions_log:395 +12dB 守恒一致）已写明落档防后人错挂；最大 SPL 软化项等线③热功率+Xmax，
+  对外涉「多响」非「灵敏度」另算不混入本裁定。
+- **内部值溯源**：94.0 dB = 94.029145 取整（SPL_REDO_REPORT_DRAFT.md:18,21）= SPLo 82.161 [L1 单只] + 阵列增益
+  +12.0412 dB（=10log10(16) 功率分摊，**非** +20log10N=+24.08）+ taper −0.173（Dolph −20dB w16 镜像）。
+  @1W 总输入 / @1m 远场外推 / on-axis / free-field。**[L2 模型]**（建在 [L1] SPLo + [L2 条件] + 解析阵列增益上）。
+- **口径差守恒（防错挂，落档）**：旧 117dB[L4 占位] = 全相干 +24dB（=20logN）口径；本重做用功率守恒 +12.04dB
+  （=10logN）→ 比旧低 ~23dB。**与 decisions_log:395「功率守恒交叉核非相干仅 +12dB」早期裁定一致**（critic 当时已判
+  117 过乐观）。次口径 100.3dB @2.83V/8ch（Z_ch=15Ω）与铭牌 88dB/2.83V（单只）**不同口径不可直比**。
+- **不可逆纪律**：对外报数=不可逆 → L2 不作不可逆决策唯一依据（POLICY 铁律三）→ **对外 94.03 冻结至 R3 消声室 L1
+  坐实 + CTO 另拍**。内部工程可用（带标注），因内部用途可逆（迭代修正）。
+- **旧源不改**：117/88 源值全库**不改**（维持 critic R22 grep 结论）；本裁定不撤旧值，只立内部新口径 + 对外冻结。
+- **未含（不混入）**：最大 SPL（「多响」/绝对电平上限）软化 = 等线③热功率 + Xmax，**另算**，本裁定只管「灵敏度」口径。
+- **Re 层级关系**（CTO 附加核验项，防口径错挂，见 §2 回显句）。
+- **状态**：内部 94.0 [L2 待坐实] 采纳（必带标注）；对外冻结至 R3 L1；SPL 重做模型 [L2]，R3 升 L1 后 CTO 另拍对外。
+
+### 线③：厂家函（SPL 三项索取，CTO 准发 2026-06-05）
+- **三项索取**：① Xmax（先问有无大信号页）② 热额定功率 ③ 绝对电平送测条件（距离/电压/障板/平滑）。
+- **回数流程**：标 **L1/待核**；到货 = **dsp 读 → critic 核 → 落档**（同 KB-DRV-TEST-001 iron-rule-7 路径）。
+- **闭合对象**：SPL 绝对电平条件 caveat（94.0 的绝对基准）+ 限幅绝对阈值（Xmax + 热功率，DEC-S5-EQ-O1-01 仍缺项）。
+- **状态**：函稿准发；回报后流程落档。
+```
+
+---
+
+# 2. RE 层级回显（CTO 附加核验项 — 精确归档句）
+
+> 落 DEC-S5-SPL-CALIBER-01 详节 + 回显 RE_SCOPE_EVIDENCE.md 顶 + KB-DRV-TEST-001_extracted.md（一句 cross-ref）。
+
+**精确归档句（逐字采用）**：
+```
+Re 层级关系（critic R22 裁 CLEAN，防口径错挂）：**Re 7.600Ω = 单元级**（LEAP 送测单只，与拆机单元 DC 7.4Ω [L1]
+同级一致）；**DC ~15Ω = 整通道级**（A/B 对 {c,15-c} 两单元串联，2×7.4=14.8~15 [L1] 翻倍关系成立）；单元模型只喂
+单元 Re，15Ω 仅作通道级 2.83V 功率簿记；串联对 +6dB 已被 10log10(16) 阵列增益吸收不另加。
+```
+
+**落点 change blocks**：
+- **RE_SCOPE_EVIDENCE.md 顶**（现 :8 状态行后追加一行）：
+  ```
+  > **裁定回显（DEC-S5-SPL-CALIBER-01 / critic R22 CLEAN，2026-06-05）**：〔上述精确归档句逐字〕
+  ```
+- **KB-DRV-TEST-001_extracted.md**（§3b Re 一致性段后追加一句 cross-ref）：
+  ```
+  〔Re 层级（DEC-S5-SPL-CALIBER-01 回显）：7.600Ω=单元级（与 DC 7.4 同级）；DC ~15Ω=整通道级（A/B 串联 2×7.4≈15）；
+    单元模型喂单元 Re，15Ω 仅通道级功率簿记；串联 +6dB 已被 10log10(16) 吸收。详见 RE_SCOPE_EVIDENCE.md〕
+  ```
+
+---
+
+# 3. PRD change block（`sprint2/docs/prd_update.md`，内部口径，锚已核）
+
+> 落点 = §3.2 频响指标表（:166-185 区，含「灵敏度 ≥90dB SPL/1W/1m」行 :183 附近）后新增一行内部工程口径；
+>   **不动 :45 区 88 铭牌源行 / 不动 :183 PRD 灵敏度承诺行**（仅加内部工程参考行，annotate-only 旧 117）。
+
+新增行（§3.2 表内或表后）：
+```
+| **系统灵敏度（内部工程口径）** | **94.0 dB @1W 总输入 @1m（远场外推）** **[L2 模型, 待消声室坐实]** | DEC-S5-SPL-CALIBER-01；绝对电平条件未定（待线③送测条件）；**对外引用冻结至 R3 L1 + CTO 另拍**；旧 117[L4 占位, 20logN 口径已判乐观]不再用于内部工程；= SPLo 82.161[L1 单只] + 阵列 +12.04dB(10log10(16)) − taper 0.17 |
+```
+（:183「灵敏度 ≥90dB SPL/1W/1m（1kHz,正轴向）」= PRD 承诺行，**不改**——与 94.0 **同口径**（critic R23 裁定，原'不同口径'表述撤），冻结纪律下内部行不混入承诺行，~4dB 接近性已 FLAG 呈 CTO
+ [L2]；本新增行明标「内部工程口径」与承诺行区分。:168 空场最大声压级行已在 KB-DRV-TEST-001 传播加注，最大 SPL 软化
+ 等线③，本裁定不动。）
+
+---
+
+# 4. 传播（status pointers + 117 库 R7 分类）
 
 ---
 

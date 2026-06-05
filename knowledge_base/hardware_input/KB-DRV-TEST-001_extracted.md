@@ -1,5 +1,7 @@
 # KB-DRV-TEST-001：拆机喇叭单元 T/S 实测报告 — 提取归档
 
+> **Re 层级关系（critic R22 裁 CLEAN，防口径错挂，DEC-S5-SPL-CALIBER-01 回显）**：**Re 7.600Ω = 单元级**（LEAP 送测单只，与拆机单元 DC 7.4Ω [L1] 同级一致）；**DC ~15Ω = 整通道级**（A/B 对 {c,15-c} 两单元串联，2×7.4=14.8≈15 [L1] 翻倍关系成立）；单元模型只喂单元 Re，15Ω 仅作通道级 2.83V 功率簿记；串联对 +6dB 已被 10log10(16) 阵列增益吸收不另加。
+
 **文档 ID**：KB-DRV-TEST-001（extracted）｜ 提取日期：2026-06-05（dsp-algorithm teammate 独立提取，iron-rule-7 三方核）
 **原件（raw，已入库 MD5 核）**：`knowledge_base/hardware_input/KB-DRV-TEST-001_raw/`
   - `TS_params_LEAP.jpeg`（LEAP-4 喇叭参数面板截图）
