@@ -47,7 +47,10 @@
 
 - **(P2) 发现 DOUBLE-COUNT（原 §8 worst 口径，保守方向）。** H1_FINAL §2.4 明文：WCET_unmeas(+10-50%) 覆盖
   **{I-cold + DMA 争用 + ISR 抢占}**。但 §8 worst 残差里 **io(30)=codec/IO DMA、irq(15)=中断 是独立 line items**。
-  → **DMA 争用与 ISR 在原 worst 口径里被计了两次**（一次作 io/irq，一次在 WCET_unmeas 内）= **保守 double-count**。
+  → **修正后的双计裁定（critic R21 F21-MAJOR-1，原稿"DMA 与 ISR 均双计"判断半错已撤）**：
+  **ISR 是真 double-count**（item-2 ISR core 成本 ∩ item-5 "ISR jitter"）。**DMA 不是**：io item-1 =
+  DMA **回调 core 成本**（descriptor 服务+cache-inval，R19 工单 :34 本就如此拆分），item-5-DMA =
+  **总线争用**——互补的不同机制，非双计。
   这正是要防的「一个 overhead 跨两个 scope 名目重复进分母」。**诚实说：原 §8 worst 1.46x 偏保守（高估了需求）。**
 
 - **(P3) 修正 framing：H2 把 DMA+ISR 争用作 ONE combined 量测，消 double-count。** H2 的
@@ -64,7 +67,7 @@
 
 - **(P5) 净结论（诚实，改了 framing 不改 210.19 数本身）**：
   - **210.19 这个数 = 余量本身，溯源正确**（步4−步8，纯算术，O1=60 worst）。**不变。**
-  - **变的是「210.19 须覆盖什么」的口径**：不是 io+irq+WCET 三项相加（double-count），而是
+  - **变的是「210.19 须覆盖什么」的口径（R21 修正版）**：不是 io+irq+WCET 机械三加，而是
     **combined 争用[H2 测] + O1 争用[预留] + I_cold[预留]**。
   - **原 §8 worst 1.46x 偏保守**（double-count + WCET 挂 core-only 基底）；本通过线 framing 更干净，但**保守方向**
     （worst 端），**不放宽 pass 难度**——故采纳，不破坏 T2 守门严格性。
@@ -93,6 +96,18 @@
 
 **前置 FG 门（任一 FAIL ⇒ verdict 作废，数无效）**：
 - `g_h2_valid == 1` 且 `g_h2_fg_dma_loads == 1` 且 `g_h2_fg_isr_fires == 1` 且 `g_h2_isr_count_off == 0`。
+
+**三预留 + 最终机械判读（critic R21 F21-MAJOR-1/MINOR-1 修正后口径）**：
+
+| 预留 | 性质 | 候选值（CTO 拍终值） |
+|---|---|---|
+| `io_callback_reserve` | SPORT RX/TX 回调 core 成本——H2 both_max **不含**（MDMA 自动重填无回调路径），原稿误并入"双计"被消掉，R21 恢复 | **5–30 MCPS [L3，item-1 包络]** |
+| `O1_contention_reserve` | EQ 未上板，其争用增量未测 | **5–15 MCPS [L4，O1 29–60 之分数]** |
+| `I_cold_reserve` | I-cache 冷，C10 符号未决 | **10–30 MCPS [L4，H1 冷-DATA≈0+I 局部性高，未测]** |
+
+**最终公式**：`M_contention[(both_max−base)×750/1e6, L1] + io_callback_reserve + O1_contention_reserve + I_cold_reserve ≤ 210.19` ⇔ worst ≥ 1.5×。
+T2 系统侧闭合**条件于三预留成立**，条件显式：C10 I-cache 符号 / EQ 上板实测 / SPORT 回调 bring-up。
+映射表补行：**io-callback ❌ 未测**（proxy 无回调）→ 第三预留覆盖。板决定实测值，本件不预判。
 
 **measured combined 争用（消 double-count，用 both_max）**：
 ```
