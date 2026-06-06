@@ -75,6 +75,12 @@
       一起吓自己。（来源：R34 ①对消机制）
 - [ ] **D4 「开的 slot 数 ≠ 实填的 slot 数」**：例程 SelectChannel 开 0..11 但回调只实填 8——
       读例程配置时数实填，不数开窗。（来源：R33/R34 4-in/8-out 真相）
+- [ ] **D5 例程寄存器值不盲抄，位域逐个解码**：ALT 的 SAI_CTRL0=0x1B 注释写「48kHz」但 FS
+      位域 [2:0]=011 实为「64-96kHz」档（48k 应 =010）——例程自身值与注释矛盾。M1 codec init
+      每个寄存器值按 datasheet 位域表逐字段解码核对后才采用。（来源：R35 F35-INFO-1）
+- [ ] **D6 总线帧宽 ≠ DMA buffer 尺寸**：RX buffer 只由 SPORT 实收（SelectChannel 捕获）slot
+      数决定；ADC 总线帧的未收 slot 只耗 BCLK 时间不耗 DMA 空间（high-Z）。算 buffer 数捕获数。
+      （来源：R35 承重澄清，P18 + ALT 4-of-8 双实证）
 
 ## E. 流程/多 agent 协作类（PM 侧）
 
