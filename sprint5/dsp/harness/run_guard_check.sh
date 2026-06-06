@@ -26,13 +26,16 @@ INC=( -I"$STUB"
 if [ "$#" -gt 0 ]; then
     FILES=( "$@" )
 else
-    FILES=( "$HDIR/h1_wcet_measure.c" "$HDIR/h2_dma_isr_measure.c" )
+    FILES=( "$HDIR/h1_wcet_measure.c" "$HDIR/h2_dma_isr_measure.c" "$HDIR/h2_board_hooks_21569som.c" )
 fi
 
 overall=0
 for f in "${FILES[@]}"; do
     echo "[guard-check] $(basename "$f"): compiling TARGET-guarded region on desktop (mock BSP)..."
-    gcc -fsyntax-only -Wall -Wextra \
+    # -Werror=implicit-function-declaration: a misspelled BSP symbol (e.g. adi_tmr_Enabl) is an
+    #   implicit-declaration under C and would otherwise only warn -> promote to a hard FAIL so the
+    #   falsifier catches symbol typos too (not just R16 declaration-order). Both break classes proven.
+    gcc -fsyntax-only -Wall -Wextra -Werror=implicit-function-declaration \
         -DFIRA_USE_REAL_ADI_FIR_HEADER -DTARGET_SHARC \
         "${INC[@]}" "$f"
     rc=$?

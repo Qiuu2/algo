@@ -73,6 +73,16 @@ void h2_isr_stop(void);                       /* 卸 ISR */
   须板侧确认，**与 I-cache invalidate 符号同类未知**）。timer = adi_tmr_*（adi_tmr 存在性见 BSP）。
 - handler 极简（计数 + ack），其自身 core 成本是被测 ISR 成本的一部分（诚实：测的是「该最小 handler」的抢占成本，
   产品真 handler 若更重则更高——off-board 标注）。
+- **【R24 F24-MAJOR-1 board-confirm】proxy 缓冲总线段放置 = 测量效度命门**：`s_bh_src/dst` 无 section pragma，
+  板上落位由 linker 决定。bring-up **必须**显式定到与产品 SPORT-PDMA 同总线段、且**不得**与 FIRA 工作集
+  （s_h2_fa）同 L1 block——否则 inc_dma 测的是自冲突假象（产品不存在）而非 crossbar 争用。**读数解释前先核
+  .map 放置**。
+- **【R24 F24-MINOR-2】bring-up 须确认 `ADI_MDMA_MEMORY`/`ADI_TMR_MEMORY` 来自真 header 而非 hook TU 的
+  parse fallback**（板 build 对 `H2_BH_USED_FALLBACK_MDMA_MEMORY` 标记 #error 守卫，或查预处理输出）——fallback
+  被采用 = 服务内存可能 undersized（open 越界写）。
+- **【R24 F24-MINOR-1】重武装漂移方向**：one-shot 重武装含 callback 软件延迟 δ，实际 ISR 率略低于标称 hz →
+  inc_isr 为该（略低）率下的抢占成本，方向上偏低估（二阶：δ~数十 cyc vs 周期 ~125k cyc，<<1%）；bring-up 若
+  确认 `ADI_TMR_MODE_CONTINUOUS_PWMOUT` 存在则切换消除。
 
 ## 4. bench_main.c 接线 change block（在 H1 hook 之后）
 **(i) extern**（加在 H1 extern 块后）：
@@ -102,7 +112,7 @@ project: 把 `h2_dma_isr_measure.c` + `h2_board_hooks_<board>.c` 加进 FIRA bui
 |---|---|---|
 | `g_h2_done`/`g_h2_valid` | 1 / 1 | 0=fira_setup 失败/桌面/无 hook（全数无意义）；-99=未跑 |
 | `g_h2_cyc_frame_base` | ≈ H1 g_h1_cyc_8ch_nofocus（~525,850 量级，同 8ch 无 focus 链） | 偏离大→链与 H1 不一致，先查 |
-| **`g_h2_inc_dma`** | **io MCPS = inc×750/1e6，yardstick 5-30 MCPS [L3]** | 远超 30→proxy 压过头（查 bytes_per_s）；=0→FG-A 应=0（dead hook） |
+| **`g_h2_inc_dma`** | **io MCPS = inc×750/1e6，yardstick 5-30 MCPS [L3]** | 远超 30→proxy 压过头（查 bytes_per_s）**或 proxy 缓冲落 FIRA 同 L1 段=自冲突假象（R24，先核 .map 放置）**；=0→FG-A 应=0（dead hook） |
 | **`g_h2_inc_isr`** | **irq MCPS = inc×750/1e6，yardstick 2-15 MCPS [L3]** | 远超 15→ISR 率/handler 过重；=0→FG-B 应=0 |
 | **`g_h2_cyc_frame_both_max`** | WCET 乘子 = both_max/base，yardstick ≤ +10-50% [L3] | both_max/base 远超 1.5→争用极端，记录；< base 反常→测序错 |
 | `g_h2_cyc_frame_both_min` | ≥ base；(max-min)/base = jitter 带 | — |
