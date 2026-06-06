@@ -111,7 +111,7 @@ project: 把 `h2_dma_isr_measure.c` + `h2_board_hooks_<board>.c` 加进 FIRA bui
 | 全局 | 期望 / yardstick | 偏差含义 |
 |---|---|---|
 | `g_h2_done`/`g_h2_valid` | 1 / 1 | 0=fira_setup 失败/桌面/无 hook（全数无意义）；-99=未跑 |
-| `g_h2_cyc_frame_base` | ≈ H1 g_h1_cyc_8ch_nofocus（~525,850 量级，同 8ch 无 focus 链） | 偏离大→链与 H1 不一致，先查 |
+| `g_h2_cyc_frame_base` | ≈ H1 nofocus **减其帧内 CRC32（~71k cyc）** ≈ 454,730（R27 修正：H1 链每帧跑逐 bit CRC32 而 H2 链无——原「≈525,850」系跨链误比，板实测 454,730 与修正 yardstick 精确对账） | 偏离大→链与 H1(−CRC) 不一致，先查 |
 | **`g_h2_inc_dma`** | **io MCPS = inc×750/1e6，yardstick 5-30 MCPS [L3]** | 远超 30→proxy 压过头（查 bytes_per_s）**或 proxy 缓冲落 FIRA 同 L1 段=自冲突假象（R24，先核 .map 放置）**；=0→FG-A 应=0（dead hook） |
 | **`g_h2_inc_isr`** | **irq MCPS = inc×750/1e6，yardstick 2-15 MCPS [L3]** | 远超 15→ISR 率/handler 过重；=0→FG-B 应=0 |
 | **`g_h2_cyc_frame_both_max`** | WCET 乘子 = both_max/base，yardstick ≤ +10-50% [L3] | both_max/base 远超 1.5→争用极端，记录；< base 反常→测序错 |
@@ -122,6 +122,12 @@ project: 把 `h2_dma_isr_measure.c` + `h2_board_hooks_<board>.c` 加进 FIRA bui
 
 **off-board 算（C9，连体 sec-8 呈现）**：io = inc_dma×750/1e6；irq = inc_isr×750/1e6；
 WCET 争用乘子 = both_max/base。三者 [L1] 替换 sec-8 [L3] 估值；I-cache cold 仍 [L3/L4] 待 C10。
+
+**【R27 口径 relabel 硬要求（板跑 2026-06-06 实测后生效）】**：凡引用本轮 M_contention=(both_max−base)
+×750/1e6=**20.59 MCPS** 处，必标「**= ISR@~10-62kHz 膨胀成本(~99.8%) + DMA contention(0.2%)，非纯
+DMA 争用；ISR 腿率错 ~10-62×（re-arm 缺陷）非产品数，已隔离待重测；用作预算线属保守上界（安全侧
+经 critic R27 核）**」——禁止裸引 20.59 当「DMA 总线争用实测」（教训#3 口径错防传播）。DMA 单腿
+inc_dma=51 cyc → **0.038 MCPS [L1, CLEAN]** 可独立入账。
 
 **【R26 落置裁定后的解读边界（F26-MAJOR-1）】**：proxy 缓冲已 pragma 钉 L1 Block 1（src/dst/fa 同
 Block 0 自冲突假象已修，判定见 sprint5/audit/H2_MAP_PLACEMENT_ADJUDICATION.md）。但 Block 1 =
