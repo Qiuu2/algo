@@ -97,6 +97,47 @@
 extern volatile uint32_t g_h2_isr_count;
 
 /* ===================================================================================================
+ * WO-S5-H2R ISR-clean retest knob (Block 2 only; Block 1 MDMA path is [L1] CLEAN, untouched).
+ *   Lifts the ISR leg from the R27 [10,62] kHz rate artifact to a clean L1 by:
+ *     (1) preferring a CONTINUOUS (free-running) timer mode -- no software re-arm, hardware reloads the
+ *         Width/Delay each period -> exact 1 kHz cadence (the re-arm one-shot was the defect, see below);
+ *     (2) a FALLBACK fixed re-arm (only if the continuous enum is absent in the installed adi_tmr.h),
+ *         hardened so the re-armed *effective* period = the programmed 1 ms (see h2_bh_timer_callback);
+ *     (3) a minimal callback (count + the service's own ack) under continuous mode -- product-rep;
+ *     (4) NOT trusting the programmed value at all: a CCNT wall bracket MEASURES the rate, and FG-B'
+ *         FAILs if the measured rate falls outside [H2R_RATE_LO_HZ, H2R_RATE_HI_HZ].
+ *
+ * RE-ARM ONE-SHOT DEFECT (mechanism, the R27 ~10-62 kHz finding, diagnosed before the fix):
+ *   h2_isr_start (original) programmed period_cycles = SCLK/hz = 125000 (1 ms), half = 62500, then
+ *   SetWidth(half)+SetDelay(half)+Enable. The FIRST period is correct: in the SINGLE_PWMOUT model
+ *   (TimerDelay.c) the full period = Width = SetWidth + SetDelay = 62500 + 62500 = 125000 SCLK = 1 ms.
+ *   The defect is in the callback RE-ARM: when SetWidth/SetDelay/Enable(true) are re-issued from inside
+ *   the ADI_TMR_EVENT_DATA_INT callback on an already-expired one-shot, the timer does NOT replay the
+ *   full Delay(wait)+Width(assert) cadence -- the next assertion is governed by the software re-enable
+ *   latency (IRQ entry -> callback -> 3 service calls -> Enable, ~hundreds-to-low-thousands of SCLK),
+ *   NOT by the programmed 125000-cycle period. So the effective period collapses from 1 ms to the
+ *   re-arm latency -> the rate jumps from 1 kHz to ~SCLK/(re-arm cycles) = tens of kHz, which is exactly
+ *   the reconstructed [10,62] kHz band. Contributing second-order factors: the open-default timer mode
+ *   was never explicitly set (no ADI_TMR_CFG_PARAMS/SetMode in the original start), so the SetWidth/
+ *   SetDelay split could already differ from the intended (W+D)=period model; and Enable(true) on a warm
+ *   timer can skip the Delay(idle) phase, halving the period even in the best case. The ROOT is structural:
+ *   a software re-arm in the ISR cannot reproduce a hardware periodic cadence. Continuous mode removes it.
+ *   HONEST: this mechanism is an inference consistent with the [10,62] kHz reconstruction; it is PINNED
+ *   only by the CCNT wall bracket below (rate MEASURED, not programmed) -- that is the whole point of #4.
+ *
+ * Continuous-mode enum presence is a BRING-UP fact (the local evidence DB has only SINGLE_PWMOUT). The
+ *   board picks the path by defining H2R_HAVE_CONTINUOUS_PWMOUT=1 at compile time once CTO confirms the
+ *   enum exists in CCES 2.12.1's adi_tmr.h. Default (undefined) = fallback re-arm path stays live so the
+ *   guard-stub parses and the board still has a working (if re-arm-based) timer if the enum is missing.
+ * =================================================================================================== */
+
+/* NOTE on the g_h2r_* readouts: they are OWNED + written by the harness (h2_dma_isr_measure.c), which
+ * runs the rate-bracket / cold-warm probes by calling the hooks below. This board TU only PROVIDES the
+ * timer hooks (continuous-mode vs fallback re-arm); it does not read or write any g_h2r_* -- so no extern
+ * declarations are needed here (probe-state isolation, hard-rule 4). The product ISR rate band and the
+ * CCLK used for FG-B' live in the harness (single source). */
+
+/* ===================================================================================================
  * Block 1: BUSLOAD probe state (MDMA mem-to-mem proxy). Independent block; shares NO mutable state
  *   with the ISR probe (hard-rule 4 -- probe isolation). All decls at top (R16 declaration-order rule).
  * =================================================================================================== */
@@ -252,30 +293,33 @@ static uint8_t          s_bh_tmr_mem[ADI_TMR_MEMORY];   /* [L1] ADI_TMR_MEMORY (
 static volatile int     s_bh_isr_active = 0;            /* 1 = keep re-arming the one-shot for periodicity */
 static uint32_t         s_bh_half_period = 0u;          /* width/delay halves (cycles) for re-arm */
 
-/* Periodic timer callback. MUST: (a) ++g_h2_isr_count (FG-B cross-check), (b) ack the timer event,
- * (c) re-arm so the next interrupt fires (periodic, not one-shot). The adi_tmr service performs the
- * hardware IRQ ack as part of dispatching this callback (proven dispatch path, TimerDelay.c); the
- * re-arm below makes the one-shot SINGLE_PWMOUT behave periodically using ONLY proven primitives.
- * [R24 F24-MINOR-1] DRIFT DIRECTION, stated honestly: re-arm adds a software delay (IRQ -> callback ->
- * Enable) to every period, so the ACTUAL ISR rate is slightly BELOW the nominal hz -> g_h2_inc_isr is
- * the preemption cost at that slightly-lower rate, i.e. directionally an UNDER-estimate of the nominal-
- * rate cost (second-order: delta ~tens of cycles vs ~125k-cycle period, <<1%). Switching to
- * CONTINUOUS_PWMOUT at bring-up removes the drift entirely. */
+/* Periodic timer callback. MUST: (a) ++g_h2_isr_count (FG-B cross-check), (b) the service acks the IRQ
+ * as part of dispatching this callback (proven dispatch path, TimerDelay.c).
+ *
+ * CONTINUOUS MODE (H2R_HAVE_CONTINUOUS_PWMOUT defined, the CLEAN path): the timer hardware reloads
+ *   Width/Delay each period -> NO software re-arm -> the callback is MINIMAL (count + return). This is
+ *   the product-representative "minimal handler (count + ack)" -- the 3 service calls below do NOT run.
+ *
+ * FALLBACK RE-ARM (continuous enum absent): re-issue SetWidth/SetDelay/Enable. This path is KNOWN to
+ *   produce a rate ABOVE nominal (R27: the re-arm latency, not the programmed 125000-cycle period,
+ *   governs the next fire -- see the Block-2 header mechanism note). It is kept ONLY so the board has a
+ *   working timer if the continuous enum is missing; in that case FG-B' (the measured rate bracket) is
+ *   EXPECTED to FAIL and quarantine the data -- the fallback is NOT a clean-[L1] source, the rate
+ *   bracket is the arbiter. Do NOT report fallback-path ISR cost as the product number. */
 static void h2_bh_timer_callback(void *pCBParam, uint32_t nEvent, void *pArg)
 {
     (void)pCBParam; (void)pArg;
     switch ((ADI_TMR_EVENT)nEvent) {           /* [L1] ADI_TMR_EVENT / ADI_TMR_EVENT_DATA_INT (TimerDelay.c) */
     case ADI_TMR_EVENT_DATA_INT:
         g_h2_isr_count++;                      /* hard-rule 2: FG-B life line (must grow when ISR on) */
+#if !defined(H2R_HAVE_CONTINUOUS_PWMOUT)
+        /* FALLBACK ONLY: re-arm the one-shot. Known rate artifact -> FG-B' arbiter (see header). */
         if (s_bh_isr_active && s_bh_htmr != NULL) {
-            /* re-arm one-shot for the next period (proven SetWidth/SetDelay/Enable primitives).
-             * TODO[bring-up]: if adi_tmr.h in CCES 2.12.1 exposes ADI_TMR_MODE_CONTINUOUS_PWMOUT,
-             * configure continuous mode once at start instead of re-arming here -- cleaner, lower
-             * callback cost. Symbol not in local evidence DB, so kept as proven-primitive re-arm. */
             (void)adi_tmr_SetWidth(s_bh_htmr, s_bh_half_period);
             (void)adi_tmr_SetDelay(s_bh_htmr, s_bh_half_period);
             (void)adi_tmr_Enable(s_bh_htmr, true);
         }
+#endif
         break;
     default:
         break;
@@ -301,9 +345,32 @@ int h2_isr_start(uint32_t hz)
     if (r != ADI_TMR_SUCCESS) { s_bh_htmr = NULL; return 1; }
 
     s_bh_isr_active = 1;
+
+#if defined(H2R_HAVE_CONTINUOUS_PWMOUT)
+    /* CLEAN PATH (CTO confirmed the continuous enum exists in CCES 2.12.1 adi_tmr.h, compiled in via
+     * -DH2R_HAVE_CONTINUOUS_PWMOUT). Configure free-running PWM-out ONCE; hardware reloads Width/Delay
+     * each period -> exact cadence, no software re-arm, minimal callback.
+     * [board-confirm-CRITICAL, R30 F30-MINOR-1] BRING-UP STEP ONE for this path: confirm the mode-set
+     *   symbol EXISTS and its signature BEFORE compiling with -DH2R_HAVE_CONTINUOUS_PWMOUT -- wiring a
+     *   wrong/nonexistent call here means a failed build or a silent fallback-grade run (R25 class).
+     * BRING-UP[exact-call]: the precise mode-set call is the ONE symbol the local DB lacks. The two
+     *   shapes ADI ships are (a) ADI_TMR_CFG_PARAMS.Mode = ADI_TMR_MODE_CONTINUOUS_PWMOUT passed to an
+     *   adi_tmr_*Config/SetConfig at Open time, or (b) a standalone adi_tmr_SetMode(handle, mode). Wire
+     *   whichever the real header exposes HERE, then SetWidth/SetDelay = the period halves as below.
+     *   The g_h2r_fg_rate_in_band bracket VERIFIES the cadence regardless of which shape -- if the mode
+     *   did not actually take, the measured rate falls outside [LO,HI] and FG-B' FAILs (no false green). */
+    r = adi_tmr_SetWidth(s_bh_htmr, half);   if (r != ADI_TMR_SUCCESS) goto fail;
+    r = adi_tmr_SetDelay(s_bh_htmr, half);   if (r != ADI_TMR_SUCCESS) goto fail;
+    /* TODO[bring-up]: insert the continuous-mode SetMode/Config call here (see note above). */
+    r = adi_tmr_Enable(s_bh_htmr, true);     if (r != ADI_TMR_SUCCESS) goto fail;
+#else
+    /* FALLBACK PATH (continuous enum not confirmed): one-shot + callback re-arm. KNOWN rate artifact
+     * (R27); kept only as a working-timer fallback. FG-B' is EXPECTED to FAIL here and quarantine the
+     * ISR readings -- the rate bracket, not this path, is the clean-[L1] arbiter. */
     r = adi_tmr_SetWidth(s_bh_htmr, half);   if (r != ADI_TMR_SUCCESS) goto fail;
     r = adi_tmr_SetDelay(s_bh_htmr, half);   if (r != ADI_TMR_SUCCESS) goto fail;
     r = adi_tmr_Enable(s_bh_htmr, true);     if (r != ADI_TMR_SUCCESS) goto fail;
+#endif
     return 0;
 
 fail:

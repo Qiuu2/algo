@@ -74,6 +74,19 @@ volatile int      g_h2_fg_dma_loads       = -99; /* [L1-to-be] 1 = dma increment
 volatile int      g_h2_fg_isr_fires       = -99; /* [L1-to-be] 1 = isr_count grew AND off-count stayed 0; 0 = FAIL; -99 not-run */
 volatile int      g_h2_valid              = 0;   /* 1 = ran on board w/ FIRA + hooks; 0 = desktop/no-FIRA */
 
+/* ---- H2R (ISR-clean retest, WO-S5-H2R) raw readouts. NEW g_h2r_* prefix -- the g_h2_* readouts above
+ *      keep their existing semantics (H2 history already booked; no symbol re-meaning). RAW only;
+ *      the rate-in-band flag is the ONE on-board judgment (per workorder: flag computed on board), and
+ *      the RAW span+count are emitted so off-board can recompute it with the true CCLK. ---- */
+volatile uint32_t g_h2r_isr_span_cyc        = 0u;  /* [L1-to-be] CCNT wall cycles of the rate-bracket ISR-on span */
+volatile uint32_t g_h2r_isr_count_in_span   = 0u;  /* [L1-to-be] g_h2_isr_count delta over EXACTLY that span */
+volatile int      g_h2r_fg_rate_in_band     = -99; /* [L1-to-be] 1 = measured rate in [LO,HI]; 0 = FAIL (quarantine); -99 not-run */
+volatile uint32_t g_h2r_cyc_frame_isr_first = 0u;  /* [L1-to-be] FIRST-activation ISR-on frame cyc (COLD probe) */
+volatile uint32_t g_h2r_cyc_frame_isr_smax  = 0u;  /* [L1-to-be] steady-state ISR-on frame cyc, max over probe set (WARM) */
+volatile uint32_t g_h2r_cyc_frame_isr_smin  = 0u;  /* [L1-to-be] steady-state ISR-on frame cyc, min over probe set (WARM) */
+volatile int      g_h2r_isr_mode_continuous = -99; /* [L1-to-be] 1 = continuous-mode path compiled; 0 = fallback re-arm; -99 not-run */
+volatile uint32_t g_h2r_rate_milli_hz       = 0u;  /* [L1-to-be] measured rate x1000 (milli-Hz), RAW integer (no float on target) */
+
 /* DMA proxy sizing: SPORT TDM aggregate byte rate (8 slot x 32 bit x 48 kHz, in+out) for the proxy to
  * match the bus class. = 8*4 bytes/slot-frame * 48000 * 2 dir = 3,072,000 bytes/s. The MDMA proxy stream
  * is sized to push ~this rate continuously (board hook honors it; documented so the proxy is honest). */
@@ -206,10 +219,126 @@ int h2_dma_isr_measure(void)
     return 1;
 }
 
+/* ============================ WO-S5-H2R ISR-clean retest (Block 2 / ISR leg only) ============================
+ * Standalone entry, run AFTER h2_dma_isr_measure (own state/buffers -> does NOT perturb any PASS path or
+ * the booked g_h2_* readouts). Produces the THREE new clean-[L1] artifacts the workorder asks for:
+ *   (3) rate-bracket : a CCNT wall bracket around an ISR-on span -> g_h2r_isr_span_cyc +
+ *       g_h2r_isr_count_in_span -> the rate is MEASURED, not reconstructed. FG-B' (g_h2r_fg_rate_in_band)
+ *       FAILs if the measured rate is outside [H2R_RATE_LO_HZ, H2R_RATE_HI_HZ] (existence != correctness).
+ *   (4) cold/warm isolation: g_h2r_cyc_frame_isr_first = the FIRST-activation ISR-on frame (cold);
+ *       g_h2r_cyc_frame_isr_smax/smin = steady-state ISR-on frames (warm). The cold/warm per-ISR split
+ *       becomes an isolated [L1] measurement, not a 2-cache-state inference.
+ * RAW only (no MCPS/margin here -- C9). The rate-in-band flag is the single on-board judgment; the RAW
+ * span+count are emitted so off-board recomputes with the true CCLK if H2R_CCLK_HZ differs. */
+#define H2R_RATE_LO_HZ   950u
+#define H2R_RATE_HI_HZ   1050u
+#define H2R_CCLK_HZ      1000000000u   /* core ~1 GHz class; exact CCLK board-confirm (RAW span+count emitted) */
+#define H2R_COLD_WARMUP  0             /* ISR-on cold probe = the FIRST timed ISR-on frame (no warm) */
+#define H2R_STEADY_FR    32            /* steady-state ISR-on frames sampled for warm max/min */
+#define H2R_RATE_FR      32            /* frames the rate-bracket span runs ISR-on (>> one frame, dense) */
+
+int h2r_isr_clean_retest(void)
+{
+    /* reset H2R readouts (never leave stale values if an early-out hits) */
+    g_h2r_isr_span_cyc = 0u; g_h2r_isr_count_in_span = 0u; g_h2r_fg_rate_in_band = -99;
+    g_h2r_cyc_frame_isr_first = 0u; g_h2r_cyc_frame_isr_smax = 0u; g_h2r_cyc_frame_isr_smin = 0u;
+    g_h2r_rate_milli_hz = 0u;
+#if defined(H2R_HAVE_CONTINUOUS_PWMOUT)
+    g_h2r_isr_mode_continuous = 1;
+#else
+    g_h2r_isr_mode_continuous = 0;
+#endif
+
+    if (fira_tree_setup() != 0) {
+        return 0;   /* no FIRA on this host: honest 0 */
+    }
+    {
+        const int32_t *chirp = bench_chirp_input();
+        int32_t fsb0[BENCH_FRAME/8], fsb1[BENCH_FRAME/4], fsb2[BENCH_FRAME/2], fsb3[BENCH_FRAME];
+        int32_t fout[BENCH_FRAME], xw[BENCH_FRAME];
+        uint32_t t0, t1, cyc, f;
+        uint32_t wall0, wall1, cnt0, cnt1;
+        int c;
+
+        tfb_set_coeffs(g_hb63_q15, FIR_HB63_NTAPS);
+        for (c = 0; c < DOLPH_W8_NCH; c++) fira_channel_init(&s_h2_fa[c], BENCH_FRAME);
+
+        /* steady-state compute warm-up (no ISR yet) so the FIRA path itself is warm; the ISR COLD probe
+         * below then isolates the ISR-dispatch/handler cold cost specifically, not FIRA cold. */
+        for (f = 0; f < H2_WARM; f++)
+            h2_fira_frame(&chirp[(f % (BENCH_NFR)) * BENCH_FRAME], fsb0, fsb1, fsb2, fsb3, fout, xw);
+
+        /* ===== (4a) COLD probe: FIRST-EVER ISR activation, single timed frame ===== */
+        if (h2_isr_start(H2_ISR_HZ) == 0) {
+            const int32_t *xin = &chirp[H2_WARM * BENCH_FRAME];
+            t0 = bench_cyc_target();
+            h2_fira_frame(xin, fsb0, fsb1, fsb2, fsb3, fout, xw);
+            t1 = bench_cyc_target();
+            g_h2r_cyc_frame_isr_first = t1 - t0;          /* COLD: first activation */
+
+            /* ===== (4b) WARM probe: steady-state ISR-on frames, max/min (timer stays ON) ===== */
+            g_h2r_cyc_frame_isr_smax = 0u; g_h2r_cyc_frame_isr_smin = 0xFFFFFFFFu;
+            for (f = 0; f < H2R_STEADY_FR; f++) {
+                const int32_t *xin2 = &chirp[((H2_WARM + 1) + (f % (BENCH_NFR - (H2_WARM + 1)))) * BENCH_FRAME];
+                t0 = bench_cyc_target();
+                h2_fira_frame(xin2, fsb0, fsb1, fsb2, fsb3, fout, xw);
+                t1 = bench_cyc_target();
+                cyc = t1 - t0;
+                if (cyc > g_h2r_cyc_frame_isr_smax) g_h2r_cyc_frame_isr_smax = cyc;
+                if (cyc < g_h2r_cyc_frame_isr_smin) g_h2r_cyc_frame_isr_smin = cyc;
+            }
+
+            /* ===== (3) RATE-BRACKET: CCNT wall around an ISR-on span; rate MEASURED not programmed ===== */
+            cnt0 = g_h2_isr_count;
+            wall0 = bench_cyc_target();
+            for (f = 0; f < H2R_RATE_FR; f++) {
+                const int32_t *xin3 = &chirp[((H2_WARM + 1) + (f % (BENCH_NFR - (H2_WARM + 1)))) * BENCH_FRAME];
+                h2_fira_frame(xin3, fsb0, fsb1, fsb2, fsb3, fout, xw);
+            }
+            wall1 = bench_cyc_target();
+            cnt1 = g_h2_isr_count;
+            h2_isr_stop();
+
+            g_h2r_isr_span_cyc      = wall1 - wall0;             /* RAW CCNT wall (32-bit unsigned diff; span << 4.29s, no wrap) */
+            g_h2r_isr_count_in_span = cnt1 - cnt0;              /* RAW ISR count over EXACTLY that span */
+
+            /* [R30 F30-MINOR-2] FG-B' on-board flag ASSUMES CCLK = H2R_CCLK_HZ (1 GHz class). If the
+             *   real CCLK differs (read it at bring-up, F4/F5 measured 1e9 but VERIFY), the on-board
+             *   flag is REFERENCE ONLY -- re-judge off-board: rate_Hz = count_in_span * trueCCLK /
+             *   span_cyc, then apply the [950,1050] band. RAW span+count are emitted for exactly this.
+             * on-board FG-B' (the one judgment; RAW span+count above let off-board recompute):
+             *   rate_Hz = count_in_span * CCLK_HZ / span_cyc.  Avoid float + 64-bit overflow on target:
+             *   compute milli-Hz via a (CCLK/1000) pre-divide so count*(CCLK/1000) stays well within 32-bit
+             *   for realistic counts (count~tens, CCLK/1000=1e6 -> ~1e8, fits uint32). */
+            if (g_h2r_isr_span_cyc > 0u) {
+                /* milli-Hz = count * CCLK_HZ * 1000 / span_cyc. Done in uint64 to avoid overflow, then
+                 * stored as a 32-bit RAW integer (no float on target). For count~tens-of-thousands and
+                 * CCLK 1e9, count*CCLK*1000 stays well within 64-bit. */
+                uint32_t rate_mhz = (uint32_t)(((uint64_t)g_h2r_isr_count_in_span * (uint64_t)H2R_CCLK_HZ * 1000u)
+                                               / (uint64_t)g_h2r_isr_span_cyc);
+                g_h2r_rate_milli_hz = rate_mhz;
+                g_h2r_fg_rate_in_band =
+                    (rate_mhz >= (H2R_RATE_LO_HZ * 1000u) && rate_mhz <= (H2R_RATE_HI_HZ * 1000u)) ? 1 : 0;
+            } else {
+                g_h2r_fg_rate_in_band = 0;   /* zero span = no measurement = FAIL (never fake green) */
+            }
+        } else {
+            g_h2r_fg_rate_in_band = 0;       /* ISR install failed -> honest FAIL */
+        }
+    }
+    fira_tree_teardown();
+    return 1;
+}
+
 #else  /* desktop / no-FIRA / no board hooks */
 int h2_dma_isr_measure(void)
 {
     /* honest 0: no FIRA + no board DMA/ISR on this host. g_h2_* stay 0/sentinel (FG2, never fake). */
+    return 0;
+}
+int h2r_isr_clean_retest(void)
+{
+    /* honest 0: no FIRA + no board hooks on this host. g_h2r_* stay 0/sentinel (FG2, never fake). */
     return 0;
 }
 #endif

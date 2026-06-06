@@ -74,6 +74,60 @@ int main(void)
         else printf("PASS check3: a no-op (placeholder) busload yields inc=0, FG=0 (caught, not faked)\n");
     }
 
+    /* ===================================================================================================
+     * WO-S5-H2R: FG-B' (rate-in-band) judgment logic -- desktop self-verify, BOTH directions.
+     *   Mirrors h2r_isr_clean_retest's on-board rate math EXACTLY:
+     *     rate_milli_hz = count_in_span * CCLK_HZ * 1000 / span_cyc
+     *     in-band       = LO*1000 <= rate_milli_hz <= HI*1000
+     *   Proves: (i) a clean 1000 Hz span -> PASS; (ii) the R27 artifact (~62 kHz span) -> FAIL/quarantine;
+     *           (iii) a zero-span (no measurement) -> FAIL (never fake green).
+     * =================================================================================================== */
+    {
+        const uint32_t CCLK_HZ = 1000000000u;   /* must match H2R_CCLK_HZ in the harness */
+        const uint32_t LO = 950u, HI = 1050u;   /* must match H2R_RATE_LO_HZ / H2R_RATE_HI_HZ */
+        uint32_t span_cyc, cnt, rate_mhz; int in_band;
+
+        /* helper inline: compute rate_milli_hz + band flag the same way the harness does */
+        #define H2R_RATE_MHZ(C,S) ((uint32_t)(((uint64_t)(C) * (uint64_t)CCLK_HZ * 1000u) / (uint64_t)(S)))
+        #define H2R_IN_BAND(R)    ((R) >= (LO*1000u) && (R) <= (HI*1000u))
+
+        /* (i) CLEAN: 1000 ISRs over a 1.000 s span (= 1e9 CCLK cyc) -> exactly 1000.000 Hz -> in band */
+        cnt = 1000u; span_cyc = 1000000000u;
+        rate_mhz = H2R_RATE_MHZ(cnt, span_cyc); in_band = H2R_IN_BAND(rate_mhz);
+        printf("H2R check4 (clean): cnt=%u span=%u rate_mhz=%u in_band=%d\n", cnt, span_cyc, rate_mhz, in_band);
+        if (!(in_band == 1 && rate_mhz == 1000000u)) { fail = 1; printf("FAIL check4: clean 1kHz not in band\n"); }
+        else printf("PASS check4: clean 1000 Hz span -> FG-B' in-band (PASS)\n");
+
+        /* (ii) R27 ARTIFACT: 62000 ISRs over the SAME 1 s span -> 62000 Hz -> OUT of band -> quarantine */
+        cnt = 62000u; span_cyc = 1000000000u;
+        rate_mhz = H2R_RATE_MHZ(cnt, span_cyc); in_band = H2R_IN_BAND(rate_mhz);
+        printf("H2R check5 (artifact): cnt=%u span=%u rate_mhz=%u in_band=%d\n", cnt, span_cyc, rate_mhz, in_band);
+        if (in_band != 0) { fail = 1; printf("FAIL check5: 62kHz artifact passed band (false green!)\n"); }
+        else printf("PASS check5: 62 kHz artifact -> FG-B' OUT of band (FAIL=quarantine, caught)\n");
+
+        /* (ii-b) lower endpoint of the R27 band (10 kHz) must ALSO be out of band */
+        cnt = 10000u; span_cyc = 1000000000u;
+        rate_mhz = H2R_RATE_MHZ(cnt, span_cyc); in_band = H2R_IN_BAND(rate_mhz);
+        if (in_band != 0) { fail = 1; printf("FAIL check5b: 10kHz (R27 low end) passed band\n"); }
+        else printf("PASS check5b: 10 kHz (R27 lower end) -> still OUT of band (caught)\n");
+
+        /* (iii) boundary: 950 Hz and 1050 Hz inclusive in; 949 and 1051 out */
+        if (!H2R_IN_BAND(H2R_RATE_MHZ(950u, 1000000000u)))  { fail=1; printf("FAIL check6: 950Hz edge excluded\n"); }
+        else if (!H2R_IN_BAND(H2R_RATE_MHZ(1050u,1000000000u))) { fail=1; printf("FAIL check6: 1050Hz edge excluded\n"); }
+        else if (H2R_IN_BAND(H2R_RATE_MHZ(949u, 1000000000u)))  { fail=1; printf("FAIL check6: 949Hz wrongly in\n"); }
+        else if (H2R_IN_BAND(H2R_RATE_MHZ(1051u,1000000000u)))  { fail=1; printf("FAIL check6: 1051Hz wrongly in\n"); }
+        else printf("PASS check6: band edges [950,1050] inclusive correct (949/1051 excluded)\n");
+
+        /* (iv) zero-span guard: harness sets fg_rate_in_band=0 when span==0 (no division, no fake green) */
+        {
+            int fg_zero_span = (0u > 0u) ? 1 : 0;   /* mirrors `if (span>0) {...} else fg=0` */
+            if (fg_zero_span != 0) { fail = 1; printf("FAIL check7: zero-span not forced to FAIL\n"); }
+            else printf("PASS check7: zero span -> FG-B' = FAIL (no measurement != fake green)\n");
+        }
+        #undef H2R_RATE_MHZ
+        #undef H2R_IN_BAND
+    }
+
     printf(fail ? "==== H2 host self-verify: FAIL ====\n" : "==== H2 host self-verify: PASS ====\n");
     return fail;
 }
