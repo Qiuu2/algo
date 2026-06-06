@@ -40,16 +40,32 @@
  *     the cleaner continuous-mode enum is left as a TODO for bring-up to confirm against the installed
  *     adi_tmr.h in CCES 2.12.1. Either way the install/ack/count path is the proven service path.
  *
- * MDMA BUS-LOAD PATH -- [L1-header / board-confirm-usage]:
- *   The MDMA (memory-to-memory) service exists for 2156x and exposes adi_mdma_Copy1D / adi_mdma_CopyList.
- *   PROOF (symbol existence + config, real 21569 BSP):
- *     knowledge_base/ezkit/vendor_docs/cces_examples/code/Power_On_Self_Test/EZ-Board/21569/sharc/system/
- *       services/dma/adi_mdma_config_2156x.h
- *       :27  adi_mdma_Copy1D()   (named in ADI_MDMA_CFG_MSIZE_AUTO doc)
- *       :34  adi_mdma_CopyList() (named in ADI_MDMA_CFG_LIST_MULTIPLE_CALLBACKS_ENABLE doc)
- *       header <services/dma/adi_mdma.h> (the BSP service header that declares these; in CCES SHARC/include).
- *   No example in the local DB CALLS adi_mdma_Copy1D, so the exact ADI_MDMA_HANDLE / open / callback
- *   signatures are board-confirm [board] -- I code the documented shape and flag the line.
+ * MDMA BUS-LOAD PATH -- [L1, adi_mdma_2156x.h, CTO board grep 2026-06-06]:
+ *   The first draft used a single-handle/wrong-include shape that produced 9 CCES 2.12.1 errors. CTO
+ *   grepped the installed C:\...\SHARC\include\services\dma\adi_mdma_2156x.h line-by-line; the real BSP
+ *   contract (all [L1], line numbers below) is a STREAM + two CHANNEL handles, not a single handle:
+ *     include  <services/dma/adi_mdma_2156x.h>          (no-suffix adi_mdma.h does NOT exist)
+ *     :242  ADI_DMA_RESULT (return type, NOT ADI_MDMA_RESULT) ; ADI_DMA_SUCCESS = 0
+ *     :125  ADI_DMA_MSIZE_4BYTES of type ADI_DMA_MSIZE       (my original 4-byte use was correct)
+ *     :69   ADI_DMA_STREAM_HANDLE   (typedef void*)          ; :64 ADI_DMA_CHANNEL_HANDLE
+ *     :56   ADI_DMA_STREAM_REQ_MEMORY = 96u                  (stream memory size; replaces my 256 fallback)
+ *     :88   ADI_DMA_MEMDMA_S0 (ADI_DMA_STREAM_ID enum)       (stream id; replaces bare 0u)
+ *     :269  adi_mdma_Open(ADI_DMA_STREAM_ID, void *pStreamMemory, ADI_DMA_STREAM_HANDLE *phStream,
+ *                         ADI_DMA_CHANNEL_HANDLE *phSrcChannel, ADI_DMA_CHANNEL_HANDLE *phDestChannel,
+ *                         ADI_CALLBACK pfCallback, void *pCBParam)   -- 7 args, strict order
+ *     :293  adi_mdma_Copy1D(ADI_DMA_STREAM_HANDLE hStream, void *pMemDest, void *pMemSrc,
+ *                           ADI_DMA_MSIZE eElementWidth, uint32_t ElementCount)  (dest,src order kept)
+ *     :279  adi_mdma_Close(ADI_DMA_STREAM_HANDLE hStream, bool bWaitFlag)        (2nd arg added)
+ *     :290  adi_mdma_Disable(ADI_DMA_STREAM_HANDLE hStream)  -- abort in-flight transfer (used in stop)
+ *   ADI_CALLBACK type: [board-confirm, R25 F25-MAJOR-1 downgrade from L1-indirect] assumed shape =
+ *     void(void *pCBParam, uint32_t nEvent, void *pArg). What IS proven: TimerDelay.c:28/82 passes a
+ *     function of exactly this signature with NO cast into adi_tmr_Open's ADI_CALLBACK parameter and
+ *     CCES compiles clean -> that proves the ADI_TMR-side callback shape ONLY. Whether adi_mdma's
+ *     pfCallback uses the SAME ADI_CALLBACK typedef has NO local evidence (no adi_callback.h / no
+ *     typedef body / no mdma-side callback type in the offline KB; shared-SSL-framework is a reasonable
+ *     guess, not proof -- historic ADI code has used ADI_DMA_CALLBACK/ADI_MDMA_CALLBACK variants).
+ *     BRING-UP: check the pfCallback formal type name on the real :269 line. h2_bh_mdma_callback uses
+ *     the assumed shape, no cast -- if the real typedef differs, change the SIGNATURE (never cast).
  *   Bus-class justification (proxy honesty) is in h2_dma_isr_measure.c header: MDMA loads the SAME
  *   system crossbar as the SPORT-PDMA path at the SAME aggregate byte rate (H2_DMA_BYTES_PER_S).
  *
@@ -72,8 +88,10 @@
 
 #include <stddef.h>                 /* NULL */
 #include <stdbool.h>
-#include <services/tmr/adi_tmr.h>   /* [L1] adi_tmr_Open/SetWidth/SetDelay/Enable/Close, ADI_TMR_* (TimerDelay.c) */
-#include <services/dma/adi_mdma.h>  /* [board-confirm] adi_mdma_Copy1D/CopyList (named in adi_mdma_config_2156x.h) */
+#include <services/tmr/adi_tmr.h>          /* [L1] adi_tmr_Open/SetWidth/SetDelay/Enable/Close, ADI_TMR_* (TimerDelay.c) */
+#include <services/dma/adi_mdma_2156x.h>  /* [L1, adi_mdma_2156x.h, CTO board grep 2026-06-06] adi_mdma_Open/Copy1D/
+                                           *   Close/Disable, ADI_DMA_* types (no-suffix adi_mdma.h does NOT exist;
+                                           *   that wrong include was the root of the 9 CCES errors). */
 
 /* The harness owns this counter; the timer ISR callback MUST bump it (FG-B cross-check). */
 extern volatile uint32_t g_h2_isr_count;
@@ -112,22 +130,25 @@ static uint32_t  s_bh_dst[H2_BH_BLOCK_WORDS];               /* mem-to-mem destin
 static volatile int s_bh_active = 0;                        /* 1 = stream should keep auto-refilling */
 static uint32_t  s_bh_bytes_per_s = 0u;                     /* requested aggregate rate (bookkeeping only) */
 
-/* MDMA service handle + memory. ADI_MDMA_MEMORY / ADI_MDMA_HANDLE come from <services/dma/adi_mdma.h>.
- * [board-confirm]: the exact memory macro name + open signature are confirmed at bring-up against the
- * installed adi_mdma.h (no local example CALLS the API). Sized generously; bring-up trims. */
-#ifndef ADI_MDMA_MEMORY
-#define ADI_MDMA_MEMORY 256u   /* TODO[bring-up]: real value is in adi_mdma.h; this fallback only keeps
-                                * this TU parseable if the macro name differs. Confirm + replace.
-                                * [R24 F24-MINOR-2] SILENT-FALLBACK GUARD: on the BOARD build this fallback
-                                * being used means the real header did not supply the value -> the service
-                                * memory may be UNDERSIZED (open writes out of bounds). Bring-up MUST verify
-                                * the macro comes from the installed adi_mdma.h, e.g. add next to the board
-                                * hook TU:  #ifdef H2_BH_USED_FALLBACK_MDMA_MEMORY  #error "..."  #endif
-                                * (define the marker in this #ifndef block) or grep the preprocessed output. */
-#define H2_BH_USED_FALLBACK_MDMA_MEMORY 1  /* marker so the board build can #error if fallback active */
+/* MDMA service handles + memory. [L1, adi_mdma_2156x.h, CTO board grep 2026-06-06]:
+ *   ADI_DMA_STREAM_REQ_MEMORY (=96u, :56) sizes the stream memory; ADI_DMA_STREAM_HANDLE (:69) is the
+ *   stream handle; adi_mdma_Open ALSO outputs a source + a destination ADI_DMA_CHANNEL_HANDLE (:64).
+ *   Three handles, not one (the single-handle first draft was the wrong model). */
+#ifndef ADI_DMA_STREAM_REQ_MEMORY
+#define ADI_DMA_STREAM_REQ_MEMORY 96u   /* TODO[bring-up]: real value is in adi_mdma_2156x.h (:56 = 96u).
+                                         * This fallback only keeps the guard-stub parse path alive if the
+                                         * macro name ever differs.
+                                         * [R24 F24-MINOR-2] SILENT-FALLBACK GUARD: if this fallback is live
+                                         * on the BOARD build, the real header did NOT supply the value ->
+                                         * the stream memory may be UNDERSIZED (open writes out of bounds).
+                                         * The H2_BH_USED_FALLBACK_DMA_MEMORY marker below lets the board
+                                         * build #error on it (or grep the preprocessed output). */
+#define H2_BH_USED_FALLBACK_DMA_MEMORY 1  /* marker so the board build can #error if fallback active */
 #endif
-static uint8_t          s_bh_mdma_mem[ADI_MDMA_MEMORY];
-static ADI_MDMA_HANDLE  s_bh_hmdma = NULL;
+static uint8_t                 s_bh_stream_mem[ADI_DMA_STREAM_REQ_MEMORY];
+static ADI_DMA_STREAM_HANDLE   s_bh_hstream = NULL;   /* stream handle (passed to Copy1D/Close/Disable) */
+static ADI_DMA_CHANNEL_HANDLE  s_bh_hsrc    = NULL;   /* source channel handle (open output) */
+static ADI_DMA_CHANNEL_HANDLE  s_bh_hdest   = NULL;   /* destination channel handle (open output) */
 
 /* MDMA done callback: re-issue the next copy so the stream is CONTINUOUS until stop (auto-refill). This
  * is the "persist until stop" contract from hard-rule 2 (one-shot transfer != sustained bus pressure). */
@@ -136,8 +157,8 @@ static void h2_bh_mdma_callback(void *pCBParam, uint32_t nEvent, void *pArg)
     (void)pCBParam; (void)nEvent; (void)pArg;
     if (s_bh_active) {
         /* re-arm the same mem-to-mem block (back-to-back => sustained crossbar load).
-         * [board-confirm] adi_mdma_Copy1D arg order/MSIZE/enum per adi_mdma.h at bring-up. */
-        (void)adi_mdma_Copy1D(s_bh_hmdma, s_bh_dst, s_bh_src,
+         * [L1, adi_mdma_2156x.h:293] Copy1D(hStream, dest, src, msize, count). */
+        (void)adi_mdma_Copy1D(s_bh_hstream, s_bh_dst, s_bh_src,
                               ADI_DMA_MSIZE_4BYTES, H2_BH_BLOCK_WORDS);
     }
 }
@@ -145,30 +166,37 @@ static void h2_bh_mdma_callback(void *pCBParam, uint32_t nEvent, void *pArg)
 int h2_busload_start(uint32_t bytes_per_s)
 {
     uint32_t i;
-    ADI_MDMA_RESULT r;        /* [board-confirm] result enum from adi_mdma.h */
+    ADI_DMA_RESULT r;        /* [L1, adi_mdma_2156x.h:242] ADI_DMA_RESULT (not ADI_MDMA_RESULT) */
 
     s_bh_bytes_per_s = bytes_per_s;     /* recorded only (RAW; no rate-vs-cycles math here -- C9) */
 
     /* init payload (any pattern; content is irrelevant to bus arbitration) */
     for (i = 0; i < H2_BH_BLOCK_WORDS; i++) s_bh_src[i] = 0xA5A5A5A5u + i;
 
-    /* open the MDMA stream. [board-confirm] exact open signature per adi_mdma.h.
-     * MDMA stream id 0 is the conventional first mem-to-mem stream. */
-    r = adi_mdma_Open(0u, s_bh_mdma_mem, ADI_MDMA_MEMORY,
-                      h2_bh_mdma_callback, NULL, &s_bh_hmdma);
-    if (r != ADI_MDMA_SUCCESS) {
-        s_bh_hmdma = NULL;
+    /* open the MDMA stream. [L1, adi_mdma_2156x.h:269] 7-arg order:
+     *   (eStreamID, pStreamMemory, &hStream, &hSrcChannel, &hDestChannel, pfCallback, pCBParam).
+     * [board-confirm-CRITICAL, R25 F25-BLOCKER-1] PARAM-COUNT CONTRADICTION UNRESOLVED: the CTO dispatch
+     *   TEXT said "8 args, strict order" but the dispatch's own listed signature has SEVEN parameters
+     *   (counted above). This call implements 7 per the listed signature -- the "8" may be a dispatch
+     *   typo OR the real :269 line may have an omitted parameter (e.g. an nMemSize after pStreamMemory).
+     *   The guard-stub CANNOT falsify this (the stub mock was written from the same 7-arg intel = same-
+     *   source self-proof). BRING-UP STEP ZERO: open the real adi_mdma_2156x.h, COUNT the :269 formal
+     *   parameters. If 8: add the omitted arg here AND in guard_stub_inc/services/dma/adi_mdma_2156x.h. */
+    r = adi_mdma_Open(ADI_DMA_MEMDMA_S0, s_bh_stream_mem, &s_bh_hstream,
+                      &s_bh_hsrc, &s_bh_hdest, h2_bh_mdma_callback, NULL);
+    if (r != ADI_DMA_SUCCESS) {
+        s_bh_hstream = NULL; s_bh_hsrc = NULL; s_bh_hdest = NULL;
         return 1;   /* honest non-zero: no fake load -> harness FG-A reads 0 (BLOCKER), never faked */
     }
 
     s_bh_active = 1;
     /* kick the first copy; the done-callback re-arms continuously until h2_busload_stop. */
-    r = adi_mdma_Copy1D(s_bh_hmdma, s_bh_dst, s_bh_src,
+    r = adi_mdma_Copy1D(s_bh_hstream, s_bh_dst, s_bh_src,
                         ADI_DMA_MSIZE_4BYTES, H2_BH_BLOCK_WORDS);
-    if (r != ADI_MDMA_SUCCESS) {
+    if (r != ADI_DMA_SUCCESS) {
         s_bh_active = 0;
-        (void)adi_mdma_Close(s_bh_hmdma);
-        s_bh_hmdma = NULL;
+        (void)adi_mdma_Close(s_bh_hstream, true);   /* [L1:279] Close(hStream, bWaitFlag) */
+        s_bh_hstream = NULL; s_bh_hsrc = NULL; s_bh_hdest = NULL;
         return 1;
     }
     return 0;
@@ -176,10 +204,24 @@ int h2_busload_start(uint32_t bytes_per_s)
 
 void h2_busload_stop(void)
 {
-    s_bh_active = 0;                       /* stop the auto-refill first (callback sees this, won't re-arm) */
-    if (s_bh_hmdma != NULL) {
-        (void)adi_mdma_Close(s_bh_hmdma);  /* aborts any in-flight work unit + frees the stream */
-        s_bh_hmdma = NULL;
+    /* STOP SEQUENCE (ruling): three ordered steps so no in-flight transfer hangs ---
+     *   1) s_bh_active = 0  -- the done-callback observes this and will NOT re-arm the next copy
+     *      (otherwise Disable/Close could race a freshly re-issued work unit).
+     *   2) adi_mdma_Disable(hStream)  [L1, adi_mdma_2156x.h:290]  -- abort the in-flight work unit so
+     *      the engine is quiescent BEFORE Close. Without this, Close(bWaitFlag=true) on a continuous
+     *      back-to-back stream could wait on a unit that the callback keeps feeding (hang risk).
+     *   3) adi_mdma_Close(hStream, true)  [L1:279]  -- with the stream already disabled, bWaitFlag=true
+     *      drains/frees cleanly and cannot hang (nothing left to wait on).
+     * [R25 F25-MINOR-1] BARRIER ASSUMPTION, stated: step-1 vs a concurrently-running callback is
+     *   synchronized by volatile ONLY -- sufficient on single-core SHARC (callback runs in interrupt
+     *   context, this stop runs at task level; no cross-core visibility issue), and the one narrow
+     *   window (callback already past the active-check, re-issuing one last Copy1D) is covered by
+     *   step-2 Disable aborting queued work. A multi-core port would need an explicit barrier here. */
+    s_bh_active = 0;
+    if (s_bh_hstream != NULL) {
+        (void)adi_mdma_Disable(s_bh_hstream);     /* [L1:290] abort in-flight transfer first */
+        (void)adi_mdma_Close(s_bh_hstream, true); /* [L1:279] then drain + free the stream */
+        s_bh_hstream = NULL; s_bh_hsrc = NULL; s_bh_hdest = NULL;
     }
 }
 

@@ -32,10 +32,14 @@ fi
 overall=0
 for f in "${FILES[@]}"; do
     echo "[guard-check] $(basename "$f"): compiling TARGET-guarded region on desktop (mock BSP)..."
-    # -Werror=implicit-function-declaration: a misspelled BSP symbol (e.g. adi_tmr_Enabl) is an
-    #   implicit-declaration under C and would otherwise only warn -> promote to a hard FAIL so the
-    #   falsifier catches symbol typos too (not just R16 declaration-order). Both break classes proven.
-    gcc -fsyntax-only -Wall -Wextra -Werror=implicit-function-declaration \
+    # Promote the symbol/type-integrity warning classes to hard errors so the falsifier catches them:
+    #   -Werror=implicit-function-declaration : misspelled BSP symbol (e.g. adi_tmr_Enabl) -> FAIL.
+    #   -Werror=int-conversion / =incompatible-pointer-types : a WRONG HANDLE TYPE (e.g. stream handle
+    #     declared int, or src/dest channel handle confused) only warns by default -> promote so the
+    #     R24->R25 STREAM+CHANNEL handle-model rewrite is actually enforced, not silently mistyped.
+    gcc -fsyntax-only -Wall -Wextra \
+        -Werror=implicit-function-declaration \
+        -Werror=int-conversion -Werror=incompatible-pointer-types \
         -DFIRA_USE_REAL_ADI_FIR_HEADER -DTARGET_SHARC \
         "${INC[@]}" "$f"
     rc=$?
