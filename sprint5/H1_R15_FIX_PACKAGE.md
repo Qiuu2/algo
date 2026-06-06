@@ -48,7 +48,7 @@ h1_state_restore(); t0=bench_cyc_target(); crc=h1_fira_frame(...); t1=...;  /* r
 ## 3. MAC 2x DISCREPANCY — RESOLVED (CTO priority, BEFORE re-run interpretation)
 
 ### (a) TRUE subband sample counts + true MAC/MMAC of the harness focus stage
-Source (fira_tree.c:49-52, F4/F5 sizing fira_regression.c:193): the dyadic tree's 4 subbands per
+Source (fira_regression.c:195 sz[] entity / h1_wcet_measure.c:235 [R33 anchor fix: fira_tree.c:49-52 was a saturating-arith helper, mis-cited], F4/F5 sizing fira_regression.c:193): the dyadic tree's 4 subbands per
 64-sample frame are
 ```
 sb0 (coarse @f3) = frame/8 = 8     sb1 (detail @f2) = frame/4 = 16
@@ -144,7 +144,7 @@ sb2 (detail @f1) = frame/2 = 32     sb3 (detail @f0) = frame   = 64   (UNDECIMAT
   （restore 在计时 span 外）；identity 现 == nofocus 逐位（true continuity）；A/B 现 same-state（方法学 delta：
   re-run 数取代 quarantined）。+ D-cache invalidate（flush_data_buffer，A5 符号）→ true-cold-DATA WCET
   （I-cache 仍暖=C10 板项，I 侧符号 TBD；仍系统 WCET 下界）。
-- **MAC-2x 发现/校正**：harness 真 sz[]=120 samp/frame/ch（sb3 未抽取，fira_tree.c:49-52）=真 5.76 MMAC/s；
+- **MAC-2x 发现/校正**：harness 真 sz[]=120 samp/frame/ch（sb3 未抽取，fira_regression.c:195 / h1_wcet_measure.c:235 [R33 改锚]）=真 5.76 MMAC/s；
   cost-model 2.88 误设 60 samp=2x 低。「EXACTLY 2.88」claim 撤（R14 验公式未验 sz[]）。envelope 重标
   86-144→**173-288 MCPS [L4]**（5.76×30-50 cyc/MAC）。yardstick：board cyc ←→ 173-288。
 - **产品成本 FLAG（不静默改 DEC-S5）**：产品聚焦同作用 120-samp 子带→真成本 ~5.76 MMAC 级→DEC-S5-V1-SCOPE-01

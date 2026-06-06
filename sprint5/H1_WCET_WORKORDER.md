@@ -29,7 +29,7 @@
 ### 2.1 聚焦 FIR 选择 + MAC 校正（critic R15，CTO-flagged 2x）
 - 实现 = **8-tap 分数延迟 FIR，per-subband（4 子带）per-channel**，作用在 analyze 输出的 4 子带（analyze 与
   synthesize 之间）。
-- **真 MMAC（R15 校正）**：真子带 sample 数/帧（源 fira_tree.c:49-52）= sb0/8 + sb1/16 + sb2/32 + sb3/64 =
+- **真 MMAC（R15 校正）**：真子带 sample 数/帧（源 fira_regression.c:195 / h1_wcet_measure.c:235 [R33 改锚: 原标 fira_tree.c:49-52 实为饱和算术 helper, 错引]）= sb0/8 + sb1/16 + sb2/32 + sb3/64 =
   **120 samp/帧/ch**（sb3 未抽取，sb3[i]=in[i]-r1[i]）→ 子带率和 = 120×750 = **90 kHz**（非 45kHz）。
   8 tap × 120 samp × 8 ch × 750 fps = **5.76 MMAC/s**（非 2.88）。
 - **校正留痕**：原「EXACTLY 2.88 MMAC/s」**错 2x**——cost-model 2.88 误设 60 samp/帧（45kHz）；真树 120 samp
