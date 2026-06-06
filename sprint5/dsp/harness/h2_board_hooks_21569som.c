@@ -125,8 +125,23 @@ extern volatile uint32_t g_h2_isr_count;
  * block as the FIRA working set (s_h2_fa) -- otherwise inc_dma measures self-conflict (an artifact the
  * product does not have) instead of crossbar contention. Check the .map placement BEFORE interpreting
  * any board reading. */
-static uint32_t  s_bh_src[H2_BH_BLOCK_WORDS];               /* mem-to-mem source (off-stack, like s_h2_fa) */
-static uint32_t  s_bh_dst[H2_BH_BLOCK_WORDS];               /* mem-to-mem destination */
+/* [R26 CLOSURE of the R24 gate] CTO .map.xml proved all three (src/dst/s_h2_fa) landed in ONE L1
+ * Block 0 (mem_block0_bw 0x2403f0..0x26ffff, app.ldf:144) -> inc_dma would have measured Block-0
+ * self-conflict (an artifact). Fix: pin src/dst to L1 Block 1 (seg_l1_block1 -> mem_block1_bw,
+ * 0x2c0000.., app.ldf:151/460) -- the EXACT pragma+section ADI's own 2156x FIRA/IIRA examples use
+ * for their (uninitialized) accelerator-DMA buffers (IIR_Throughput_21569_V2.c:23-30). s_h2_fa
+ * stays in Block 0 (unpragma'd) so the baseline and A/B subtraction purity are unchanged.
+ * [F26-MAJOR-1] Block 1 = same-ARBITRATION-CLASS proxy (peer L1 block on the same DM crossbar),
+ * NOT proven identical-segment with the product SPORT buffers (their L1-vs-L2 tier has no local
+ * evidence) -- before declaring the measured contention "product-representative", check the SPORT
+ * RX/TX buffer .map placement at bring-up.
+ * [F26-MAJOR-2] desktop gcc IGNORES `#pragma section` (-Wunknown-pragmas, harmless, guard-check
+ * stays green); placement only takes effect in the CCES board build and is verified by RE-READING
+ * the new .map (src/dst >= 0x2c0000, s_h2_fa < 0x270000), NOT by guard-check. Do NOT #ifdef-wrap. */
+#pragma section("seg_l1_block1")
+static uint32_t  s_bh_src[H2_BH_BLOCK_WORDS];               /* mem-to-mem source -> L1 Block 1 */
+#pragma section("seg_l1_block1")
+static uint32_t  s_bh_dst[H2_BH_BLOCK_WORDS];               /* mem-to-mem destination -> L1 Block 1 */
 static volatile int s_bh_active = 0;                        /* 1 = stream should keep auto-refilling */
 static uint32_t  s_bh_bytes_per_s = 0u;                     /* requested aggregate rate (bookkeeping only) */
 

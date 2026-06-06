@@ -123,6 +123,12 @@ project: 把 `h2_dma_isr_measure.c` + `h2_board_hooks_<board>.c` 加进 FIRA bui
 **off-board 算（C9，连体 sec-8 呈现）**：io = inc_dma×750/1e6；irq = inc_isr×750/1e6；
 WCET 争用乘子 = both_max/base。三者 [L1] 替换 sec-8 [L3] 估值；I-cache cold 仍 [L3/L4] 待 C10。
 
+**【R26 落置裁定后的解读边界（F26-MAJOR-1）】**：proxy 缓冲已 pragma 钉 L1 Block 1（src/dst/fa 同
+Block 0 自冲突假象已修，判定见 sprint5/audit/H2_MAP_PLACEMENT_ADJUDICATION.md）。但 Block 1 =
+**same-arbitration-class proxy**（同 DM crossbar 的 peer L1 block），**非** identical-segment 实证
+（产品 SPORT RX/TX 缓冲落 L1 还是 L2 本地无证据）——声明 inc_dma 为「产品-representative 争用」前，
+须 bring-up 核 SPORT 缓冲的 .map 落块；在那之前 inc_dma 解读为「同仲裁类总线争用增量」。
+
 ## 6. 阈值灵敏度（CTO 要：板上要显示什么才把 worst 抬过 1.5x）— python 双核
 
 公式：`margin_worst = 1000 / (347.45[L1核] + 49.03[L1 focus] + O1 + io + irq + WCET_contention + I_cold)`
