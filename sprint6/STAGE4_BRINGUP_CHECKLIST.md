@@ -24,6 +24,11 @@
       （来源：R25——guard-check 结构性测不出 7v8）
 - [ ] **A5 callback typedef 跨服务不外推**：A 服务的 callback 形状证明不了 B 服务用同一 typedef
       （adi_tmr 证明不了 adi_mdma）。异 typedef 时改签名，**永不强转**。（来源：R25 F25-MAJOR-1）
+- [ ] **A6 手编工程 XML 后必跑 parser 验合法性**：.project/.cproject/system.svc 是 Eclipse XML，
+      手编（改名/删 link/加注释）后必须 `python3 -c "import xml.etree.ElementTree as ET; ET.parse('<f>')"`
+      验合法——⚠ **XML 注释内禁止 `--`（双连字符）**，否则 Eclipse 导入报「project description file is
+      corrupted」。这是 CCES 工程组装的静默杀手（桌面 guard-stub 验不了工程 XML，只验 .c）。
+      （来源：2026-06-08 .project hotfix——dsp 组装注释里 `tree -- 'CCES'` 破坏 XML，CTO 导入即报 corrupted）
 
 ## B. 内存放置/效度类（R24/R26——差点把自冲突假象当争用实测入账）
 
