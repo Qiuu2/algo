@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>M1_Loopback</name>
+	<comment></comment>
+	<projects>
+	</projects>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.cdt.managedbuilder.core.genmakebuilder</name>
+			<triggers>clean,full,incremental,</triggers>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>org.eclipse.cdt.managedbuilder.core.ScannerConfigBuilder</name>
+			<triggers>full,incremental,</triggers>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>com.analog.crosscore.managedbuilder.core.cleanbuilder</name>
+			<triggers>clean,</triggers>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>com.analog.crosscore.deviceprogrammer.deviceprogrammerbuilder</name>
+			<triggers>auto,full,incremental,</triggers>
+			<arguments>
+			</arguments>
+		</buildCommand>
+	</buildSpec>
+	<natures>
+		<nature>org.eclipse.cdt.core.cnature</nature>
+		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
+		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
+		<nature>com.analog.crosscore.managedbuilder.core.CCESProjectNature</nature>
+	</natures>
+	<!-- M1 assembly note: ALT's src/ files were VIRTUAL links to a sibling ../src/. In this assembled
+	     project src/ is a REAL folder with the M1 sources physically present (m1_main.c / m1_sru.c /
+	     m1_softconfig.c / m1_cyc.c / m1_loopback_tdm.c + .h + ADAU_*Common.h) -> NO per-file <link> needed;
+	     the .cproject sourcePath auto-discovers them. ALT's main file (Audio_Loopback_TDM.c) is NOT present
+	     -> no duplicate main() symbol. ONLY the CCES driver-source links are kept (they pull the SPORT/TWI/
+	     PDMA/SPU driver .c bodies from the install tree -- 'CCES' is the CCES_HOME path variable). -->
+	<linkedResources>
+		<link>
+			<name>system/drivers/sport/adi_sport.c</name>
+			<type>1</type>
+			<locationURI>CCES/SHARC/lib/src/drivers/Source/sport/adi_sport.c</locationURI>
+		</link>
+		<link>
+			<name>system/drivers/twi/adi_twi.c</name>
+			<type>1</type>
+			<locationURI>CCES/SHARC/lib/src/drivers/Source/twi/adi_twi.c</locationURI>
+		</link>
+		<link>
+			<name>system/services/pdma/adi_pdma_2156x.c</name>
+			<type>1</type>
+			<locationURI>CCES/SHARC/lib/src/services/Source/pdma/adi_pdma_2156x.c</locationURI>
+		</link>
+		<link>
+			<name>system/services/spu/adi_spu.c</name>
+			<type>1</type>
+			<locationURI>CCES/SHARC/lib/src/services/Source/spu/adi_spu.c</locationURI>
+		</link>
+	</linkedResources>
+</projectDescription>
