@@ -49,4 +49,13 @@ extern volatile uint32_t g_m1_max_abs_sample;     /* peak |RX sample| seen (FG: 
 extern volatile int      g_m1_fg_stream_live;     /* 1 = blocks grew AND non-zero audio seen; 0 = FAIL; -99 not-run */
 extern volatile int      g_m1_valid;              /* 1 = ran on board w/ codec+SPORT; 0 = desktop/no-board */
 
+/* ---- M2 (FIRA beam in-loop) raw readouts -- WO-S6-M2 (DEC-S6-M2-ARCH-01). Defined in BOTH builds;
+ *      on the M1 transparent build (M2_FIRA_INLOOP=0) they stay 0/sentinel (FIRA never ran). ---- */
+extern volatile int      g_m2_fira_inloop;        /* 1 = built with FIRA beam in-loop; 0 = M1 passthrough */
+extern volatile int      g_m2_setup_rc;           /* fira_tree_setup() rc (0=ok); -99 not-run/M1-build */
+extern volatile uint32_t g_m2_out_nonzero;        /* count of non-zero FIRA TX output samples (FG: beam alive) */
+extern volatile uint32_t g_m2_out_max_abs;        /* peak |FIRA TX output sample| (FG: silent-beam detector) */
+extern volatile int      g_m2_fg_beam_live;       /* 1 = blocks grew AND FIRA output non-zero; 0 = FAIL; -99 not-run */
+extern volatile int      g_m2_valid;              /* 1 = ran on board w/ FIRA beam in-loop; 0 = M1/desktop */
+
 #endif /* M1_LOOPBACK_TDM_H */

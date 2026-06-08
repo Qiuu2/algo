@@ -23,6 +23,11 @@ FILES=( "$PDIR/src/m1_main.c" "$PDIR/src/m1_sru.c" "$PDIR/src/m1_softconfig.c"
         "$PDIR/src/m1_cyc.c" "$ADIR/m1_loopback_tdm.c" )
 [ "$#" -gt 0 ] && FILES=( "$@" )
 
+# [WO-S6-M2] frozen FIRA call-surface header dirs -- ONLY for the M2 variant of the loopback module
+#   (read-only; M2 calls fira_tree.h, never edits). The other TUs do not use FIRA.
+FIRA="$ROOT/sprint4/dsp/fira"; CORE="$ROOT/sprint4/dsp/core_only/src"; CINC="$ROOT/sprint4/dsp/core_only/include"
+INC_M2=( "${INC[@]}" -I"$FIRA" -I"$CORE" -I"$CINC" )
+
 overall=0
 for f in "${FILES[@]}"; do
     echo "[guard-check] $(basename "$f"): compiling BOARD-guarded region on desktop (mock BSP)..."
@@ -39,4 +44,20 @@ for f in "${FILES[@]}"; do
         overall=1
     fi
 done
+
+# [WO-S6-M2] additionally compile the loopback module in the M2 FIRA build (M2_FIRA_INLOOP=1) so the
+#   project-wide harness covers BOTH datapaths. Frozen FIRA headers added read-only; both must PASS.
+echo "[guard-check] m1_loopback_tdm.c (M2_FIRA_INLOOP=1): FIRA beam datapath..."
+gcc -fsyntax-only -Wall -Wextra -Wno-main \
+    -Werror=implicit-function-declaration \
+    -Werror=int-conversion -Werror=incompatible-pointer-types \
+    -DM1_TARGET_BOARD -DTARGET_SHARC -DM2_FIRA_INLOOP=1 \
+    "${INC_M2[@]}" "$ADIR/m1_loopback_tdm.c"
+rc=$?
+if [ $rc -eq 0 ]; then
+    echo "[guard-check]   PASS (m1_loopback_tdm.c M2-FIRA)."
+else
+    echo "[guard-check]   FAIL (m1_loopback_tdm.c M2-FIRA: compile error above)."
+    overall=1
+fi
 exit $overall

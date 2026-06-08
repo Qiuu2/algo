@@ -38,6 +38,50 @@
 #include <stdint.h>
 #include "m1_loopback_tdm.h"
 
+/* ============================================================================================
+ * WO-S6-M2 FIRA BEAM IN-LOOP (broadside v1, DEC-S6-M2-ARCH-01, CTO 5 openings, 2026-06-08)
+ * ------------------------------------------------------------------------------------------
+ * COMPILE SWITCH M2_FIRA_INLOOP selects the callback datapath WITHOUT losing M1's board-PASS:
+ *   #if M2_FIRA_INLOOP -> callback does 1 mono RX frame -> 8ch FIRA broadside beam -> 8 TX slots.
+ *   #else (default)    -> the unchanged M1 fan-out 1->8 passthrough (M1 board-PASS path, R37/R38).
+ * Same project builds M1(transparent) or M2(FIRA) by defining/not-defining M2_FIRA_INLOOP.
+ *
+ * FIVE LOCKED OPENINGS (CTO, do not re-open):
+ *   (1) granularity = whole-frame rebuild: per-frame 64-sample RX -> 8ch FIRA -> 8-slot interleave TX.
+ *   (2) buffer pin = L1 Block 1: FIRA working set s_m2_fa + SPORT buffers s_m1_rx_buf/s_m1_tx_buf
+ *       pinned to seg_l1_block1 (away from Block 0; R24 self-conflict lesson). See .ldf + pragmas below.
+ *   (3) O1 EQ = NOT in M2 (minimal path).
+ *   (4) beam weight = broadside (+0): input-scale Dolph Q15 weight only (already in the core), NO
+ *       frac-delay focusing (focusing deferred to v2). Mirrors the H2 8ch frame model
+ *       (h2_dma_isr_measure.c:115-120): per ch xw = w*xin (Q15 x Q31 >> 15) -> analyze -> synthesize,
+ *       8 ch independent, NO cross-channel sum (product = 8 DACs, acoustic superposition).
+ *   (5) Q boundary = ZERO-TRANSFORM identity: 24-bit left-aligned IS legal Q31 (R46 bit-exact run
+ *       evidence), RX/TX with NO shift / NO mask. board-confirm SPORT alignment (HRM + g_m1_rx_buf
+ *       dump); if RIGHT-aligned -> RX<<8 / TX>>8 (R46 mechanical discriminant). See M2_Q_BOUNDARY note.
+ *
+ * FROZEN ZERO-TOUCH (M2 only CALLs these; never edits): tree_filterbank.c / tfb_8ch.c / fira_tree.c /
+ *   golden_ref.h / chirp_input.h / fir_coeffs_hb63.h / sprint4 .ldf. M2 calls fira_tree.h entry points
+ *   (fira_tree_setup/tfb_set_coeffs/fira_channel_init x8 init; per-frame per-ch fira_tfb_analyze->
+ *   synthesize) -- the SAME call sequence as the H2 harness (h2_dma_isr_measure.c:138-150,115-120).
+ *   PROJECT WIRING (board/import, NOT a code edit): the M2 build must add the sprint4 include dirs
+ *   (dsp/fira, dsp/core_only/src, dsp/core_only/include, dsp/core_only/bench) and LINK the frozen
+ *   sources fira_tree.c / tree_filterbank.c / tfb_8ch.c. This is an import-time .cproject/source-link
+ *   step (CTO action list), kept OUT of this TU so M1's transparent build needs none of it.
+ * ============================================================================================ */
+#ifndef M2_FIRA_INLOOP
+#define M2_FIRA_INLOOP 0          /* default 0 = M1 transparent passthrough (board-PASS path preserved) */
+#endif
+
+#if M2_FIRA_INLOOP
+/* M2 build pulls the frozen FIRA orchestration + core + weights (read-only call surface). Guarded so the
+ * M1 transparent build (M2_FIRA_INLOOP=0) carries NONE of these includes and stays byte-clean. */
+#include "fira_tree.h"           /* [frozen, call-only] FiraChannelState, fira_tree_setup/channel_init,
+                                  *  fira_tfb_analyze/synthesize, fira_tree_teardown (sprint4/dsp/fira) */
+#include "tree_filterbank.h"     /* [frozen, call-only] tfb_set_coeffs (core golden Q15 coeff inject) */
+#include "fir_coeffs_hb63.h"     /* [frozen, read-only]  g_hb63_q15, FIR_HB63_NTAPS */
+#include "dolph_w8_q15.h"        /* [frozen, read-only]  g_dolph_w8_q15[8], DOLPH_W8_NCH (broadside taper) */
+#endif
+
 /* ---- COMPILE-TIME spec lock (DEC-S6-M1-ARCH-01): catch a four-opening regression at build, not runtime.
  *   A negative array size triggers a compile error if any locked geometry drifts. (C89-portable assert.) */
 typedef char M1_ASSERT_BLOCKRATE_750[(M1_FS_HZ / M1_FRAME == 750u) ? 1 : -1];
@@ -56,6 +100,15 @@ volatile uint32_t g_m1_nonzero_samples = 0u;
 volatile uint32_t g_m1_max_abs_sample  = 0u;
 volatile int      g_m1_fg_stream_live  = -99;
 volatile int      g_m1_valid           = 0;
+
+/* ---- M2 raw readouts (idle reads only; raw -- C9). Defined in BOTH builds so a debugger always finds
+ *      the symbol; on the M1 transparent build they stay at their honest 0/sentinel (FIRA never ran). ---- */
+volatile int      g_m2_fira_inloop      = M2_FIRA_INLOOP; /* 1 = built with FIRA beam in-loop; 0 = M1 passthrough */
+volatile int      g_m2_setup_rc         = -99;            /* fira_tree_setup() rc (0=ok); -99 not-run/M1-build */
+volatile uint32_t g_m2_out_nonzero      = 0u;             /* count of non-zero FIRA TX output samples (FG: beam alive) */
+volatile uint32_t g_m2_out_max_abs      = 0u;             /* peak |FIRA TX output sample| (FG: silent beam detector) */
+volatile int      g_m2_fg_beam_live     = -99;            /* 1 = blocks grew AND FIRA output non-zero; 0 = FAIL; -99 not-run */
+volatile int      g_m2_valid            = 0;              /* 1 = ran on board with FIRA beam in-loop; 0 = M1/desktop */
 
 #if defined(M1_TARGET_BOARD) && defined(TARGET_SHARC)
 
@@ -94,11 +147,37 @@ extern void ConfigSoftSwitches_ADAU_Reset(void);
 
 /* ---- file-scope state: ALL decls at TOP (R16 declaration-order discipline) ---- */
 
-/* ping-pong DMA buffers (opening 4: default L1 Block 0, uncached -> coherency-free; M1 no-pin).
- * RX = 1 captured slot/frame (512B over 2 halves); TX = 8 slots/frame (4096B over 2 halves). Separate
- * sizes -- DRAFT-DIFF: pre-arch draft used one 2048-word block for both; corrected to per-direction. */
-static int32_t s_m1_rx_buf[2][M1_RX_HALF_WORDS];   /* ADC RX ping-pong (1 slot x 64 = 64 words/half) */
-static int32_t s_m1_tx_buf[2][M1_TX_HALF_WORDS];   /* DAC TX ping-pong (8 slot x 64 = 512 words/half) */
+/* ping-pong DMA buffers.
+ *   M1 transparent build (M2_FIRA_INLOOP=0): opening-4 default = L1 Block 0, uncached -> coherency-free,
+ *     no FIRA working set in the build -> NO Block-0 self-conflict (M1 no-pin, R34 ROUTE-A4-1).
+ *   M2 FIRA build (M2_FIRA_INLOOP=1, OPENING-2): the FIRA working set s_m2_fa now lives in the build.
+ *     To avoid the R24 intra-Block-0 single-port self-conflict (SPORT-PDMA vs core FIRA accesses in ONE
+ *     L1 block), pin BOTH SPORT buffers to L1 Block 1 via seg_l1_block1 -- the same pragma+section ADI's
+ *     own FIRA/IIRA accelerator examples use for accelerator-DMA buffers (bsp/app_notes/fira_accel_code/
+ *     .../FIR_Throughput_21569.c:23 / IIR_Throughput_21569_V2.c:23, [L1] proven; H2_MAP_PLACEMENT_
+ *     ADJUDICATION.md:103-117). s_m2_fa is pinned to the SAME seg_l1_block1 below, so SPORT buffers and
+ *     the FIRA set are CO-resident in Block 1 and DISJOINT from Block 0 (heap/stack/code). The intra-block
+ *     single-port note: Block-1 RX/TX + FIRA share Block 1, but the product contention we must avoid is
+ *     DMA-vs-FIRA across Block 0 (R24); board .map re-read confirms the actual placement (gap below).
+ *   RX = 1 captured slot/frame (512B over 2 halves); TX = 8 slots/frame (4096B over 2 halves). */
+#if M2_FIRA_INLOOP
+#pragma section("seg_l1_block1")
+static int32_t s_m1_rx_buf[2][M1_RX_HALF_WORDS];   /* ADC RX ping-pong -> L1 Block 1 (M2 pin, OPENING-2) */
+#pragma section("seg_l1_block1")
+static int32_t s_m1_tx_buf[2][M1_TX_HALF_WORDS];   /* DAC TX ping-pong -> L1 Block 1 (M2 pin, OPENING-2) */
+#else
+static int32_t s_m1_rx_buf[2][M1_RX_HALF_WORDS];   /* ADC RX ping-pong (M1: default Block 0, no-pin) */
+static int32_t s_m1_tx_buf[2][M1_TX_HALF_WORDS];   /* DAC TX ping-pong (M1: default Block 0, no-pin) */
+#endif
+
+/* M2 FIRA per-channel working set (8 ch broadside). static off-stack (R37 FIX2 stack discipline -- a
+ * FiraChannelState[8] is ~18KB, must NEVER live on the callback stack). Pinned to L1 Block 1 alongside
+ * the SPORT buffers (OPENING-2). Cross-frame history (62 samp/seg x 9 segs/ch) persists between frames,
+ * so this is file-scope persistent, advanced by fira_tfb_analyze/synthesize each frame. */
+#if M2_FIRA_INLOOP
+#pragma section("seg_l1_block1")
+static FiraChannelState s_m2_fa[DOLPH_W8_NCH];     /* FIRA working set -> L1 Block 1 (M2 pin, OPENING-2) */
+#endif
 
 static ADI_PDMA_DESC_LIST s_m1_rx_desc[2];         /* RX descriptor ring (circular) */
 static ADI_PDMA_DESC_LIST s_m1_tx_desc[2];         /* TX descriptor ring (circular) */
@@ -172,11 +251,90 @@ static void m1_twi_w8(uint8_t reg, uint8_t val)
     (void)adi_twi_Write(s_m1_htwi, s_m1_twi_txbuf, 2u, false);
 }
 
-/* ---- RX-buffer-processed callback: fan-out 1->8 passthrough + io-callback CCNT probe + FG audio scan.
- *   io-callback probe: the CCNT bracket measures the io item-1 "codec/IO DMA" CORE cost the H2 MDMA proxy
- *   could NOT measure -> turns the [L3] io-callback ~30 allowance into an [L1] number. RAW only (C9).
- *   FAN-OUT (opening 2): RX has 1 slot/frame (mono). Copy that ONE sample to ALL 8 TX slots of the same
- *   frame. DRAFT-DIFF: pre-arch draft did a 4->8 (i+=4,j+=8) copy; corrected to 1->8 mono. */
+#if M2_FIRA_INLOOP
+/* ============================================================================================
+ * M2 Q-BOUNDARY NOTE (OPENING-5, board-confirm) -- the one place RX int32 meets FIRA Q31, and back.
+ * ------------------------------------------------------------------------------------------
+ * M1 audio word = 24-bit codec data in a 32-bit SPORT slot (ADC SAI_CTRL1 DATA_WIDTH=0=24-bit,
+ *   SPORT ConfigData DTYPE_SIGN_FILL 31 -> sign-filled to bit31). FIRA core arithmetic = Q31
+ *   (tree_filterbank.h: coeff Q15, state/intermediate Q31). OPENING-5 = ZERO-TRANSFORM identity:
+ *   a 24-bit LEFT-aligned sample IS a legal Q31 value (high 24 bits significant, low 8 bits zero =
+ *   a coarser-LSB Q31). So RX feeds FIRA with NO shift / NO mask, and FIRA Q31 output writes the TX
+ *   slot with NO shift / NO mask (the DAC takes the high 24 bits). R46 = bit-exact run evidence that
+ *   left-aligned == legal Q31.
+ *
+ *   *** BOARD-CONFIRM (must verify on the bench, NOT assumable on desktop) ***
+ *   The identity holds ONLY IF the SPORT delivers/consumes LEFT-aligned (MSB-justified) samples.
+ *   DTYPE_SIGN_FILL 31 strongly implies left-align, but the HRM + a g_m1_rx_buf dump are the proof.
+ *   R46 MECHANICAL DISCRIMINANT (run on board): dump g_m1_rx_buf with a known mid-scale input.
+ *     - If the low 8 bits are ~0 and the magnitude sits in the high 24 bits -> LEFT-aligned ->
+ *       zero-transform is correct (this code as-is).
+ *     - If the magnitude sits in the low 24 bits (sign-extended high byte) -> RIGHT-aligned ->
+ *       apply  RX: x_q31 = rx[f] << 8 ;  TX: tx_slot = (out_q31) >> 8  (arithmetic shifts).
+ *   This discriminant is a board action (CTO list); the code path here assumes LEFT-aligned (R46).
+ * ============================================================================================ */
+
+/* M2 scratch: one channel's 4 analyzed subbands + that channel's reconstructed full-rate output.
+ * file-scope static (R37 FIX2: off the callback stack -- these + s_m2_fa must not live on the ISR
+ * stack). Subband sizes per the dyadic tree (frame/8, frame/4, frame/2, frame): 8/16/32/64 @ frame=64. */
+static int32_t s_m2_sb0[M1_FRAME / 8];
+static int32_t s_m2_sb1[M1_FRAME / 4];
+static int32_t s_m2_sb2[M1_FRAME / 2];
+static int32_t s_m2_sb3[M1_FRAME];
+static int32_t s_m2_xw[M1_FRAME];      /* per-channel input-scaled (Dolph-weighted) frame */
+static int32_t s_m2_chout[M1_FRAME];   /* per-channel FIRA synthesize output (full-rate, Q31) */
+
+/* ---- M2 one-frame 8ch broadside beam: 1 mono RX frame (64 samp) -> 8 channel FIRA outputs,
+ *      interleaved into the 8-slot TX layout. Mirrors the H2 8ch frame model EXACTLY
+ *      (h2_dma_isr_measure.c:115-120): per ch  xw = Dolph_w[c] * rx  (Q15 x Q31 >> 15)
+ *      -> fira_tfb_analyze -> fira_tfb_synthesize. 8 ch INDEPENDENT, NO cross-channel sum
+ *      (product topology = 8 DACs, broadside = ACOUSTIC superposition, NOT a digital sum).
+ *      OPENING-4: broadside = input-scale Dolph weight ONLY, NO frac-delay focusing (v2 deferred).
+ *      OPENING-5: rx[] used as Q31 with NO shift (zero-transform identity; board-confirm align above).
+ *      @param rx   packed mono RX frame, M1_FRAME int32 (Q31 by identity)
+ *      @param tx   8-slot interleaved TX frame, M1_FRAME*M1_TX_SLOTS int32 ; tx[f*8 + c] = ch c, samp f
+ *      @return     accumulates FG stats into *pnz / *ppeak over the 8-channel output. */
+static void m2_fira_beam_frame(const int32_t *rx, int32_t *tx, uint32_t *pnz, uint32_t *ppeak)
+{
+    uint32_t c, i;
+    uint32_t nz = *pnz, peak = *ppeak;
+
+    for (c = 0u; c < (uint32_t)DOLPH_W8_NCH; c++) {
+        const int32_t w = g_dolph_w8_q15[c];            /* Dolph-Cheb -20dB Q15 weight for channel c */
+        /* input-scale weight (== f5_apply_w / H2:117-118): Q15 x Q31 >> 15. rx[i] is Q31 by identity. */
+        for (i = 0u; i < M1_FRAME; i++)
+            s_m2_xw[i] = (int32_t)(((int64_t)w * (int64_t)rx[i]) >> 15);
+
+        /* FIRA analyze (1ch -> 4 subbands) then synthesize (4 subbands -> 1ch full-rate). CALL-ONLY into
+         * the frozen fira_tree.c; s_m2_fa[c] carries this channel's cross-frame filter state. */
+        fira_tfb_analyze(&s_m2_fa[c], s_m2_xw, (uint16_t)M1_FRAME,
+                         s_m2_sb0, s_m2_sb1, s_m2_sb2, s_m2_sb3);
+        /* broadside v1: NO frac-delay on the subbands (focusing = v2). Synthesize straight back. */
+        fira_tfb_synthesize(&s_m2_fa[c], s_m2_sb0, s_m2_sb1, s_m2_sb2, s_m2_sb3,
+                            (uint16_t)M1_FRAME, s_m2_chout);
+
+        /* interleave channel c into the 8-slot TX layout (tx[f*8 + c]); OPENING-5: write Q31 with no
+         * shift -- the DAC slot takes the high 24 bits. + FG scan of the FIRA output. */
+        for (i = 0u; i < M1_FRAME; i++) {
+            int32_t o = s_m2_chout[i];
+            uint32_t a = (o < 0) ? (uint32_t)(-(int64_t)o) : (uint32_t)o;
+            tx[i * M1_TX_SLOTS + c] = o;
+            if (o != 0) nz++;
+            if (a > peak) peak = a;
+        }
+    }
+    *pnz = nz; *ppeak = peak;
+}
+#endif /* M2_FIRA_INLOOP */
+
+/* ---- RX-buffer-processed callback: io-callback CCNT probe + FG audio scan + the datapath.
+ *   io-callback probe: the CCNT bracket measures the io item-1 "codec/IO DMA" CORE cost (+ the M2 beam
+ *   compute when M2_FIRA_INLOOP=1). RAW only (C9); cb_cyc caliber = APP LOAD (R42: the bracket spans the
+ *   whole callback body, which under M2 INCLUDES the FIRA beam -- so g_m1_cb_cyc_* is core+beam+io, NOT
+ *   io-callback alone; off-board separates them. io-callback-only allowance stays [L3 reserve 30].).
+ *   DATAPATH:
+ *     M2_FIRA_INLOOP=1 -> 1 mono RX frame -> 8ch FIRA broadside beam -> 8-slot interleaved TX (OPENING-1).
+ *     M2_FIRA_INLOOP=0 -> M1 FAN-OUT 1->8: copy the one mono sample to all 8 TX slots (M1 board-PASS). */
 static void m1_sport_rx_callback(void *pAppHandle, uint32_t nEvent, void *pArg)
 {
     uint32_t t0, t1;
@@ -189,35 +347,54 @@ static void m1_sport_rx_callback(void *pAppHandle, uint32_t nEvent, void *pArg)
         const uint32_t half = s_m1_pp_index & 1u;
         const int32_t *rx = s_m1_rx_buf[half];   /* M1_RX_HALF_WORDS = 64 words (1 slot x 64 frames, packed) */
         int32_t *tx = s_m1_tx_buf[half];         /* M1_TX_HALF_WORDS = 512 words (8 slot x 64 frames) */
-        uint32_t f, s8;
         uint32_t nz = 0u, peak = 0u;
 
-        /* FAN-OUT 1->8: for each of the 64 frames, take the single packed RX sample and write it into all
-         * 8 contiguous TX slots of that frame. RX is packed (1 word/frame); TX is unpacked 8 words/frame. */
-        for (f = 0u; f < M1_FRAME; f++) {
-            int32_t sample = rx[f];                 /* the one mono sample for frame f (RX packed) */
-            uint32_t a = (sample < 0) ? (uint32_t)(-(int64_t)sample) : (uint32_t)sample;
-            int32_t *txf = &tx[f * M1_TX_SLOTS];    /* base of this frame's 8 TX slots */
-            for (s8 = 0u; s8 < M1_TX_SLOTS; s8++) txf[s8] = sample;   /* identical to all 8 slots */
-            if (sample != 0) nz++;
-            if (a > peak) peak = a;
-        }
+#if M2_FIRA_INLOOP
+        /* OPENING-1 whole-frame rebuild: 1 mono RX frame -> 8ch FIRA broadside -> 8-slot interleaved TX. */
+        m2_fira_beam_frame(rx, tx, &nz, &peak);
+        g_m2_out_nonzero += nz;
+        if (peak > g_m2_out_max_abs) g_m2_out_max_abs = peak;
+        /* M1's nonzero/peak also track here (so the stream-live FG keeps working in the M2 build too);
+         * for M2, nz/peak are the BEAM-output stats (FIRA produced non-zero audio). */
         g_m1_nonzero_samples += nz;
         if (peak > g_m1_max_abs_sample) g_m1_max_abs_sample = peak;
-
+#else
+        {
+            uint32_t f, s8;
+            /* FAN-OUT 1->8: for each of the 64 frames, take the single packed RX sample and write it into
+             * all 8 contiguous TX slots of that frame. RX packed (1 word/frame); TX unpacked 8 words/frame. */
+            for (f = 0u; f < M1_FRAME; f++) {
+                int32_t sample = rx[f];                 /* the one mono sample for frame f (RX packed) */
+                uint32_t a = (sample < 0) ? (uint32_t)(-(int64_t)sample) : (uint32_t)sample;
+                int32_t *txf = &tx[f * M1_TX_SLOTS];    /* base of this frame's 8 TX slots */
+                for (s8 = 0u; s8 < M1_TX_SLOTS; s8++) txf[s8] = sample;   /* identical to all 8 slots */
+                if (sample != 0) nz++;
+                if (a > peak) peak = a;
+            }
+            g_m1_nonzero_samples += nz;
+            if (peak > g_m1_max_abs_sample) g_m1_max_abs_sample = peak;
+        }
+#endif
         g_m1_rx_block_count++;
         g_m1_tx_block_count++;
         s_m1_pp_index++;
     }
     t1 = bench_cyc_target();   /* CCNT bracket CLOSE */
 
-    g_m1_cb_cyc_last = t1 - t0;                       /* raw callback body cost (io-callback [L1-to-be]) */
+    g_m1_cb_cyc_last = t1 - t0;                       /* raw callback body cost (M1: io-callback; M2: io+beam) */
     if (g_m1_cb_cyc_last > g_m1_cb_cyc_max) g_m1_cb_cyc_max = g_m1_cb_cyc_last;
     if (g_m1_cb_cyc_last < g_m1_cb_cyc_min) g_m1_cb_cyc_min = g_m1_cb_cyc_last;
 
     /* FG (stream-live, anti-false-green): live iff blocks grew AND non-zero audio seen. Dead codec/DMA ->
      * rx_block_count stays 0; silent/dead input -> nonzero_samples stays 0; either keeps FG from latching. */
     if (g_m1_rx_block_count > 0u && g_m1_nonzero_samples > 0u) g_m1_fg_stream_live = 1;
+
+#if M2_FIRA_INLOOP
+    /* M2 beam-live FG (additional, anti-false-green for the FIRA path): green ONLY if blocks grew AND the
+     * FIRA beam produced non-zero output. A stubbed/dead FIRA (memset 0 / not-linked) -> g_m2_out_nonzero
+     * stays 0 -> g_m2_fg_beam_live never latches (placeholder-fails, DSP/FIRA special gate). */
+    if (g_m1_rx_block_count > 0u && g_m2_out_nonzero > 0u) g_m2_fg_beam_live = 1;
+#endif
 }
 
 /* ---- build the circular ping-pong descriptor rings (ALT.c:250-284 pattern). RX/TX have DIFFERENT
@@ -347,6 +524,28 @@ static int m1_sport_init(void)
     return 0;
 }
 
+#if M2_FIRA_INLOOP
+/* ---- M2 FIRA one-time setup (OPENING-1/4): the SAME init sequence the H2 harness uses
+ *      (h2_dma_isr_measure.c:138-150): fira_tree_setup -> tfb_set_coeffs(core golden Q15) ->
+ *      fira_channel_init(&s_m2_fa[c], 64) x8. Called ONCE at init, NOT in the frame budget
+ *      (fira_tree.h:157-159 real-time discipline). Returns 0 ok, non-zero = no-FIRA/setup-fail. ---- */
+static int m2_fira_setup(void)
+{
+    int c, rc;
+    g_m2_setup_rc = -99; g_m2_out_nonzero = 0u; g_m2_out_max_abs = 0u;
+    g_m2_fg_beam_live = -99; g_m2_valid = 0;
+
+    rc = fira_tree_setup();          /* Open -> RegisterCallback -> CreateTask -> FixedPointEnable(SIGNED) */
+    g_m2_setup_rc = rc;
+    if (rc != 0) return 1;           /* no FIRA on this host / setup failed -> honest fail (FG2, no fake) */
+
+    tfb_set_coeffs(g_hb63_q15, FIR_HB63_NTAPS);                  /* core (golden) Q15 halfband coeffs */
+    for (c = 0; c < DOLPH_W8_NCH; c++)
+        fira_channel_init(&s_m2_fa[c], (uint16_t)M1_FRAME);      /* 8 per-channel states, zero-init */
+    return 0;
+}
+#endif /* M2_FIRA_INLOOP */
+
 int m1_loopback_init(void)
 {
     volatile int d;
@@ -378,9 +577,18 @@ int m1_loopback_init(void)
     if (m1_adc_init() != 0) return 1;          /* ADAU1979 (slave) */
     (void)adi_twi_Close(s_m1_htwi); s_m1_htwi = NULL;   /* codec configured; release TWI (ALT.c:733) */
 
+#if M2_FIRA_INLOOP
+    /* OPENING-1/4: bring the FIRA beam up BEFORE the SPORT callback can fire. If FIRA setup fails, do NOT
+     * arm the stream -- the callback would call into an un-setup FIRA (undefined). Honest fail (no fake). */
+    if (m2_fira_setup() != 0) return 1;        /* g_m2_setup_rc carries the rc; stream NOT armed on fail */
+#endif
+
     if (m1_sport_init() != 0) return 1;        /* SPORT4 TDM ping-pong + callback armed */
 
     g_m1_valid = 1;
+#if M2_FIRA_INLOOP
+    g_m2_valid = 1;                            /* M2 beam path is up and the stream is armed */
+#endif
     return 0;
 }
 
@@ -388,6 +596,10 @@ int m1_loopback_stop(void)
 {
     if (s_m1_hsport_rx != NULL) { (void)adi_sport_StopDMATransfer(s_m1_hsport_rx); (void)adi_sport_Close(s_m1_hsport_rx); s_m1_hsport_rx = NULL; }
     if (s_m1_hsport_tx != NULL) { (void)adi_sport_StopDMATransfer(s_m1_hsport_tx); (void)adi_sport_Close(s_m1_hsport_tx); s_m1_hsport_tx = NULL; }
+#if M2_FIRA_INLOOP
+    /* release the FIRA device (adi_fir_Close via fira_tree_teardown); safe to call after stream stop. */
+    if (g_m2_setup_rc == 0) { fira_tree_teardown(); g_m2_setup_rc = -99; }
+#endif
     return 0;
 }
 
@@ -401,6 +613,9 @@ int m1_loopback_init(void)
     g_m1_nonzero_samples = 0u; g_m1_max_abs_sample = 0u;
     g_m1_fg_stream_live = 0;   /* explicit not-live on desktop (no stream) */
     g_m1_valid = 0;
+    /* M2 globals honest-0 too (no FIRA + no SPORT off-board; g_m2_fira_inloop keeps the build identity). */
+    g_m2_setup_rc = -99; g_m2_out_nonzero = 0u; g_m2_out_max_abs = 0u;
+    g_m2_fg_beam_live = 0; g_m2_valid = 0;
     return 1;                  /* non-zero: cannot run loopback off-board (honest fail, no fake) */
 }
 

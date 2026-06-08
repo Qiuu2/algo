@@ -10,6 +10,31 @@
 **     - L1 Block 0 (mem_block0_bw 0x2403f0-0x26ffff) = default DM data home -> M1 RX/TX buffers land here
 **       (opening 4: M1 NO pin; FIRA working set is absent from THIS build, so no Block-0 self-conflict).
 **     - L1 Block 1/2/3 + L2 present but unused by M1's thin shell.
+** ----------------------------------------------------------------------------------------------------
+** [WO-S6-M2, OPENING-2] FIRA BEAM IN-LOOP buffer PIN to L1 Block 1 (seg_l1_block1):
+**   When the project is built with M2_FIRA_INLOOP=1, m1_loopback_tdm.c places s_m1_rx_buf, s_m1_tx_buf
+**   AND the FIRA working set s_m2_fa into input section "seg_l1_block1" via #pragma section. That section
+**   is ALREADY routed to mem_block1_bw (L1 Block 1) by THIS .ldf below (dxe_block1_data_prio0_bw/_prio0:
+**   INPUT_SECTIONS( $OBJS_LIBS(seg_l1_block1 ...) ) > mem_block1_bw, the ALT/ADI default routing). So NO
+**   .ldf section body was edited for M2 -- the pin is a source-side pragma onto an existing section; this
+**   banner documents it. (Pragma form + section name are [L1] proven in ADI's FIRA/IIRA accelerator
+**   examples: bsp/app_notes/fira_accel_code/.../FIR_Throughput_21569.c:23 / IIR_Throughput_21569_V2.c:23;
+**   H2_MAP_PLACEMENT_ADJUDICATION.md:103-117.)
+**   WHY: in the M2 build the FIRA working set co-resides with the SPORT-PDMA buffers; pinning BOTH into
+**   Block 1 keeps them off Block 0 (heap/stack/code) and avoids the R24 intra-Block-0 single-port
+**   self-conflict between the DMA engine and the core's FIRA accesses.
+**   [R47 F47-MINOR-1] CAVEAT: this pins SPORT-PDMA buffers AND the FIRA working set into the SAME
+**   Block 1 -- so the R24-class DMA-vs-core single-port contention could RECUR within Block 1 rather
+**   than be eliminated (it only definitively LEAVES Block 0). Whether Block-1 intra-block SPORT-vs-FIRA
+**   contention is real is a board question (R26 same-arbitration-class vs identical-segment residual):
+**   re-read the .map AND measure (io-callback / frame WCET) on the bench. IF contention shows, SPLIT the
+**   pin -- e.g. SPORT buffers in Block 1, FIRA working set in Block 2/3 -- so the DMA engine and the core
+**   hit different single-port blocks. The pragma here is the v1 default; the split is the fallback.
+**   *** BOARD-CONFIRM (gap): re-read the PRODUCT build .map on the bench and verify s_m1_rx_buf/s_m1_tx_buf
+**   and s_m2_fa all land at >= 0x2c0000 (Block 1 start) and <= 0x2ebfff (Block 1 end, this base). The
+**   product .map is not yet captured (M2_SURVEY 5.1 / R34 缺数据#5); the pragma is the fix, the .map
+**   re-read is the proof. M2 sizes: SPORT ~4.6KB (512B RX + 4096B TX) + s_m2_fa ~18.3KB (0x47a0) = ~23KB
+**   << Block 1 ~176KB usable -> fits with wide margin, but the addresses are board-confirmed not asserted.
 ** D5 NOTE: memory boundaries verified against the ADSP-21569 default app.ldf (R26 used the same block
 **   windows). No segment was hand-edited; only this banner added.
 ** ----------------------------------------------------------------------------------------------------

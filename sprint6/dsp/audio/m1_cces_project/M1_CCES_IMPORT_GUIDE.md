@@ -118,13 +118,51 @@ Project Explorer -> right-click each SoftConfig_*.c -> Resource Configurations -
 - **SelectChannel single-slot driver minimum** (grep G1-G2) -> M1_RX_SLOTS 1 (512B) or 2 (1024B).
 - DAI1-pin->codec physical traces (carrier schematic); MCLK 12.288 MHz source; SRU effect latency.
 
+## WO-S6-M2 -- building the FIRA beam in-loop (M2_FIRA_INLOOP=1)
+This same project builds EITHER M1 (transparent passthrough) OR M2 (FIRA broadside beam), selected by ONE
+compiler macro. M1 is the default (no macro) -> the board-PASS passthrough is never lost.
+
+To build **M2** (FIRA beam in-loop), do BOTH of these in the CCES project (these are project-wiring steps,
+NOT code edits -- the source already has the M2 path behind `#if M2_FIRA_INLOOP`):
+1. **Define the macro**: Project Properties -> C/C++ Build -> Settings -> SHARC C/C++ Compiler ->
+   Preprocessor -> add `M2_FIRA_INLOOP=1` (Debug and Release). (M1 build = simply omit it.)
+2. **Add the FROZEN FIRA call surface** (read-only; M2 CALLs, never edits -- iron-rule zero-touch):
+   - **Include dirs** (Paths and Symbols -> Includes -> add):
+     `${repo}/sprint4/dsp/fira`, `${repo}/sprint4/dsp/core_only/src`, `${repo}/sprint4/dsp/core_only/include`
+     (these resolve fira_tree.h, dolph_w8_q15.h, tree_filterbank.h, fir_coeffs_hb63.h).
+   - **Link the frozen sources** (add as linked-resource source files, do NOT copy/edit):
+     `sprint4/dsp/fira/fira_tree.c`, `sprint4/dsp/core_only/src/tree_filterbank.c`,
+     `sprint4/dsp/core_only/src/tfb_8ch.c`. fira_tree.c needs `FIRA_USE_REAL_ADI_FIR_HEADER` defined for the
+     real adi_fir.h path -- add it to the compiler defs FOR THE M2 BUILD (board-confirm the installed
+     `<drivers/fir/adi_fir.h>` exists, A2 header-drift class).
+   NOTE: the M1 transparent build needs NONE of step 2 -- those dirs/sources are pulled only under the macro.
+3. **Pin proof**: the M2 build pins s_m1_rx_buf / s_m1_tx_buf / s_m2_fa to L1 Block 1 via
+   `#pragma section("seg_l1_block1")` (already in the .c). After the M2 build, **re-read the .map** and
+   confirm all three land at >= 0x2c0000 (Block 1) -- see the m1_app.ldf banner + the honest gap below.
+
 ## CTO on-board action list
 1. Import per the steps above; **Build Project (Debug)**. Expect possible first-build fixes from F3 (CCES
    path var) / F6 (header drift) -- those are normal for a hand-assembled cross-machine project.
+   For M2: add the macro + FIRA include/link wiring above first.
 2. **grep G1-G2** in the install `adi_sport.h`: single-slot SelectChannel accepted? -> keep M1_RX_SLOTS=1
    (512B) or set =2 (1024B) in m1_loopback_tdm.h.
-3. **Run/Debug + read at idle** (free-run, NO callback breakpoints): g_m1_main_pwrinit_rc / softcfg_rc /
-   init_rc all 0; g_m1_valid=1; g_m1_fg_stream_live=1 (green ONLY if blocks grew AND non-zero audio);
-   g_m1_rx_block_count / tx growing; g_m1_cb_cyc_last/max/min (io-callback [L1] cost); g_m1_max_abs_sample
-   (>0 = live input). Run twice, main numbers <0.1% (F3 board discipline). Any FG not green -> isolate, do
-   not rescue (F4 board discipline).
+3. **Run/Debug + read at idle (M1 build)** (free-run, NO callback breakpoints): g_m1_main_pwrinit_rc /
+   softcfg_rc / init_rc all 0; g_m1_valid=1; g_m1_fg_stream_live=1 (green ONLY if blocks grew AND non-zero
+   audio); g_m1_rx_block_count / tx growing; g_m1_cb_cyc_last/max/min (io-callback [L1] cost);
+   g_m1_max_abs_sample (>0 = live input). Run twice, main numbers <0.1% (F3 board discipline). Any FG not
+   green -> isolate, do not rescue (F4 board discipline).
+4. **M2 build extra on-board steps** (after step 3 proves M1 passthrough works):
+   a. **.map re-read (pin proof)**: confirm s_m1_rx_buf, s_m1_tx_buf, s_m2_fa all in L1 Block 1
+      (>=0x2c0000, <=0x2ebfff). Product .map not yet captured -- this is the F24-MAJOR-1 placement-verify.
+   b. **Q alignment dump (OPENING-5 discriminant)**: with a known mid-scale input, dump g_m1_rx_buf. Low 8
+      bits ~0 + magnitude in high 24 -> LEFT-aligned -> zero-transform identity correct (code as-is). Else
+      magnitude in low 24 -> RIGHT-aligned -> apply RX `<<8` / TX `>>8` (the m1_loopback_tdm.c M2 Q-BOUNDARY
+      NOTE has the exact lines). This is the R46 mechanical discriminant; HRM grep corroborates.
+   c. **read M2 readouts at idle**: g_m2_fira_inloop=1; g_m2_setup_rc=0 (fira_tree_setup ok);
+      g_m2_valid=1; g_m2_fg_beam_live=1 (green ONLY if blocks grew AND FIRA output non-zero -- a dead/stub
+      FIRA keeps it 0); g_m2_out_nonzero / g_m2_out_max_abs > 0 (beam produced audio); g_m1_cb_cyc_* now =
+      core+beam+io (NOT io-callback alone -- caliber = app load, R42; separate off-board).
+   d. **R14 bit-exact (INTEGER-enum)**: the FIRA fixed-point INTEGER enum vs the Q15xQ31 signed-fractional
+      semantics is a board bit-exact check (fira_tree.h:42-43, per-subband criterion) -- do NOT read M2
+      audio as correct until this passes; broadside audio sounding "present" is not bit-exact proof.
+   Do NOT predict listening quality or specific cycle numbers off-board (R5 discipline).
