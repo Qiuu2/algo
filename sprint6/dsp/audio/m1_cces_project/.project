@@ -41,7 +41,9 @@
 	     m1_softconfig.c / m1_cyc.c / m1_loopback_tdm.c + .h + ADAU_*Common.h) -> NO per-file <link> needed;
 	     the .cproject sourcePath auto-discovers them. ALT's main file (Audio_Loopback_TDM.c) is NOT present
 	     -> no duplicate main() symbol. ONLY the CCES driver-source links are kept (they pull the SPORT/TWI/
-	     PDMA/SPU driver .c bodies from the install tree -- 'CCES' is the CCES_HOME path variable). -->
+	     PDMA/SPU driver .c bodies from the install tree; 'CCES' is the CCES_HOME path variable.
+	     [hotfix 2026-06-08] An XML comment may NOT contain a double-hyphen token; the earlier one broke
+	     this file's parse ("project description file is corrupted" on import). -->
 	<linkedResources>
 		<link>
 			<name>system/drivers/sport/adi_sport.c</name>
