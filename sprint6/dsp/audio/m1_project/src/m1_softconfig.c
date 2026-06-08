@@ -46,6 +46,14 @@
 static uint8_t        s_m1_u6_mem[ADI_TWI_MEMORY_SIZE];
 static uint8_t        s_m1_u6_buf[2];
 
+/* [R44 per-write instrumentation -- CTO board re-run] independent rc per write (NOT OR-masked).
+ * Index: 0=IODIRA 1=IODIRB 2=GPIOB 3=GPIOA-reset 4=GPIOA-run. -99=not-run. Read at idle (free-run),
+ * by JTAG symbol name (file-scope here for parallel-line safety; debugger reads by symbol, not by TU).
+ * OBSERVATION ONLY -- codec-enable logic + return value are unchanged (rc |= kept identical). */
+volatile int g_m1_softcfg_rc[5]    = { -99, -99, -99, -99, -99 };
+volatile int g_m1_softcfg_open_rc  = -99;   /* adi_twi_Open rc (0=ok) */
+volatile int g_m1_softcfg_addr_rc  = -99;   /* SetHardwareAddress rc (0=ok) */
+
 static int m1_u6_write(ADI_TWI_HANDLE h, uint8_t reg, uint8_t val)
 {
     s_m1_u6_buf[0] = reg;
@@ -64,24 +72,26 @@ int m1_softconfig_enable_codecs(void)
     volatile int d;
     int rc = 0;
 
-    if (adi_twi_Open(M1_U6_TWI_DEV, ADI_TWI_MASTER, s_m1_u6_mem, ADI_TWI_MEMORY_SIZE, &h)
-        != ADI_TWI_SUCCESS) return 1;
-    if (adi_twi_SetHardwareAddress(h, M1_U6_TWI_ADDR) != ADI_TWI_SUCCESS) { (void)adi_twi_Close(h); return 1; }
+    g_m1_softcfg_open_rc = (adi_twi_Open(M1_U6_TWI_DEV, ADI_TWI_MASTER, s_m1_u6_mem, ADI_TWI_MEMORY_SIZE, &h)
+        == ADI_TWI_SUCCESS) ? 0 : 1;
+    if (g_m1_softcfg_open_rc != 0) return 1;
+    g_m1_softcfg_addr_rc = (adi_twi_SetHardwareAddress(h, M1_U6_TWI_ADDR) == ADI_TWI_SUCCESS) ? 0 : 1;
+    if (g_m1_softcfg_addr_rc != 0) { (void)adi_twi_Close(h); return 1; }
     (void)adi_twi_SetPrescale(h, M1_U6_TWI_PRESCALE);
     (void)adi_twi_SetBitRate(h, M1_U6_TWI_BITRATE);
     (void)adi_twi_SetDutyCycle(h, M1_U6_TWI_DUTY);
 
-    /* (1) direction: make the ~EN / RESET pins driven outputs */
-    rc |= m1_u6_write(h, M1_U6_IODIRA, M1_U6_IODIRA_VAL);   /* 0x18 */
-    rc |= m1_u6_write(h, M1_U6_IODIRB, M1_U6_IODIRB_VAL);   /* 0x00 */
-    rc |= m1_u6_write(h, M1_U6_GPIOB,  M1_U6_PORTB_VAL);    /* 0xFD: audio jack sel etc */
+    /* (1) direction: make the ~EN / RESET pins driven outputs (dir-then-latch order kept, R44 INFO) */
+    g_m1_softcfg_rc[0] = m1_u6_write(h, M1_U6_IODIRA, M1_U6_IODIRA_VAL); rc |= g_m1_softcfg_rc[0]; /* 0x18 IODIRA */
+    g_m1_softcfg_rc[1] = m1_u6_write(h, M1_U6_IODIRB, M1_U6_IODIRB_VAL); rc |= g_m1_softcfg_rc[1]; /* 0x00 IODIRB */
+    g_m1_softcfg_rc[2] = m1_u6_write(h, M1_U6_GPIOB,  M1_U6_PORTB_VAL);  rc |= g_m1_softcfg_rc[2]; /* 0xFD GPIOB  */
 
     /* (2) assert codec reset (b5=1), codecs enabled (active-low ~EN=0) -- clean reset pulse */
-    rc |= m1_u6_write(h, M1_U6_GPIOA, M1_U6_PORTA_RESET);   /* 0x25 */
+    g_m1_softcfg_rc[3] = m1_u6_write(h, M1_U6_GPIOA, M1_U6_PORTA_RESET); rc |= g_m1_softcfg_rc[3]; /* 0x25 GPIOA reset */
     for (d = 0xffff; d > 0; d--) { /* hold reset */ }
 
     /* (3) deassert reset (b5=0), keep both codecs enabled -- run state */
-    rc |= m1_u6_write(h, M1_U6_GPIOA, M1_U6_PORTA_RUN);     /* 0x05 */
+    g_m1_softcfg_rc[4] = m1_u6_write(h, M1_U6_GPIOA, M1_U6_PORTA_RUN);   rc |= g_m1_softcfg_rc[4]; /* 0x05 GPIOA run */
     for (d = 0xffff; d > 0; d--) { /* let codecs come out of reset */ }
 
     (void)adi_twi_Close(h);
