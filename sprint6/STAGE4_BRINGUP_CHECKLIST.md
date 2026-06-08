@@ -108,6 +108,13 @@
       的工程组装包，须把 `python3 -m xml.etree.ElementTree parse` 纳入机械校验（桌面 guard-stub 只验 .c，
       工程 XML 是盲区）。（来源：R41 PASS 却漏 XML 校验，板机导入才暴露）
 
+- [ ] **E8 「功能通了」不能推「使能步成功」（硬件使能版反假绿）**：板上音频/功能通 ≠ 软件使能链
+      生效——使能可能靠载板/上电默认（如 codec carrier default），软件路其实失败了，只在「默认 OFF
+      的板」才暴露（换板静默无声）。返回码失败（rc≠0）但功能通时，**不许凭「通了」假定 rc=成功**；
+      须读代码定位失败步 + 判它是否在功能依赖路径上。⚠ **rc 用 `|=` OR 多步会掩盖哪步失败**——要定位
+      须 per-step 独立 rc（同 H2 ISR aggregate-hides-mechanism 教训）。（来源：R44 softcfg_rc=1 但音频通，
+      F-SRU-1 未确认/换板风险 OPEN）
+
 ## F. 板侧固定动作（每次烧板前 60 秒过一遍）
 
 - [ ] F1 冻结文件零触碰核（tree_filterbank.c / tfb_8ch.c / golden_ref.h / chirp_input.h /
