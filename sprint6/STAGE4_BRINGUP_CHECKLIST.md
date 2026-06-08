@@ -99,6 +99,14 @@
       中转（写文件+一行确认），核验员直读文件。（来源：workflow v1/v2 失败 → v3 成功）
 - [ ] **E5 在档引用错按铁律五改锚留痕**：发现在档行号错引（fira_tree.c:49-52 实为饱和算术
       helper）→ 全库 grep 同错 → 改锚 + 原错自述留痕，数据侧先隔离不传播。（来源：R33）
+- [ ] **E6 工程跨机传输用 git/zip，禁散文件**：CCES 工程（含 .project/.cproject/.svc/源码）跨机
+      （Linux↔板机 Windows）传输必须整体 git pull 或 zip 打包——**散文件传输（微信/IM）会截断文本**，
+      尤其 .project 截断 → Eclipse「project description file is corrupted」。文件级修复后**只需传改的
+      那个文件**（git pull 最干净），不必整 folder 重传。（来源：2026-06-08 .project corrupted 双因：
+      XML `--` + 疑似散文件截断）
+- [ ] **E7 交付的工程 XML 过门前必跑 well-formed 校验**（见 A6）——critic 门对含 .project/.cproject/.svc
+      的工程组装包，须把 `python3 -m xml.etree.ElementTree parse` 纳入机械校验（桌面 guard-stub 只验 .c，
+      工程 XML 是盲区）。（来源：R41 PASS 却漏 XML 校验，板机导入才暴露）
 
 ## F. 板侧固定动作（每次烧板前 60 秒过一遍）
 
