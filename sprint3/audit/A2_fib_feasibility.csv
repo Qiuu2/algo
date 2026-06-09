@@ -1,0 +1,7 @@
+freq_hz,scheme,BW_6dB_deg,SLL_dB,att30_dB,att90_dB,track
+1000,baseline_Dolph20,29.269,-20.0,23.098,22.404,L2-numpy
+2000,baseline_Dolph20,14.515,-20.0,22.404,23.01,L2-numpy
+4000,baseline_Dolph20,7.243,-20.0,23.01,26.029,L2-numpy
+1000,FIB_Dolph20,29.269,-20.0,23.098,22.404,L2-numpy
+2000,FIB_Dolph25,15.933,-25.0,25.944,28.776,L2-numpy
+4000,FIB_Dolph30,8.592,-30.0,34.86,34.295,L2-numpy

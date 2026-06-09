@@ -1,5 +1,5 @@
-sprint4/dsp/core_only/host_bitexact_sat
-sprint4/dsp/core_only/host_bitexact_unsat
-sprint4/dsp/core_only_to_windows.tgz
-*.o
-__pycache__/
+# 厂商资料(datasheet/BSP/安装包),大且不随项目变,Windows 本地另有
+knowledge_base/
+
+# 冗余压缩包(源码已在目录里,zip 是打包副本)
+*.zip

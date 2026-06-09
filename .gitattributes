@@ -1,0 +1,9 @@
+* text=auto
+*.project   -text
+*.cproject  -text
+*.svc       -text
+*.xml       -text
+*.ldf       -text
+*.dxe   binary
+*.doj   binary
+*.elf   binary

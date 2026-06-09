@@ -1,0 +1,628 @@
+---
+name: "AcousticSimulationAgent_Skill"
+description: "声学仿真专家Agent的专业技能定义、工具使用规范、工作流与输入输出标准"
+version: "1.0.0"
+author: "ITC Enterprise Multi-Agent System"
+---
+
+# 声学仿真专家Agent - 技能定义 (Skill)
+
+## 1. COMSOL Multiphysics 操作流程
+
+### 1.1 完整操作链
+
+```
+几何建模 → 材料参数 → 边界条件 → 网格划分 → 求解 → 后处理 → 验证
+```
+
+### 1.2 步骤详解
+
+#### Step 1: 几何建模 (Geometry)
+
+| 子步骤 | 操作规范 | 检查点 |
+|--------|----------|--------|
+| 1.1 导入/创建 | 优先使用参数化CAD导入（STEP格式），本地创建仅用于概念验证 | 单位统一为mm |
+| 1.2 简化清理 | 移除小圆角(<λ/20)、小孔、不影响声场的结构细节 | 记录所有简化操作 |
+| 1.3 装配体设置 | 使用"形成装配"处理多体接触，定义接触对或一致对 | 检查接触面完整性 |
+| 1.4 参数定义 | 所有关键尺寸参数化：频率f、单元间距d、箱体尺寸L/W/H | 参数表导出备份 |
+
+**关键参数模板：**
+```python
+# COMSOL参数定义模板
+f_min = 100[Hz]      # 最低分析频率
+f_max = 10000[Hz]    # 最高分析频率
+f_step = 100[Hz]     # 频率步进（低频密集）
+c_air = 343[m/s]     # 声速
+rho_air = 1.21[kg/m^3]  # 空气密度
+d_elem = 0.1[m]      # 单元间距
+N_elem = 8           # 单元数量
+```
+
+#### Step 2: 材料参数 (Materials)
+
+| 材料类别 | 必需参数 | 数据来源 | 精度要求 |
+|----------|----------|----------|----------|
+| 空气 | ρ, c, μ, Cp, k | 内置材料+实测温度 | 温度补偿 |
+| 扬声器振膜 | ρ, E, ν, η | 供应商数据+实测 | ±5% |
+| 箱体材料（MDF） | ρ, E, ν, η | 实测或标准值 | ±10% |
+| 吸音材料 | 流阻率σ, 孔隙率Φ, 曲折度α∞ | 阻抗管实测 | ±15% |
+| 金属部件 | ρ, E, ν | 标准材料库 | ±3% |
+
+**材料设置Checklist：**
+- [ ] 所有域都分配了材料
+- [ ] 材料参数单位正确
+- [ ] 温度依赖性已考虑（如适用）
+- [ ] 吸声材料使用多孔声学模型（Delany-Bazley/JCA）
+- [ ] 材料参数来源已标注
+
+#### Step 3: 边界条件 (Boundary Conditions)
+
+| 边界类型 | 物理含义 | 适用位置 | 设置要点 |
+|----------|----------|----------|----------|
+| 平面波辐射 | 无反射出射 | 外边界 | 距离声源>λ/3 |
+| 球面波辐射 | 无反射出射（球形边界） | 外边界（球形） | 圆心在声源区 |
+| 硬声场边界 | 刚性壁，法向速度=0 | 地面、刚性壁面 | 默认边界 |
+| 阻抗边界 | 有限阻抗表面 | 吸声处理表面 | Z = R + jX |
+| 周期性边界 | 无限阵列近似 | 阵列单元边界 | 相位匹配条件 |
+| 端口激励 | 指定入射波 | 波导入口 | 模式选择 |
+
+**边界条件设置流程：**
+```
+1. 识别所有边界 → 2. 分类物理类型 → 3. 分配边界条件 → 4. 检查冲突 → 5. 参数化设置
+```
+
+#### Step 4: 网格划分 (Meshing)
+
+**网格策略决策树：**
+```
+最高频率 f_max?
+├── f_max ≤ 500Hz → 粗网格（λ/4），FEM/BEM均可
+├── 500Hz < f_max ≤ 5000Hz → 中网格（λ/6-λ/8），FEM推荐
+└── f_max > 5000Hz → 精细网格（λ/8-λ/12），或混合方法
+
+几何复杂度?
+├── 简单（规则体） → 结构化网格或扫掠网格
+├── 中等 → 非结构化四面体 + 边界层
+└── 复杂（细小特征） → 自适应网格 + 局部细化
+```
+
+**网格参数规范：**
+| 参数 | 设置规则 | 验证方法 |
+|------|----------|----------|
+| 最大单元尺寸 | ≤ c / (f_max × 6) | 波长/单元数检查 |
+| 边界层 | 3-5层，增长比1.2-1.3 | 边界层可视化检查 |
+| 曲率因子 | 0.3-0.5 | 曲面网格质量 |
+| 狭窄区域分辨率 | 1-2 | 狭缝/薄板区域 |
+
+**网格质量检查标准：**
+- 单元质量（COMSOL Skewness）> 0.1
+- 长宽比 < 1000（边界层区域允许放宽）
+- 网格-几何一致性检查无错误
+
+#### Step 5: 求解 (Solver)
+
+**求解器配置模板：**
+
+```python
+# 频域求解器设置
+Study: Frequency Domain
+Solver: MUMPS (直接求解器，推荐<100万DOF) / GMRES (迭代求解器)
+  - 频率范围: range(f_min, f_step, f_max)
+  - 参数化扫描: 角度θ（指向性分析）
+  
+# 求解器参数
+Relative tolerance: 1e-6
+Linearization method: Automatic
+Adaptive mesh refinement: 关闭（手动控制网格）
+```
+
+**求解策略：**
+| 问题规模 | 求解器 | 内存需求 | 预计时间 |
+|----------|--------|----------|----------|
+| < 50万 DOF | MUMPS直接求解 | 16-64GB | 分钟级 |
+| 50-200万 DOF | MUMPS + 并行 | 64-256GB | 小时级 |
+| > 200万 DOF | GMRES迭代 + 预处理器 | 64-512GB | 小时-天级 |
+
+#### Step 6: 后处理 (Post-processing)
+
+**标准输出列表：**
+1. 声压级分布云图（SPL, dB ref 20μPa）
+2. 声压频率响应曲线（特定点位）
+3. 指向性图案（极坐标图）
+4. 质点速度矢量图
+5. 声强流线图
+6. 频谱分析（FFT，时域仿真时）
+
+**后处理参数：**
+- 参考声压：20 μPa
+- SPL计算公式：20×log10(|p|/p_ref)
+- 频率轴：对数坐标
+- 平滑：1/3倍频程或1/12倍频程
+
+#### Step 7: 验证 (Verification)
+
+**三级验证体系：**
+1. **数值验证**: 网格无关性检查（3级网格对比，差异<3%）
+2. **物理验证**: 与理论解析解对比（基准case，差异<5%）
+3. **实验验证**: 与实测数据对比（如有，差异目标<±3dB）
+
+---
+
+## 2. 阵列指向性仿真流程
+
+### 2.1 线性阵列仿真
+
+```
+输入: 单元数量N, 间距d, 单元类型, 频率范围, 目标覆盖角
+  ↓
+Step 1: 建立阵列几何模型（参数化）
+  ↓
+Step 2: 设置单元激励（幅值+相位）
+  ↓
+Step 3: 远场计算设置（边界/域）
+  ↓
+Step 4: 参数化扫描（频率+角度）
+  ↓
+Step 5: 计算指向性因子DI、Q值
+  ↓
+Step 6: 波束控制仿真（加权+相位延迟）
+  ↓
+输出: 指向性图案、DI频率曲线、波束宽度曲线、加权效果对比
+```
+
+**线性阵列参数模板：**
+```
+N_elements = [4, 8, 16]        # 单元数扫描
+spacing_d = [0.05, 0.10, 0.15] # 间距扫描（m）
+steering_angle = [-30, -15, 0, 15, 30] # 波束指向角（度）
+window_types = ['Uniform', 'Hanning', 'Hamming', 'Dolph-Chebyshev']
+```
+
+**关键计算公式：**
+- 阵列因子：AF(θ) = Σ w_n × exp[-jknd(sinθ - sinθ_0)]
+- 指向性指数：DI = 10×log10(Q)，Q = 2 / ∫|D(θ)|²sinθ dθ
+- -6dB波束宽度：BW_6dB ≈ 0.89 × λ/(Nd) × 180/π（均匀加权）
+
+### 2.2 环形阵列仿真
+
+| 参数 | 说明 | 典型范围 |
+|------|------|----------|
+| 环半径R | 阵列环半径 | 0.1-0.5m |
+| N | 单元数量（均布） | 4-16 |
+| 单元指向 | 径向向外/切向/倾斜 | 依设计 |
+| 激励模式 | 同相/相位递进/模式合成 | 依应用 |
+
+**环形阵列输出：**
+- 水平面全向性评估（全向偏差[dB]）
+- 垂直面指向性
+- 模式合成效果（定向/全向切换）
+
+### 2.3 波束控制仿真
+
+**波束控制参数扫描矩阵：**
+```
+频率: 100Hz, 250Hz, 500Hz, 1kHz, 2kHz, 4kHz, 8kHz
+波束角: -60°, -45°, -30°, -15°, 0°, 15°, 30°, 45°, 60°
+加权函数: 均匀, Hanning, Hamming, Blackman, Dolph-Chebyshev(SLL=-20dB/-30dB)
+```
+
+**输出指标：**
+- 主瓣宽度 (-3dB, -6dB)
+- 最大旁瓣电平 (SLL)
+- 波束指向精度偏差
+- 阵列增益（ vs 单单元）
+- 波束控制频率上限（栅瓣出现频率）
+
+---
+
+## 3. 房间声学仿真流程
+
+### 3.1 完整流程
+
+```
+Step 1: 几何导入
+  └── 接收CAD建筑模型（Revit/Rhino/SketchUp导出）
+  └── 简化：保留房间轮廓、座椅区、主要反射面
+  └── 声学化处理：将装饰面映射为吸声/反射/扩散边界
+
+Step 2: 材料吸声系数赋值
+  └── 查阅材料吸声系数数据库
+  └── 按频率赋值：125/250/500/1k/2k/4k Hz
+  └── 处理缺失数据：插值或默认值+灵敏度分析
+
+Step 3: 射线追踪设置
+  └── 设置射线数量：≥10,000条（统计收敛）
+  └── 设置反射次数：≥100次（直达声能量<1%停止）
+  └── 设置接收面：听音区域网格化
+  └── 设置时间分辨率：1ms或更细
+
+Step 4: RIR计算
+  └── 运行射线追踪
+  └── 能量时间曲线 (ETC) 生成
+  └── 房间脉冲响应 (RIR) 合成
+  └── 考虑空气吸收（温度+湿度）
+
+Step 5: 声学参数提取
+  └── T20/T30混响时间
+  └── EDT早期衰减时间
+  └── C50/C80清晰度指数
+  └── D50清晰度百分比
+  └── STI语言传输指数
+  └── LF侧向能量因子
+  └── SPL分布均匀度
+
+Step 6: 结果评估与优化建议
+  └── 与目标标准对比（IEC/ANSI/客户规范）
+  └── 问题区域识别
+  └── 声学处理优化建议
+```
+
+### 3.2 材料吸声系数参考表
+
+| 材料 | 125Hz | 250Hz | 500Hz | 1kHz | 2kHz | 4kHz |
+|------|-------|-------|-------|------|------|------|
+| 混凝土（裸露） | 0.01 | 0.01 | 0.02 | 0.02 | 0.03 | 0.03 |
+| 石膏板（轻钢龙骨） | 0.15 | 0.10 | 0.06 | 0.05 | 0.04 | 0.04 |
+| 矿棉板（25mm） | 0.20 | 0.40 | 0.70 | 0.80 | 0.85 | 0.80 |
+| 玻璃纤维（50mm，背后空腔） | 0.30 | 0.60 | 0.85 | 0.95 | 0.95 | 0.90 |
+| 地毯（厚绒） | 0.05 | 0.10 | 0.30 | 0.50 | 0.60 | 0.70 |
+| 软包座椅（空置） | 0.20 | 0.25 | 0.35 | 0.40 | 0.40 | 0.40 |
+| 软包座椅（ occupied） | 0.30 | 0.35 | 0.45 | 0.55 | 0.55 | 0.55 |
+| 穿孔金属板（背后吸声） | 0.20 | 0.50 | 0.80 | 0.50 | 0.30 | 0.20 |
+
+---
+
+## 4. 输入参数规范
+
+### 4.1 几何文件格式
+
+| 格式 | 适用场景 | 版本要求 | 注意事项 |
+|------|----------|----------|----------|
+| STEP (.step/.stp) | 通用3D CAD交换 | AP214/AP242 | 推荐首选格式 |
+| IGES (.iges/.igs) |  legacy系统兼容 | 5.3 | 曲面质量检查 |
+| COMSOL (.mphbin) | 原生格式 | 5.6+ | 保留参数化信息 |
+| STL (.stl) | 仅用于可视/参考 | - | 不包含参数信息，仅辅助 |
+
+### 4.2 材料数据格式
+
+```json
+{
+  "material_id": "mineral_wool_50mm",
+  "name": "矿棉板 50mm",
+  "type": "porous_absorber",
+  "parameters": {
+    "flow_resistivity": 15000,
+    "porosity": 0.95,
+    "tortuosity": 1.1,
+    "viscous_length": 50e-6,
+    "thermal_length": 100e-6,
+    "thickness": 0.05
+  },
+  "absorption_coefficients": {
+    "125Hz": 0.35,
+    "250Hz": 0.70,
+    "500Hz": 0.90,
+    "1000Hz": 0.95,
+    "2000Hz": 0.95,
+    "4000Hz": 0.90
+  },
+  "source": "ITC_material_db_v3.2",
+  "uncertainty": "±15%"
+}
+```
+
+### 4.3 边界条件模板
+
+```json
+{
+  "boundary_condition_id": "bc_radiation_outer",
+  "type": "plane_wave_radiation",
+  "boundaries": ["outer_sphere"],
+  "parameters": {
+    "wave_number_expression": "2*pi*f/acda.c",
+    "spherical": false
+  },
+  "applicable_frequency_range": [50, 20000],
+  "notes": "外边界辐射条件，距离声源>λ/3"
+}
+```
+
+---
+
+## 5. 输出报告模板
+
+### 5.1 仿真报告标准结构
+
+```markdown
+# 声学仿真报告
+
+## 1. 项目信息
+- 项目名称、任务编号、版本、日期
+- 仿真工程师（Agent标识）
+- 软件版本（COMSOL x.x.x）
+
+## 2. 仿真目标
+- 任务书要求概述
+- 关键性能指标 (KPIs)
+
+## 3. 模型描述
+- 3.1 几何描述（尺寸、关键特征）
+- 3.2 材料参数（表格+来源）
+- 3.3 边界条件（图示+说明）
+- 3.4 网格信息（类型、数量、质量统计）
+- 3.5 求解器设置
+
+## 4. 验证结果
+- 4.1 网格无关性验证
+- 4.2 基准case验证（如有）
+- 4.3 与实测数据对比（如有）
+
+## 5. 仿真结果
+- 5.1 频响曲线
+- 5.2 指向性图案
+- 5.3 SPL分布图
+- 5.4 THD/非线性分析（如适用）
+- 5.5 关键发现
+
+## 6. 不确定度分析
+- 6.1 不确定度来源识别
+- 6.2 不确定度预算表
+- 6.3 灵敏度分析结果
+
+## 7. 结论与建议
+- 7.1 主要结论
+- 7.2 设计优化建议
+- 7.3 风险提示
+
+## 8. 附录
+- 8.1 完整参数表
+- 8.2 补充图表
+- 8.3 原始数据文件索引
+```
+
+### 5.2 关键图表规范
+
+**频响曲线图：**
+- X轴: 频率 (Hz)，对数刻度，20Hz-20kHz
+- Y轴: SPL (dB)，线性刻度，范围自适应
+- 标注: 目标曲线、容差带(±3dB)、关键频率点
+- 分辨率: 1/12倍频程或更细
+
+**指向性图案：**
+- 极坐标图，0°在前，顺时针
+- 多频率叠加 (250/500/1k/2k/4k/8k Hz)
+- 标注 -6dB覆盖角
+- 标准化至轴向 (0dB)
+
+**SPL分布图：**
+- 2D/3D彩色云图
+- 标注 max/min/average 值
+- 均匀度指标 ΔSPL = max - min
+
+---
+
+## 6. 跨Agent协作接口
+
+### 6.1 与CAD接口Agent协作
+
+**接口名称**: `collab_cad_agent`
+**协作模式**: 请求-响应
+
+```yaml
+request_geometry:
+  trigger: "仿真任务启动，需要几何模型"
+  request_format:
+    task_id: "T-2024-001"
+    required_geometry:
+      type: "speaker_array_assembly"
+      level_of_detail: "acoustic_sim"  # 声学仿真级简化
+      critical_dimensions: ["diaphragm_d", "box_L", "box_W", "box_H", "port_d", "port_L"]
+      format: "STEP"
+      version_control: true
+    deadline: "2024-01-15T10:00:00Z"
+  
+  response_format:
+    geometry_file: "path/to/model.step"
+    simplification_log: "path/to/simp_log.md"
+    parameters_table: "path/to/params.csv"
+    version: "v1.2"
+    checksum: "sha256:abc123..."
+
+validation_rules:
+  - 检查几何完整性（无破面、无干涉）
+  - 检查单位（必须为mm或m）
+  - 检查关键尺寸与任务书一致
+  - 检查简化不影响声学关键特征
+```
+
+### 6.2 与MATLAB Agent协作
+
+**接口名称**: `collab_matlab_agent`
+**协作模式**: 数据推送+结果拉取
+
+```yaml
+# 声学仿真Agent → MATLAB Agent（后处理请求）
+send_postprocess_request:
+  trigger: "COMSOL求解完成，需要高级数据分析"
+  data_package:
+    raw_data_file: "simulation_result.mph"
+    export_points: "measurement_points.csv"
+    analysis_requirements:
+      - type: "frequency_response_smoothing"
+        method: "1/3_octave"
+      - type: "directivity_index_calculation"
+        method: "IEC_60268-16"
+      - type: "statistical_analysis"
+        confidence_level: 0.95
+      - type: "waterfall_plot"
+        time_window: "T20"
+  
+  expected_delivery:
+    processed_curves: "processed_fr.csv"
+    di_values: "di_results.json"
+    statistical_report: "stat_report.md"
+    plots: ["smoothed_fr.png", "waterfall.png"]
+
+# MATLAB Agent → 声学仿真Agent（反馈）
+receive_analysis_feedback:
+  trigger: "MATLAB分析完成"
+  validation:
+    - 检查数据处理一致性
+    - 检查统计方法正确性
+    - 整合至仿真报告
+```
+
+### 6.3 与DSP算法Agent协作
+
+**接口名称**: `send_acoustic_constraints`
+**协作模式**: 主动推送
+
+```yaml
+acoustic_constraints_package:
+  trigger: "阵列指向性仿真完成，输出声学约束"
+  content:
+    array_config:
+      type: "linear"
+      n_elements: 8
+      spacing_mm: 100
+      element_type: "4inch_fullrange"
+    
+    directivity_constraints:
+      frequency_range: [100, 10000]
+      coverage_angle_6dB:
+        "1000Hz": 60  # ±30°
+        "4000Hz": 30  # ±15°
+      max_sll_dB: -12  # 最大旁瓣电平
+      beam_steering_range: [-30, 30]  # 可波束控制范围
+      min_beamwidth_hz: 2000  # 波束控制有效频率下限
+    
+    spl_constraints:
+      max_spl_1m_dB: 110  # 最大输出声压级
+      sensitivity_dB: 92   # 灵敏度 (1W/1m)
+      
+    transfer_function:
+      file: "array_transfer_function.csv"  # 频率响应数据
+      notes: "用于DSP EQ补偿的目标曲线"
+  
+  update_frequency: "设计变更时主动推送，常规任务完成后推送"
+```
+
+### 6.4 与评审Agent协作
+
+**接口名称**: `submit_for_review`
+**协作模式**: 正式交付
+
+```yaml
+review_package:
+  trigger: "仿真完成，自检通过"
+  contents:
+    report: "simulation_report.md"
+    raw_data: 
+      - "frequency_response.csv"
+      - "directivity_data.csv"
+      - "spl_distribution.csv"
+    plots:
+      - "fr_curve.png"
+      - "polar_plots.png"
+      - "spl_map.png"
+    model_files:
+      - "simulation_model.mph"
+    verification:
+      - "mesh_convergence_check.md"
+      - "benchmark_validation.md"
+    metadata:
+      task_id: "T-2024-001"
+      agent_version: "1.0.0"
+      simulation_date: "2024-01-15"
+      compute_time_hours: 4.5
+  
+  review_criteria:
+    - 物理合理性检查
+    - 方法论正确性检查
+    - 结果完整性检查
+    - 不确定度评估充分性
+    - 报告规范性检查
+```
+
+---
+
+## 7. 仿真验证流程
+
+### 7.1 与实测数据对比流程
+
+```
+Step 1: 实测数据采集条件记录
+  └── 消声室/现场环境条件
+  └── 测量设备（麦克风、信号源、DAQ）
+  └── 测量点位（与仿真点位对应）
+  
+Step 2: 数据对齐
+  └── 频率轴对齐（采样率、FFT参数统一）
+  └── 幅值归一化（激励条件一致化）
+  └── 点位位置确认
+  
+Step 3: 对比分析
+  └── 计算差异曲线：ΔSPL(f) = SPL_sim(f) - SPL_meas(f)
+  └── 统计指标：RMS误差、最大偏差、偏差频率分布
+  └── 容差评估：是否在±3dB范围内
+  
+Step 4: 偏差归因
+  └── 系统性偏差 → 检查模型假设
+  └── 频率相关偏差 → 检查材料参数、边界条件
+  └── 随机偏差 → 检查测量重复性
+  
+Step 5: 模型修正（如需）
+  └── 根据偏差分析调整模型
+  └── 重新验证
+  └── 记录修正历史
+```
+
+### 7.2 网格无关性验证
+
+**验证标准模板：**
+
+| 网格级别 | 单元数 | 最大尺寸 | 目标频段结果 | 与上级网格偏差 |
+|----------|--------|----------|--------------|----------------|
+| 粗网格 (Coarse) | N_c | λ/4 | SPL_c(f) | - |
+| 中网格 (Medium) | N_m ≈ 3N_c | λ/6 | SPL_m(f) | |SPL_m - SPL_c| |
+| 细网格 (Fine) | N_f ≈ 8N_c | λ/8-λ/12 | SPL_f(f) | |SPL_f - SPL_m| |
+
+**收敛判定：**
+- 中网格 vs 细网格偏差 < 3% → 中网格结果可接受
+- 偏差 3-5% → 采用细网格结果，注明收敛程度
+- 偏差 > 5% → 继续细化网格或检查模型问题
+
+---
+
+## 8. 工具使用规范
+
+### 8.1 COMSOL操作日志
+- 所有操作通过LiveLink for MATLAB/Python脚本记录
+- 参数变更自动记录至版本控制
+- 求解过程日志保存（收敛历史、内存使用）
+
+### 8.2 计算资源管理
+| 任务类型 | CPU核心 | 内存 | GPU | 预估时间 |
+|----------|---------|------|-----|----------|
+| 基准验证 (低频) | 4 | 32GB | - | <1h |
+| 全频段指向性 | 16 | 128GB | - | 4-8h |
+| 房间声学射线追踪 | 8 | 64GB | - | 2-4h |
+| 多物理场耦合 | 32 | 256GB | - | 8-24h |
+
+### 8.3 文件管理规范
+```
+project/
+├── 01_geometry/           # 几何文件
+├── 02_models/             # COMSOL模型文件
+│   ├── baseline/          # 基准模型
+│   ├── refined/           # 细化模型
+│   └── archive/           # 归档版本
+├── 03_materials/          # 材料参数
+├── 04_results/            # 仿真结果
+│   ├── raw_exports/       # 原始导出数据
+│   ├── processed/         # 处理后数据
+│   └── plots/             # 图表
+├── 05_reports/            # 报告
+├── 06_validation/         # 验证数据
+└── README.md              # 项目索引
+```
