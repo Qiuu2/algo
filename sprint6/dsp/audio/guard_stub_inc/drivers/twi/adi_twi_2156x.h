@@ -23,4 +23,5 @@ static inline ADI_TWI_RESULT adi_twi_Read(ADI_TWI_HANDLE h, void *buf, uint32_t 
 { (void)h;(void)buf;(void)n;(void)rs; return 0; }
 static inline ADI_TWI_RESULT adi_twi_Close(ADI_TWI_HANDLE h) { (void)h; return 0; }
 
+static inline ADI_TWI_RESULT adi_twi_GetHWErrorStatus(ADI_TWI_HANDLE h, uint32_t *pErr){ (void)h; if(pErr){*pErr=0u;} return 0; }
 #endif

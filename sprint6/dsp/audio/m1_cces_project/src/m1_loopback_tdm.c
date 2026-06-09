@@ -101,6 +101,13 @@ volatile uint32_t g_m1_max_abs_sample  = 0u;
 volatile int      g_m1_fg_stream_live  = -99;
 volatile int      g_m1_valid           = 0;
 
+/* [R49 obs-only - F49-MAJOR-1 discriminant] raw rc of the LAST codec TWI write (m1_twi_w8 was (void)).
+ * THE R1-vs-bus-level discriminant: codec write ACK (0) on the SAME TWI2 -> bus good, U6 NACK is
+ * address/device specific (R1); codec write also NACK (11=PERIPHERAL_ERROR) or LOSTARB -> BUS-LEVEL
+ * (pull-up/SCL/SDA/actual-prescale), NOT U6-specific. -99 = not run. OBSERVATION ONLY -- codec config
+ * and the m1_twi_w8 write itself are unchanged. */
+volatile int      g_m1_codec_write_rc  = -99;
+
 /* ---- M2 raw readouts (idle reads only; raw -- C9). Defined in BOTH builds so a debugger always finds
  *      the symbol; on the M1 transparent build they stay at their honest 0/sentinel (FIRA never ran). ---- */
 volatile int      g_m2_fira_inloop      = M2_FIRA_INLOOP; /* 1 = built with FIRA beam in-loop; 0 = M1 passthrough */
@@ -248,7 +255,9 @@ static void m1_twi_w8(uint8_t reg, uint8_t val)
 {
     s_m1_twi_txbuf[0] = reg;
     s_m1_twi_txbuf[1] = val;
-    (void)adi_twi_Write(s_m1_htwi, s_m1_twi_txbuf, 2u, false);
+    /* [R49 obs-only - F49-MAJOR-1] capture the raw rc (was (void)) -> g_m1_codec_write_rc holds the LAST
+     * codec write's result = the R1-vs-bus-level discriminant. Write behavior unchanged. */
+    g_m1_codec_write_rc = (int)adi_twi_Write(s_m1_htwi, s_m1_twi_txbuf, 2u, false);
 }
 
 #if M2_FIRA_INLOOP

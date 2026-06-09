@@ -53,6 +53,13 @@ static uint8_t        s_m1_u6_buf[2];
 volatile int g_m1_softcfg_rc[5]    = { -99, -99, -99, -99, -99 };
 volatile int g_m1_softcfg_open_rc  = -99;   /* adi_twi_Open rc (0=ok) */
 volatile int g_m1_softcfg_addr_rc  = -99;   /* SetHardwareAddress rc (0=ok) */
+/* [R49 obs-only] capture the 3 clock-config Set rc (were (void)-ignored) + the HW error detail after the
+ * first failed write. g_m1_softcfg_set_rc: 0=SetPrescale 1=SetBitRate 2=SetDutyCycle (raw ADI_TWI_RESULT).
+ * g_m1_softcfg_hwerr = adi_twi_GetHWErrorStatus bits -> ANAK(addr-phase NAK = wrong addr/U6 absent) /
+ * DNAK(data-phase NAK = U6 answers, NAKs data) / LOSTARB(arbitration loss = BUS-LEVEL) / BUFWR/RDERR.
+ * OBSERVATION ONLY -- enable/write/return logic unchanged. */
+volatile int      g_m1_softcfg_set_rc[3] = { -99, -99, -99 };
+volatile uint32_t g_m1_softcfg_hwerr     = 0xFFFFFFFFu;
 
 static int m1_u6_write(ADI_TWI_HANDLE h, uint8_t reg, uint8_t val)
 {
@@ -81,12 +88,15 @@ int m1_softconfig_enable_codecs(void)
     if (g_m1_softcfg_open_rc != 0) return 1;
     g_m1_softcfg_addr_rc = (adi_twi_SetHardwareAddress(h, M1_U6_TWI_ADDR) == ADI_TWI_SUCCESS) ? 0 : 1;
     if (g_m1_softcfg_addr_rc != 0) { (void)adi_twi_Close(h); return 1; }
-    (void)adi_twi_SetPrescale(h, M1_U6_TWI_PRESCALE);
-    (void)adi_twi_SetBitRate(h, M1_U6_TWI_BITRATE);
-    (void)adi_twi_SetDutyCycle(h, M1_U6_TWI_DUTY);
+    g_m1_softcfg_set_rc[0] = (int)adi_twi_SetPrescale(h, M1_U6_TWI_PRESCALE);   /* [R49 obs] was (void) */
+    g_m1_softcfg_set_rc[1] = (int)adi_twi_SetBitRate(h, M1_U6_TWI_BITRATE);     /* [R49 obs] was (void) */
+    g_m1_softcfg_set_rc[2] = (int)adi_twi_SetDutyCycle(h, M1_U6_TWI_DUTY);      /* [R49 obs] was (void) */
 
     /* (1) direction: make the ~EN / RESET pins driven outputs (dir-then-latch order kept, R44 INFO) */
     g_m1_softcfg_rc[0] = m1_u6_write(h, M1_U6_IODIRA, M1_U6_IODIRA_VAL); rc |= g_m1_softcfg_rc[0]; /* 0x18 IODIRA */
+    /* [R49 obs-only] read the HW error detail after the first write -> ANAK/DNAK/LOSTARB names the failure
+     * mode (addr-phase vs data-phase vs bus-level arbitration). No behavior change. */
+    (void)adi_twi_GetHWErrorStatus(h, (uint32_t *)&g_m1_softcfg_hwerr);
     g_m1_softcfg_rc[1] = m1_u6_write(h, M1_U6_IODIRB, M1_U6_IODIRB_VAL); rc |= g_m1_softcfg_rc[1]; /* 0x00 IODIRB */
     g_m1_softcfg_rc[2] = m1_u6_write(h, M1_U6_GPIOB,  M1_U6_PORTB_VAL);  rc |= g_m1_softcfg_rc[2]; /* 0xFD GPIOB  */
 
