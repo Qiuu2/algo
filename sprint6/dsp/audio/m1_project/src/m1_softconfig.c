@@ -58,7 +58,11 @@ static int m1_u6_write(ADI_TWI_HANDLE h, uint8_t reg, uint8_t val)
 {
     s_m1_u6_buf[0] = reg;
     s_m1_u6_buf[1] = val;
-    return (adi_twi_Write(h, s_m1_u6_buf, 2u, false) == ADI_TWI_SUCCESS) ? 0 : 1;
+    /* [R48 block A obs-only] return RAW ADI_TWI_RESULT (0=SUCCESS, 1..14=which error) instead of
+     * collapsing 1..14 to 1 -- names the failure code per write. rc|=/return rc aggregate semantics
+     * unchanged (rc nonzero iff any write != SUCCESS). adi_twi_Write is BLOCKING, 4th arg = bRestart
+     * (I2C repeated-start), NOT bWaitFlag (R48 [L1] installed header). */
+    return (int)adi_twi_Write(h, s_m1_u6_buf, 2u, false);
 }
 
 /*
