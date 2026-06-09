@@ -25,7 +25,16 @@
 
 /* ---- carrier U6 I/O-expander constants (R39-verified) ---- */
 #define M1_U6_TWI_DEV     2u       /* TWI dev 2 [SoftConfig_*.c SoftSwitch.TWIDevice] */
-#define M1_U6_TWI_ADDR    0x22u    /* U6 HW addr [SoftConfig_*.c:108] */
+/* [R50 build-configurable address fix mechanism, CTO-gated] U6 7-bit address. DEFAULT = 0x22 (R39, byte-
+ * identical behavior to before). IF the R50 address self-probe (m1_u6_addr_sweep) shows the U6 ACKs at a
+ * DIFFERENT address (R1a address-error), the tester/PM rebuilds with  -DM1_U6_TWI_ADDR_OVERRIDE=0x2X  to
+ * point the enable chain at the swept-found address -- NO source edit. CTO-gated: applying an override is
+ * an enable-chain address change (CTO call); the MECHANISM is pre-built here, the override is NOT set. */
+#ifdef M1_U6_TWI_ADDR_OVERRIDE
+#define M1_U6_TWI_ADDR    M1_U6_TWI_ADDR_OVERRIDE
+#else
+#define M1_U6_TWI_ADDR    0x22u    /* U6 HW addr [SoftConfig_*.c:108] (default; -D override available) */
+#endif
 #define M1_U6_TWI_PRESCALE 12u
 #define M1_U6_TWI_BITRATE  100u
 #define M1_U6_TWI_DUTY     50u
@@ -61,6 +70,14 @@ volatile int g_m1_softcfg_addr_rc  = -99;   /* SetHardwareAddress rc (0=ok) */
 volatile int      g_m1_softcfg_set_rc[3] = { -99, -99, -99 };
 volatile uint32_t g_m1_softcfg_hwerr     = 0xFFFFFFFFu;
 
+/* [R50 address self-probe -- HARMLESS, probe-only] sweep 7-bit addresses 0x20..0x27 (MCP23017 base+strap)
+ * with a NON-MUTATING register READ (read IODIRA 0x00); record per-address ACK. 1=ACK (device answered),
+ * 0=NACK, -99=not-run. Index i = address (0x20 + i). Exactly-one-ACK => that is the real U6 7-bit address.
+ * SAFETY: a register READ writes NO GPIOA / NO ~EN bit -- it cannot change codec-enable state. */
+volatile int g_m1_u6_addr_sweep[8] = { -99, -99, -99, -99, -99, -99, -99, -99 };
+#define M1_U6_SWEEP_BASE  0x20u    /* MCP23017-class 7-bit base; A2:A0 strap -> 0x20..0x27 */
+#define M1_U6_SWEEP_N     8u
+
 static int m1_u6_write(ADI_TWI_HANDLE h, uint8_t reg, uint8_t val)
 {
     s_m1_u6_buf[0] = reg;
@@ -70,6 +87,43 @@ static int m1_u6_write(ADI_TWI_HANDLE h, uint8_t reg, uint8_t val)
      * unchanged (rc nonzero iff any write != SUCCESS). adi_twi_Write is BLOCKING, 4th arg = bRestart
      * (I2C repeated-start), NOT bWaitFlag (R48 [L1] installed header). */
     return (int)adi_twi_Write(h, s_m1_u6_buf, 2u, false);
+}
+
+/* [R50 HARMLESS probe] does an address answer? Set the candidate 7-bit address, then do a NON-MUTATING
+ * register READ of IODIRA (0x00): write the 1-byte register pointer (bRestart=true = repeated-start, the
+ * proven ALT Read_TWI_8bit_Reg pattern, ALT.c:485-506) then read 1 byte. Returns 1 if BOTH phases ACK
+ * (device answered at that address), else 0. SAFETY: a READ writes NO device register -- in particular it
+ * touches NO GPIOA / NO ~EN bit, so it cannot change codec-enable state. Uses its OWN open handle. */
+static int m1_u6_addr_responds(uint32_t addr7)
+{
+    ADI_TWI_HANDLE hp = NULL;
+    uint8_t regptr = M1_U6_IODIRA;   /* 0x00 = a read-only-from-our-side direction register; harmless to read */
+    uint8_t rxbyte = 0u;
+    int ok = 0;
+
+    if (adi_twi_Open(M1_U6_TWI_DEV, ADI_TWI_MASTER, s_m1_u6_mem, ADI_TWI_MEMORY_SIZE, &hp) != ADI_TWI_SUCCESS)
+        return 0;
+    if (adi_twi_SetHardwareAddress(hp, (uint16_t)addr7) == ADI_TWI_SUCCESS) {
+        (void)adi_twi_SetPrescale(hp, M1_U6_TWI_PRESCALE);
+        (void)adi_twi_SetBitRate(hp, M1_U6_TWI_BITRATE);
+        (void)adi_twi_SetDutyCycle(hp, M1_U6_TWI_DUTY);
+        /* write register pointer (repeated-start) then read 1 byte; ACK on both phases == device answered */
+        if (adi_twi_Write(hp, &regptr, 1u, true) == ADI_TWI_SUCCESS &&
+            adi_twi_Read(hp, &rxbyte, 1u, false) == ADI_TWI_SUCCESS) {
+            ok = 1;
+        }
+    }
+    (void)adi_twi_Close(hp);
+    return ok;
+}
+
+/* [R50 PROBE-ONLY] sweep 0x20..0x27, fill g_m1_u6_addr_sweep. Changes NO codec-enable state (read-only
+ * probe per address). Run once at diagnostic time (e.g. before m1_softconfig_enable_codecs). */
+void m1_softconfig_addr_sweep(void)
+{
+    uint32_t i;
+    for (i = 0u; i < M1_U6_SWEEP_N; i++)
+        g_m1_u6_addr_sweep[i] = m1_u6_addr_responds(M1_U6_SWEEP_BASE + i);
 }
 
 /*
@@ -82,6 +136,12 @@ int m1_softconfig_enable_codecs(void)
     ADI_TWI_HANDLE h = NULL;
     volatile int d;
     int rc = 0;
+
+    /* [R50 PROBE-ONLY] run the harmless address self-probe FIRST (read-only per address; opens+closes its
+     * own handle; touches NO ~EN bit). Fills g_m1_u6_addr_sweep so a SINGLE diagnostic run yields both the
+     * NACK code (codec_write_rc/hwerr/softcfg_rc) AND which address the U6 actually answers. The enable
+     * sequence below is UNCHANGED -- it still uses M1_U6_TWI_ADDR (default 0x22 unless -D override). */
+    m1_softconfig_addr_sweep();
 
     g_m1_softcfg_open_rc = (adi_twi_Open(M1_U6_TWI_DEV, ADI_TWI_MASTER, s_m1_u6_mem, ADI_TWI_MEMORY_SIZE, &h)
         == ADI_TWI_SUCCESS) ? 0 : 1;
@@ -113,5 +173,6 @@ int m1_softconfig_enable_codecs(void)
 }
 
 #else  /* desktop: no carrier, honest no-op (never fakes an enable) */
-int m1_softconfig_enable_codecs(void) { return 1; }
+int  m1_softconfig_enable_codecs(void) { return 1; }
+void m1_softconfig_addr_sweep(void) { }   /* desktop no-op: no TWI bus */
 #endif
