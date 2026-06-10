@@ -9,16 +9,23 @@
 ## Model resolution map (alias the Agent tool accepts -> exact model ID, this env)
 | alias | exact model ID | gen |
 |---|---|---|
-| `opus`   | `claude-opus-4-8`            | Opus 4.8 (latest) |
+| `fable`  | `claude-fable-5`             | **Fable 5 (latest, 2026-06-09; session running `claude-fable-5[1m]` 1M-context)** |
+| `opus`   | `claude-opus-4-8`            | Opus 4.8 |
 | `sonnet` | `claude-sonnet-4-6`          | Sonnet 4.6 |
 | `haiku`  | `claude-haiku-4-5-20251001`  | Haiku 4.5 |
+
+> 2026-06-10 re-tier (CTO approved in-session): session model switched to Fable 5; the `fable` alias is now
+> accepted by the Agent tool's model enum (it was NOT available pre-switch — old note "no live re-tier" still
+> holds per-instance: changing an EXISTING agent's model = respawn). Default for new spawns = OMIT model
+> (inherits session = Fable 5); explicit `model:"fable"` for critical agents if the session ever runs Opus.
+> Fable free window on Max until 2026-06-22; after that usage credits (2x Opus price) — CTO re-decides tiering then.
 
 ## Locked roster (role -> exact model -> effective date)
 | role | exact model | effective | status | notes |
 |---|---|---|---|---|
-| project-manager (lead) | `claude-opus-4-8` | 2026-06-03 | ONLINE | session lead; reports to CTO |
-| critic | `claude-opus-4-8` | 2026-06-03 | ONLINE (agentId ab86…) | command line; not downgraded — depth matters |
-| dsp-algorithm | `claude-opus-4-8` | 2026-06-03 | RE-TIER PENDING SPAWN | Sonnet instance a9ba… RETIRED; next spawn = Opus; context on disk (commit 3a92754 + decisions_log + int_history_proof.py) |
+| project-manager (lead) | `claude-fable-5[1m]` | 2026-06-10 | ONLINE | session lead; reports to CTO (was claude-opus-4-8 2026-06-03~10) |
+| critic | `claude-fable-5` | 2026-06-10 | NEXT SPAWN | depth matters most here; prior Opus instances (ac22…/a3f8…) resumable but stay Opus — new rounds spawn fresh on Fable (was claude-opus-4-8) |
+| dsp-algorithm | `claude-fable-5` | 2026-06-10 | NEXT SPAWN | prior Opus instance a9e2… resumable for continuity; new WOs spawn on Fable (was claude-opus-4-8; Sonnet a9ba… RETIRED 2026-06-03) |
 | testing | `claude-sonnet-4-6` | 2026-06-03 | not yet started | CTO will temporarily raise to `claude-opus-4-8` for board-verification phase |
 | structure | `claude-sonnet-4-6` | 2026-06-03 | on demand | low activity on FIRA line |
 | hardware-design | `claude-sonnet-4-6` | 2026-06-03 | on demand | — |
