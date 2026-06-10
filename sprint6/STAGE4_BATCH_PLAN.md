@@ -41,15 +41,20 @@ E 往后全部卡硬件/外部，整合不进远程软件测试模型。
   - `g_m1_softcfg_hwerr`（ANAK 地址相 / DNAK 数据相 / LOSTARB 总线级）
   - `g_m1_softcfg_set_rc[3]`（三个 Set 时钟配置成功否）
   - **`g_m1_u6_addr_sweep[8]`（NEW · U6 地址自探测 0x20-0x27 哪个 ACK）** ← 若地址错，这一跑直接找到对的；全不 ACK→U6 缺/上电/总线级
-- **M2（B）**：`g_m2_setup_rc/fg_beam_live/out_nonzero` + .map（pin ≥0x2c0000 验）+ 对齐 dump（`g_m1_rx_buf`）
+- **M2（B）**：`g_m2_setup_rc/fg_beam_live/out_nonzero` + .map（pin ≥0x2c0000 验）
+- **对齐 dump（R51：移到 1A 做，注入已知中等幅度输入）**：`s_m1_rx_buf[0][0..7]`（2D file-static，非 g_m1_rx_buf）；SPORT 对齐 M1/M2 build 相同，在易测的 M1 build 取即可
 
 ### 自探测判读（一次跑定 root-cause）
-| u6_addr_sweep | codec_write_rc | → 结论 |
-|---|---|---|
-| 恰一个地址 ACK | 0（codec 好）| **R1a 地址错** → 把 M1_U6_TWI_ADDR 设成那个地址（修=改一宏）|
-| 0x22 ACK 但写 NACK(DNAK)| 0 | **R1d BANK/寄存器** → BANK 模式修 |
-| 全不 ACK | 0（codec 好）| **R1c U6 缺/未上电/复位中** → 上电时序修 |
-| 全不 ACK / LOSTARB | 也 NACK | **R0 总线级**（pull-up/SCL/物理）→ ⚠ 需示波器+电子工程师 |
+> **hwerr=枚举序数非位掩码**（R51 audit）：0=none/3=DNAK/4=ANAK/5=LOSTARB，**相等判**。主判据=(sweep,codec_write_rc)，hwerr 佐证；矛盾→ANOMALY。完整判读表见 M1_SOFTCFG_U6_ADDR_SWEEP.md §3 / runbook PM 节。
+
+| u6_addr_sweep | codec_write_rc | hwerr | → 结论 |
+|---|---|---|---|
+| 恰一个 ACK **且非 0x22** | 0（codec 好）| 4=ANAK | **R1a 地址错** → M1_U6_TWI_ADDR 设成那个地址（改一宏，CTO-gated）|
+| 0x22 ACK 其余 0 | 0 | 3=DNAK | **R1d BANK/寄存器** → block B-d（CTO-gated）|
+| 全不 ACK | 0（codec 好）| 4=ANAK | **R1c U6 缺/未上电/复位中** → block B-c 上电时序（先确认 open_rc==0 排除软件 buf bug）|
+| 全不 ACK | 也 NACK | 5=LOSTARB | **R0 总线级**（pull-up/SCL/物理）→ ⚠ 需示波器+电子工程师 |
+| **≥2 个 ACK** | 任意 | 任意 | **ANOMALY 外来器件** → 不自动 override，re-scope |
+| 任一 ACK 且 codec NACK/LOSTARB | 非0 | 5=LOSTARB | **ANOMALY**（应答但总线坏）→ 不自动结论 |
 
 ### 预建修法（决策树，按上表选；除 R0 全是改代码）
 - R1a：M1_U6_TWI_ADDR ← sweep 命中地址（一宏，预建可配）

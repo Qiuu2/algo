@@ -154,7 +154,8 @@ NOT code edits -- the source already has the M2 path behind `#if M2_FIRA_INLOOP`
 4. **M2 build extra on-board steps** (after step 3 proves M1 passthrough works):
    a. **.map re-read (pin proof)**: confirm s_m1_rx_buf, s_m1_tx_buf, s_m2_fa all in L1 Block 1
       (>=0x2c0000, <=0x2ebfff). Product .map not yet captured -- this is the F24-MAJOR-1 placement-verify.
-   b. **Q alignment dump (OPENING-5 discriminant)**: with a known mid-scale input, dump g_m1_rx_buf. Low 8
+   b. **Q alignment dump (OPENING-5 discriminant)**: with a known mid-scale input, dump s_m1_rx_buf[0][0..7]
+      (2D file-static, NOT g_m1_rx_buf which does not exist). Low 8
       bits ~0 + magnitude in high 24 -> LEFT-aligned -> zero-transform identity correct (code as-is). Else
       magnitude in low 24 -> RIGHT-aligned -> apply RX `<<8` / TX `>>8` (the m1_loopback_tdm.c M2 Q-BOUNDARY
       NOTE has the exact lines). This is the R46 mechanical discriminant; HRM grep corroborates.

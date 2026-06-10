@@ -9,7 +9,7 @@
 ================================================================================
 ## 1. WHAT WAS ADDED (m1_softconfig.c only; both copies byte-identical)
 ================================================================================
-### (A) Address self-probe -- HARMLESS, probe-only
+### (A) Address self-probe -- harmless ONLY for register-pointer parts (CONDITIONAL, see sec 2), probe-only
 - `g_m1_u6_addr_sweep[8]` (volatile int, -99 init): per-address ACK. index i = address 0x20 + i.
   1 = device answered at that 7-bit address, 0 = NACK, -99 = not run.
 - `m1_u6_addr_responds(addr7)`: opens its OWN handle, SetHardwareAddress(addr7), then a NON-MUTATING
@@ -30,29 +30,51 @@
   the override is NOT set here. (Verified: a `-DM1_U6_TWI_ADDR_OVERRIDE=0x21u` build compiles clean.)
 
 ================================================================================
-## 2. HARMLESS self-proof (probe touches NO codec-enable state)
+## 2. self-proof + the CONDITIONAL it rests on (R51 audit correction)
 ================================================================================
 - The probe `m1_u6_addr_responds` Writes ONLY `regptr` whose value is `M1_U6_IODIRA` (0x00) -- a register
   POINTER for the subsequent READ. It does NOT Write GPIOA (0x12) and does NOT write any ~EN data value
   (0x25/0x05). grep confirms: the only `m1_u6_write(h, M1_U6_GPIOA, ...)` calls (0x25/0x05, the ~EN bits)
   are in the ENABLE function, NOT in the probe.
-- A register READ on I2C cannot change the target's register contents -> the codec-enable state (driven by
-  GPIOA ~EN bits) is untouched by the sweep. The sweep is a pure address-answer test.
-- The sweep opens/closes its OWN handle per address; it does not perturb the enable function's handle/state.
+- For an MCP23017 (register-pointer device) a 1-byte 0x00 write only SELECTS the IODIRA register for the
+  following READ -> the target's register contents (incl. GPIOA ~EN) are untouched -> codec-enable state
+  preserved. The sweep uses its OWN handle per address (open/close), not the enable handle.
+- **R51 AUDIT CORRECTION (the R50 "iron-clad harmless" claim was CONDITIONAL, not absolute):** the probe
+  DOES put a real 1-byte `0x00` on the wire (m1_softconfig.c:111, `adi_twi_Write(hp,&regptr,1u,true)`) to
+  EVERY answering address in 0x20..0x27. 0x20..0x27 is also the PCF8574/PCF857x I/O-expander base range,
+  where a part has NO register pointer and a written byte drives the OUTPUT PINS directly. So "harmless" is
+  TRUE for MCP23017/PCAL-class (register-pointer) parts and FALSE for a PCF857x-class part in that range.
+  And the sweep auto-runs at m1_softconfig.c:144 on the F-SRU-1 BOOT path (every boot), not behind a
+  diagnostic flag. **Therefore harmlessness REQUIRES a schematic confirm that only MCP23017-class parts sit
+  at 0x20..0x27** (a CTO/PM pre-handoff gate, see runbook). The robust fix (gate the sweep behind a separate
+  diagnostic build flag so it is OFF the normal boot path) is a codec-enable-path change = CTO-gated, NOT
+  done this round (CTO ruling: doc + schematic-confirm only).
 
 ================================================================================
 ## 3. INTERPRETATION TABLE (sweep + codec_write_rc + hwerr -> root cause; per STAGE4_BATCH_PLAN sec 2)
 ================================================================================
+**hwerr is an ENUM ORDINAL, not a bit-mask** (R51 audit; ADI_TWI_EVENT sequential enum, installed header
+adi_twi_2156x.h:99-104): `0`=none, `3`=DNAK (data-phase NAK), `4`=ANAK (addr-phase NAK), `5`=LOSTARB
+(arbitration loss). adi_twi_GetHWErrorStatus writes ONE ordinal. **Decode by equality (==4), NOT by bit.**
+Also: hwerr is read once after write[0] (IODIRA); if softcfg_rc[1..4] is nonzero but hwerr=0, the failing
+write is later -> key off softcfg_rc.
+**PRIMARY key = (sweep-pattern, codec_write_rc); hwerr is confirmatory. hwerr disagrees with the primary key
+=> ANOMALY (send to PM), do not auto-conclude.**
+
 | g_m1_u6_addr_sweep | g_m1_codec_write_rc | g_m1_softcfg_hwerr | ROOT CAUSE | FIX |
 |---|---|---|---|---|
-| **exactly ONE addr = 1** (e.g. [0x20..0x27] one ACK) | 0 (codec ACK = bus good) | ANAK on 0x22 | **R1a ADDRESS ERROR**: U6 is at the swept addr, not 0x22 | rebuild `-DM1_U6_TWI_ADDR_OVERRIDE=0x2X` (CTO-gated) |
-| 0x22 entry = 1 AND others 0 | 0 | DNAK (data-phase) | **R1-DNAK**: U6 answers 0x22 but NAKs data (BANK / register-addr) | block B-d BANK/register fix (CTO-gated) |
-| **all 8 = 0** (no addr answers) | 0 (codec ACK = bus good) | ANAK | **R1c U6 ABSENT / unpowered / held-in-reset** | block B-c readiness / carrier power-reset (board) |
-| all 8 = 0 OR LOSTARB | **non-zero** (codec ALSO NACK) | LOSTARB / 11 | **R0 BUS-LEVEL** (pull-up/SCL-SDA/actual-SCL) -- NOT U6-specific; audio was carrier default | block B-e bus-level (scope, board) |
-| any sweep = 1 AND codec_write_rc non-zero | non-zero | mixed | ANOMALY (device answers but bus also fails) | re-scope; do not auto-conclude |
+| **exactly ONE addr = 1 AND it is NOT 0x22 (sweep[2])** | 0 (codec ACK = bus good) | 4=ANAK | **R1a ADDRESS ERROR**: U6 is at the swept addr, not 0x22 | rebuild `-DM1_U6_TWI_ADDR_OVERRIDE=0x2X` (CTO-gated) |
+| 0x22 (sweep[2]) = 1 AND others 0 | 0 | 3=DNAK (data-phase) | **R1-DNAK**: U6 answers 0x22 but NAKs data (BANK / register-addr) | block B-d BANK/register fix (CTO-gated) |
+| **all 8 = 0** (no addr answers) | 0 (codec ACK = bus good) | 4=ANAK | **R1c U6 ABSENT / unpowered / held-in-reset** | block B-c readiness / carrier power-reset (board) |
+| all 8 = 0 | **non-zero** (codec ALSO NACK) | 5=LOSTARB | **R0 BUS-LEVEL** (pull-up/SCL-SDA/actual-SCL) -- NOT U6-specific; audio was carrier default | block B-e bus-level (scope, board) |
+| **>=2 addr = 1** (multiple answer) | any | any | **ANOMALY: foreign device(s) in range** | **do NOT auto-override**; re-scope (schematic) |
+| any sweep = 1 AND codec_write_rc non-zero / LOSTARB | non-zero | 5=LOSTARB | **ANOMALY** (device answers but bus also fails) | re-scope; do not auto-conclude |
 Notes: an address that ACKs the probe READ proves a device answers there; "exactly one ACK in 0x20..0x27"
-is the MCP23017 strap signature. codec_write_rc is the R1-vs-R0 gate (R49 discriminant); the sweep refines
-R1 into R1a(address)/R1c(absent). hwerr ANAK/DNAK/LOSTARB cross-confirms.
+is the MCP23017 strap signature. codec_write_rc is the R1-vs-R0 gate (R49 discriminant) BUT it is the LAST
+codec write's rc (m1_loopback_tdm.c:260, last-write-wins); a transient mid-sequence NACK can read back 0 --
+if LOSTARB or sweep-all-0 says "bus", do not over-trust cwrc=0. The sweep refines R1 into R1a(address)/
+R1c(absent). hwerr cross-confirms by ordinal equality. all-0 + cwrc=0 can ALSO be wrong-actual-prescale/SCL
+timing -> require hwerr==4 (ANAK, not 5 LOSTARB) before concluding U6-absent.
 
 ================================================================================
 ## 4. DIAGNOSTIC-BUILD READOUT LIST (one idle read; for the runbook)
@@ -66,7 +88,7 @@ volatiles found by symbol.
 | g_m1_softcfg_addr_rc | int | SetHardwareAddress rc (0=ok) -- note: programs addr reg, does NOT bus-transact |
 | g_m1_softcfg_set_rc[3] | int[3] | SetPrescale/SetBitRate/SetDutyCycle raw rc (0=ok) |
 | g_m1_softcfg_rc[5] | int[5] | per-write raw ADI_TWI_RESULT (0=SUCCESS, 11=PERIPHERAL_ERROR NACK); idx 0=IODIRA..4=GPIOA-run |
-| g_m1_softcfg_hwerr | uint32 | GetHWErrorStatus after first write: ANAK/DNAK/LOSTARB/BUFxx |
+| g_m1_softcfg_hwerr | uint32 | GetHWErrorStatus after write[0] ONLY -- **enum ordinal** 0=none/3=DNAK/4=ANAK/5=LOSTARB (NOT a bit-mask); if rc[1..4]!=0 but hwerr=0 the failing write is later, key off softcfg_rc |
 | **g_m1_u6_addr_sweep[8]** | int[8] | **R50 NEW** -- per-address ACK 0x20..0x27 (1=ACK/0=NACK); exactly-one-ACK = U6 address |
 | g_m1_main_softcfg_rc | int | the OR'd enable rc (m1_main.c mirror; non-zero = some write failed) |
 ### codec discriminant (m1_loopback_tdm.c -- R49)
@@ -105,15 +127,29 @@ volatiles found by symbol.
   range is the MCP23017-class assumption; widen only if the schematic shows a different part. [board-confirm.]
 - Applying the address override (or any block-B fix) is CTO-gated (enable-chain change, parallel safety vs
   line B M2 commit 12a5920 -- no file collision, but CTO ruling required).
+- **(R51 audit) The probe's 0x00 write is harmless ONLY for register-pointer parts (MCP23017); a PCF857x in
+  0x20..0x27 would have its outputs driven by 0x00. Harmlessness REQUIRES schematic confirm of the parts in
+  range (CTO/PM pre-handoff gate). The sweep is on the F-SRU-1 boot path, not behind a diag flag.**
+- **(R51 audit) sweep open rc is NOT separately captured**: the sweep shares the TWI memory (s_m1_u6_mem,
+  sized by ADI_TWI_MEMORY_SIZE). If the on-target macro yields an undersized buffer, Open returns
+  INSUFFICIENT_MEMORY and EVERY sweep entry collapses to 0 -- indistinguishable from "U6 absent". Before
+  concluding all-0 = R1c, confirm g_m1_softcfg_open_rc==0 (proxy for the TWI-mem sizing being OK on target).
+- **(R51 audit) codec_write_rc is last-write-wins**, not an OR-aggregate -- a transient mid-sequence codec
+  NACK reads back 0 and could mis-route the R1-vs-R0 gate. Treat cwrc=0 with caution if any bus symptom
+  (LOSTARB, sweep all-0) is present. (An OR-aggregate g_m1_codec_write_rc_any is a future code change,
+  CTO-gated, not this round.)
 
 ================================================================================
 ## SUMMARY (HALT)
 ================================================================================
-- ADDED (probe/obs-only, m1_softconfig.c both copies): g_m1_u6_addr_sweep[8] + a HARMLESS register-READ
-  address probe (0x20..0x27) that touches NO ~EN bit, auto-run at the top of the enable fn (m1_main.c not
-  touched). + a build-configurable M1_U6_TWI_ADDR override (-D, default 0x22, R1a fix mechanism, CTO-gated).
-- HARMLESS proven: the probe Writes only the register pointer (0x00), reads IODIRA; GPIOA/~EN writes are
-  ONLY in the enable fn. Default 0x22 + 5 enable writes + return rc all byte-unchanged.
+- ADDED (probe/obs-only, m1_softconfig.c both copies): g_m1_u6_addr_sweep[8] + a register-READ address probe
+  (0x20..0x27) that touches NO ~EN bit, auto-run at the top of the enable fn (m1_main.c not touched). + a
+  build-configurable M1_U6_TWI_ADDR override (-D, default 0x22, R1a fix mechanism, CTO-gated).
+- Harmless ONLY for register-pointer parts (MCP23017): the probe Writes only the register pointer (0x00),
+  reads IODIRA; GPIOA/~EN writes are ONLY in the enable fn. **CONDITIONAL (R51): the 0x00 byte drives outputs
+  on a PCF857x-class part in 0x20..0x27 -> harmlessness REQUIRES schematic confirm of the parts in range
+  (CTO/PM pre-handoff gate, see sec 2 + sec 6); boot-path gating is CTO-gated, not done this round.**
+  Default 0x22 + 5 enable writes + return rc all byte-unchanged.
 - ONE diagnostic run now yields: codec_write_rc (R1 vs R0) + hwerr (ANAK/DNAK/LOSTARB) + addr_sweep (which
   address, R1a) -> the interpretation table (sec 3) pins the root cause; if R1a, the -D override rebuild
   fixes it without a source edit (CTO-gated).
