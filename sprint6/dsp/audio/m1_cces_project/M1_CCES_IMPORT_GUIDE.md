@@ -20,8 +20,11 @@ Project name: **M1_Loopback** (renamed from ALT to avoid an import name-clash wi
 3. **Select root directory -> Browse...** -> choose:
    `.../sprint6/dsp/audio/m1_cces_project`
 4. The Projects list should show **M1_Loopback** (checked).
-5. **Copy projects into workspace**: CHECK it (recommended) -- copies the project into your CCES workspace
-   so the original repo folder stays clean. (Unchecked = build in-place in the repo; also fine.)
+5. **Copy projects into workspace**: **UNCHECK it (REQUIRED for the STAGE4 runbook flow)** -- build IN-PLACE
+   in the git checkout. A copied project silently stops tracking the repo: after a `git pull` brings a fix,
+   the workspace copy still builds the OLD sources with valid-looking readings (stale-build trap, R52).
+   **If you previously imported WITH Copy: delete that workspace copy (Delete project, check "delete contents
+   on disk" for the COPY only) and re-import in-place.**
 6. **Finish**.
 7. Build: right-click **M1_Loopback -> Build Project** (Debug config).
 8. Connect EZKIT + emulator -> **Run / Debug** -> read g_m1_* at idle (see CTO action list below).
@@ -103,6 +106,13 @@ Project Explorer -> right-click each SoftConfig_*.c -> Resource Configurations -
 - **F6 -- header name drift (2.11.1 ALT vs 2.12.1 install)**: if a `<drivers/sport/adi_sport.h>` or
   `<services/...>` include is not found, the installed header name differs -> Project Properties -> Paths
   and Symbols -> Includes, or fix the #include in the M1 source to the 2.12.1 name (board-confirm A2).
+- **F7 -- build "fails" ONLY at the final loader step (R52)**: the .cproject loader step inherits a
+  HARDCODED ALT kernel path `C:\Analog Devices\CrossCore Embedded Studio 2.11.1\SHARC\ldr\_spi.dxe` -- on a
+  2.12.1 (or non-C:) install that step reports FAILED on EVERY build. **The .dxe is usually already linked
+  by then**: check `Debug/M1_Loopback.dxe` exists -> if yes, IGNORE the loader error and load the .dxe (we
+  debug via emulator, never boot from the .ldr). To silence it: Properties -> SHARC Loader -> General ->
+  Kernel file -> point at your install's `SHARC\ldr\_spi.dxe`. Related: a device-programmer warning about a
+  missing `EV-2156x_EZ-KIT` driver path is also ignorable -- we never flash from the build.
 
 ## Honest gaps -- what the BOARD machine will first reveal (not predicted here)
 - **First true cc21k compile/link**: desktop gcc syntax-smoke != CCES build. Real header names (2.12.1),
@@ -116,6 +126,10 @@ Project Explorer -> right-click each SoftConfig_*.c -> Resource Configurations -
 - **system.svc driver versions** vs the M1 source calls (sport 1.0 / twi 2.0 / spu 1.0 / pdma 1.0 per the
   .cproject macros) -- confirm the install has these.
 - **SelectChannel single-slot driver minimum** (grep G1-G2) -> M1_RX_SLOTS 1 (512B) or 2 (1024B).
+  **R52 WARNING: do NOT just flip M1_RX_SLOTS=2** -- the fallback ALSO requires the rx[] consumers to index
+  at `rx[f*M1_RX_SLOTS]` (beam AND fan-out; packed DMA delivers 2 words/frame). Flipping the macro alone =
+  garbled-but-green audio. If the driver floors: send the grep result back and WAIT for a PM-issued build
+  (the stride change is a CTO-gated edit to a board-PASS-protected TU).
 - DAI1-pin->codec physical traces (carrier schematic); MCLK 12.288 MHz source; SRU effect latency.
 
 ## WO-S6-M2 -- building the FIRA beam in-loop (M2_FIRA_INLOOP=1)
@@ -127,8 +141,10 @@ NOT code edits -- the source already has the M2 path behind `#if M2_FIRA_INLOOP`
 1. **Define the macro**: Project Properties -> C/C++ Build -> Settings -> SHARC C/C++ Compiler ->
    Preprocessor -> add `M2_FIRA_INLOOP=1` (Debug and Release). (M1 build = simply omit it.)
 2. **Add the FROZEN FIRA call surface** (read-only; M2 CALLs, never edits -- iron-rule zero-touch):
-   - **Include dirs** (Paths and Symbols -> Includes -> add):
-     `${repo}/sprint4/dsp/fira`, `${repo}/sprint4/dsp/core_only/src`, `${repo}/sprint4/dsp/core_only/include`
+   - **Include dirs** (Paths and Symbols -> Includes -> add) -- **use the ABSOLUTE path of YOUR git
+     checkout** (`${repo}` is NOT a CCES variable; bare relative paths do not resolve either, R52). E.g. if
+     the checkout is at `D:\work\algo`, add:
+     `D:\work\algo\...\sprint4\dsp\fira`, `...\sprint4\dsp\core_only\src`, `...\sprint4\dsp\core_only\include`
      (these resolve fira_tree.h, dolph_w8_q15.h, tree_filterbank.h, fir_coeffs_hb63.h).
    - **Link the frozen sources** (add as linked-resource source files, do NOT copy/edit):
      `sprint4/dsp/fira/fira_tree.c`, `sprint4/dsp/core_only/src/tree_filterbank.c`,
@@ -139,13 +155,19 @@ NOT code edits -- the source already has the M2 path behind `#if M2_FIRA_INLOOP`
 3. **Pin proof**: the M2 build pins s_m1_rx_buf / s_m1_tx_buf / s_m2_fa to L1 Block 1 via
    `#pragma section("seg_l1_block1")` (already in the .c). After the M2 build, **re-read the .map** and
    confirm all three land at >= 0x2c0000 (Block 1) -- see the m1_app.ldf banner + the honest gap below.
+4. **RESTORE before any non-M2 build (R52 -- project state persists!)**: the macros stay in the project's
+   Defined symbols across sessions. Before building 1A / the round-2 validation build, **DELETE
+   `M2_FIRA_INLOOP=1` and `FIRA_USE_REAL_ADI_FIR_HEADER`** from Preprocessor definitions (the include dirs /
+   linked sources may stay -- harmless with the macro off). Cross-check with the build fingerprint:
+   **`g_m2_fira_inloop` reads 0 in an M1/validation build, 1 in an M2 build** -- read it FIRST, every session.
 
 ## CTO on-board action list
 1. Import per the steps above; **Build Project (Debug)**. Expect possible first-build fixes from F3 (CCES
    path var) / F6 (header drift) -- those are normal for a hand-assembled cross-machine project.
    For M2: add the macro + FIRA include/link wiring above first.
 2. **grep G1-G2** in the install `adi_sport.h`: single-slot SelectChannel accepted? -> keep M1_RX_SLOTS=1
-   (512B) or set =2 (1024B) in m1_loopback_tdm.h.
+   (if NOT accepted: do NOT flip =2 yourself -- stride caveat above; send the grep back, wait for a PM build;
+   =2 only via a PM-issued build).
 3. **Run/Debug + read at idle (M1 build)** (free-run, NO callback breakpoints): g_m1_main_pwrinit_rc /
    softcfg_rc / init_rc all 0; g_m1_valid=1; g_m1_fg_stream_live=1 (green ONLY if blocks grew AND non-zero
    audio); g_m1_rx_block_count / tx growing; g_m1_cb_cyc_last/max/min (io-callback [L1] cost);
@@ -161,7 +183,8 @@ NOT code edits -- the source already has the M2 path behind `#if M2_FIRA_INLOOP`
       NOTE has the exact lines). This is the R46 mechanical discriminant; HRM grep corroborates.
    c. **read M2 readouts at idle**: g_m2_fira_inloop=1; g_m2_setup_rc=0 (fira_tree_setup ok);
       g_m2_valid=1; g_m2_fg_beam_live=1 (green ONLY if blocks grew AND FIRA output non-zero -- a dead/stub
-      FIRA keeps it 0); g_m2_out_nonzero / g_m2_out_max_abs > 0 (beam produced audio); g_m1_cb_cyc_* now =
+      FIRA keeps it 0; R52: green is trustworthy ONLY with plausible audio -- harsh full-scale noise +
+      out_max_abs pinned near 0x7FFFFFFF = per-frame FIRA failure latching a false green, power amps down); g_m2_out_nonzero / g_m2_out_max_abs > 0 AND not pinned near 0x7FFFFFFF (beam produced audio); g_m1_cb_cyc_* now =
       core+beam+io (NOT io-callback alone -- caliber = app load, R42; separate off-board).
    d. **R14 bit-exact (INTEGER-enum)**: the FIRA fixed-point INTEGER enum vs the Q15xQ31 signed-fractional
       semantics is a board bit-exact check (fira_tree.h:42-43, per-subband criterion) -- do NOT read M2

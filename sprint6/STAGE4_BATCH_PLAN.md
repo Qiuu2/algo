@@ -73,6 +73,21 @@ E 往后全部卡硬件/外部，整合不进远程软件测试模型。
 1. **softcfg 若 R0 总线级** → 需示波器+电子工程师（按钮工搞不定）；但诊断第 1 次会明确告诉是这种，好安排人。
 2. **M3 可听 / R3 / Stage5-7** → 卡阵列硬件实物+外部，根本进不了远程软件测试，是另一条线（CTO 回来 + 硬件团队 + 外部排期）。
 
+## 4B. CTO-gated 代码 defer 清单（R52 上板前审计发现，本轮只做文档兜底，待 CTO 代码窗口逐项拍）
+| # | 项 | 风险 | 文档兜底（已做）|
+|---|---|---|---|
+| 1 | **CMAP12=0x01 实把 ADC ch2 送进唯一捕获 slot**（注释写反；改 0x10/0x00 需重验）| 单声道插头→全 0 误判 | runbook 1A 要求立体声源 |
+| 2 | fg_beam_live 无逐帧 FIRA 失败 gating（fira_tree 9 段 rc 全 (void)）| 逐帧失败→满幅噪声灌功放仍显绿 | runbook 1B 功放断电/音量最小+假绿征兆 |
+| 3 | M1_RX_SLOTS=2 fallback 文档称「只改一处」实漏 rx[] 步距（rx[f*M1_RX_SLOTS]）| fallback 即乱序假绿 | IMPORT_GUIDE R52 WARNING×2：勿自行翻宏，发回 grep 等 PM build |
+| 4 | FIRA QueueTask 自旋在 SPORT DMA 中断里（FIR DONE 优先级须高于 SPORT DMA+嵌套开）| M2 首帧可能挂死 | runbook 1B 征兆（rx_block_count 卡 1+setup_rc=0）|
+| 5 | m1_loopback_init ~9 腿折叠 rc=1（无逐段 rc）| 失败腿不明多跑一轮 | PM 判读注意③（cwrc=-99 vs 0 拆）|
+| 6 | g_m1_softcfg_hwerr volatile 强转去 volatile（C11 UB，实际理论级）| 理论 | defer |
+| 7 | m1_softconfig.c:67 注释「bits」措辞 + m1_loopback_tdm.c 注释残留 g_m1_rx_buf | 文档已正源码注释未改 | 随下次 CTO-gated commit 捎带 |
+| 8 | .cproject loader 2.11.1 硬路径 + device-programmer 路径 | build 尾步报错 | IMPORT_GUIDE F7 |
+| 9 | 暴露 `g_m1_u6_addr_used = M1_U6_TWI_ADDR`（override 生效的直接观测）| 现靠 build console 凭证 | runbook 第 2 次步骤 3 |
+| 10 | M2 .map 须核 ldf_stack_length ≥ ~16KB（fira_tfb 栈帧 ~6.7KB 进回调）| 栈溢出 | runbook 1B .map 检查项 |
+（前轮已 defer：sweep 移出 boot 路径/hwerr 逐写/.cproject 预启用 map/sweep open_rc/cwrc OR 聚合。）
+
 ## 5. 纪律
 - F-SRU-1 修复 + 板上 softcfg_rc 全 0 复验前，**不得宣称换板安全**（R48 确诊未生效）。
 - 任何 logic 修（block B 各分支）CTO-gated；本批量诊断/自探测是 obs/probe-only。

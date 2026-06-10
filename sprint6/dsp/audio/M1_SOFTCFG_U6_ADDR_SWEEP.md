@@ -60,11 +60,15 @@ Also: hwerr is read once after write[0] (IODIRA); if softcfg_rc[1..4] is nonzero
 write is later -> key off softcfg_rc.
 **PRIMARY key = (sweep-pattern, codec_write_rc); hwerr is confirmatory. hwerr disagrees with the primary key
 => ANOMALY (send to PM), do not auto-conclude.**
+**SCOPE (R52): this table applies to the DEFAULT-0x22 diagnostic build ONLY.** Under
+-DM1_U6_TWI_ADDR_OVERRIDE the sweep STILL scans 0x20-0x27 and naturally reproduces "exactly one ACK, not
+0x22" -- that is the EXPECTED board reality (the sweep is independent of the override; the build console line, not the sweep, proves the override took), NOT R1a re-firing. Round-2 (override build) judgment = runbook
+"第 2 次测试" (round-2 test) section (expected: sweep unchanged / hwerr==0 / rc all 0), never this table.
 
 | g_m1_u6_addr_sweep | g_m1_codec_write_rc | g_m1_softcfg_hwerr | ROOT CAUSE | FIX |
 |---|---|---|---|---|
 | **exactly ONE addr = 1 AND it is NOT 0x22 (sweep[2])** | 0 (codec ACK = bus good) | 4=ANAK | **R1a ADDRESS ERROR**: U6 is at the swept addr, not 0x22 | rebuild `-DM1_U6_TWI_ADDR_OVERRIDE=0x2X` (CTO-gated) |
-| 0x22 (sweep[2]) = 1 AND others 0 | 0 | 3=DNAK (data-phase) | **R1-DNAK**: U6 answers 0x22 but NAKs data (BANK / register-addr) | block B-d BANK/register fix (CTO-gated) |
+| 0x22 (sweep[2]) = 1 AND others 0 | 0 | 3=DNAK (data-phase) | **R1d (R1-DNAK)**: U6 answers 0x22 but NAKs data (BANK / register-addr) | block B-d BANK/register fix (CTO-gated) |
 | **all 8 = 0** (no addr answers) | 0 (codec ACK = bus good) | 4=ANAK | **R1c U6 ABSENT / unpowered / held-in-reset** | block B-c readiness / carrier power-reset (board) |
 | all 8 = 0 | **non-zero** (codec ALSO NACK) | 5=LOSTARB | **R0 BUS-LEVEL** (pull-up/SCL-SDA/actual-SCL) -- NOT U6-specific; audio was carrier default | block B-e bus-level (scope, board) |
 | **>=2 addr = 1** (multiple answer) | any | any | **ANOMALY: foreign device(s) in range** | **do NOT auto-override**; re-scope (schematic) |

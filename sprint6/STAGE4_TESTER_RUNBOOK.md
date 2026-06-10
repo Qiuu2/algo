@@ -21,15 +21,18 @@
 ## 准备（一次）
 1. CCES 打开 algo/master 工作区，`git pull`（拉到最新，含诊断镜像）。
 2. **若工作区里还没有 M1_Loopback 工程**：File → Import 按 `m1_cces_project/M1_CCES_IMPORT_GUIDE.md` 导入，
-   含首次构建修正 **F1–F6**（尤其 F3 路径变量 / F6 头文件名漂移）。
+   含首次构建修正 **F1–F7**（尤其 F3 路径变量 / F6 头文件名漂移 / F7 loader 步报错）。
+   **⚠ Import 时「Copy projects into workspace」必须不勾**（原地 build，git pull 才能生效）；
+   若以前勾过 Copy 导入过：删掉那个工作区拷贝，重新原地导入（见 IMPORT_GUIDE 步骤 5）。
 3. **启用符号表 .map**（默认没开，不开就没有 .map 可发）：Project Properties → C/C++ Build → Settings →
    Tool Settings → **SHARC Linker** → 勾选 **Generate symbol map**（或加 `-map`）→ 应用 → Rebuild。
    生成后 .map 在 `Debug/` 文件夹里。
 3b. **加载哪个文件**：build 产物里 **`Debug/M1_Loopback.dxe`** 是给仿真器/JTAG 调试加载的；
     `.ldr` 是引导镜像，**不要加载 .ldr**。Load `Debug/M1_Loopback.dxe`。
     （若 `Debug/` 下没有 `.dxe`、产物名不同，原样发回，不要猜。）
-4. **若 build 报错**：先对照 `M1_CCES_IMPORT_GUIDE.md` 的 **F1–F6** 自查（多半是路径变量/头名），
-   还不行就原样复制错误发回，不要猜改。
+4. **若 build 报错**：先对照 `M1_CCES_IMPORT_GUIDE.md` 的 **F1–F7** 自查（多半是路径变量/头名）。
+   **特例（F7）**：若**只在最后 loader 步**报 FAILED（提示 2.11.1 / _spi.dxe 路径）——`Debug/M1_Loopback.dxe`
+   多半已经生成，确认它在就**忽略这个报错**继续。其他报错原样复制发回，不要猜改。
 5. **自由运行纪律**：测量循环里**不要下断点**（会死锁）。流程 = Run → 让它跑几秒 → Suspend → idle 读全局。
    「在 idle」= core 停在 main 的 while(1) 空转循环里，**这是正常的**。
 
@@ -48,8 +51,9 @@
 
 | 变量 | 抄什么 |
 |---|---|
+| **`g_m2_fira_inloop`** | **第一个读！1A 应=0**（=1 说明 M2 宏没删干净=build 错了，先按 IMPORT_GUIDE M2 节第 4 步删宏重 build）|
 | `g_m1_u6_addr_sweep[0]`..`[7]` | 8 个值（index [k] 对应地址 0x20+k；1=应答/0=没应答/**-99=没跑**）|
-| `g_m1_codec_write_rc` | 1 个值（注：是**最后一次** codec 写的 rc，见交接节注意）|
+| `g_m1_codec_write_rc` | 1 个值（注：是**最后一次** codec 写的 rc，见 PM 判读节·判读注意①）|
 | `g_m1_softcfg_hwerr` | 1 个值（**抄原始整数**，PM 按序数解，不要自己解）|
 | `g_m1_softcfg_rc[0]`..`[4]` | 5 个值 |
 | `g_m1_softcfg_set_rc[0]`..`[2]` | 3 个值 |
@@ -62,6 +66,10 @@
 
 4. **对齐 dump（在 1A 这里做，不放 1B）**：SPORT 对齐是 M1/M2 build 相同的属性，在容易的 M1 build 就能取。
    - **先给一个已知的、稳定的中等幅度音频输入**（不能静音，否则 dump 全 0 没法判）。
+   - **⚠ 输入必须用立体声源、左右声道都有信号**（手机/电脑放音乐即可）。**不要用单声道插头**——
+     当前 build 捕获的 TDM slot 吃的是 ADC **ch2**（CMAP12=0x01，注释写反了，R52 按数据手册核实），单声道
+     插头通常只驱动一个声道（载板 jack→ADC 通道接线未板证）→ 可能读出全 0，被误判成「无输入/流没起」。
+     立体声双声道源对此不敏感，必用。
    - 读 `s_m1_rx_buf[0][0]`..`s_m1_rx_buf[0][7]`（**注意是 `s_m1_rx_buf`，2 维 file-static**；
      在 Expressions 里按文件作用域输入，若调试器看不到此 file-static 符号，**原样记「符号不可见」发回**）。
    - 抄这 8 个值发回（PM 判左/右对齐）。**若全是 0 → 注明「无实时输入/未注入」一并发回。**
@@ -69,22 +77,30 @@
 
 ### 1B — M2 FIRA（build 加 M2_FIRA_INLOOP=1）—— **不确定就跳过，只做 1A**
 > M2 = FIRA 波束。要改 build 接线，**非专家做不了就明确只做 1A，M2 等 CTO 回来或 PM 指导**。
-1. **Build 接线**（这几步对没配过 CCES build 的人有坑——逐条按 `M1_CCES_IMPORT_GUIDE.md` 第 121–141 行的点击路径做）：
+1. **Build 接线**（这几步对没配过 CCES build 的人有坑——逐条按 `M1_CCES_IMPORT_GUIDE.md` 的 **「WO-S6-M2」节**（含第 4 步恢复）的点击路径做）：
    - 预处理宏加 `M2_FIRA_INLOOP=1`（Properties → C/C++ Build → Settings → Preprocessor → Defined symbols）；
-   - 加 3 个 include 目录：`sprint4/dsp/fira`、`sprint4/dsp/core_only/src`、`sprint4/dsp/core_only/include`；
+   - 加 3 个 include 目录（**用你 git checkout 的绝对路径**，相对路径解析不了，见 guide）：
+     `…\sprint4\dsp\fira`、`…\sprint4\dsp\core_only\src`、`…\sprint4\dsp\core_only\include`；
    - link 3 个源文件（linked resource）：`fira_tree.c` / `tree_filterbank.c` / `tfb_8ch.c`；
    - 编译宏再加 `FIRA_USE_REAL_ADI_FIR_HEADER`。
    - **任一步不确定 → 停，只交 1A，把卡在哪发回。**
-2. **Load + Run ~5 秒 + Suspend**，读：
+2. **⚠ M2 首跑安全（R52）**：第一次跑 M2 build 前，**功放断电或音量最小**——若 FIRA 逐帧失败，输出可能是
+   近满幅噪声直灌 8 路功放（指示：声音刺耳 + `g_m2_out_max_abs` 顶在 0x7FFFFFFF 附近 = 逐帧失败，**不是**波束活）。
+3. **Load + Run ~5 秒 + Suspend**，读：
 
 | 变量 | 抄什么 |
 |---|---|
+| **`g_m2_fira_inloop`** | **第一个读！1B 应=1**（=0 说明宏没接上，M2 没真编进去）|
 | `g_m2_setup_rc` | 1 个值（应=0；**=-99 表示 FIRA setup/link 没跑成**）|
-| `g_m2_fg_beam_live` | 1 个值（应=1）|
+| `g_m2_fg_beam_live` | 1 个值（应=1；⚠ =1 只在声音正常时可信——刺耳噪声+max_abs 顶满幅=逐帧失败假绿）|
 | `g_m2_out_nonzero` / `g_m2_out_max_abs` | 2 个值（setup_rc=0 但 out_nonzero=0 = 波束静默，记录别盲重跑）|
 | `g_m2_valid` | 1 个值 |
+| `g_m1_rx_block_count` | 1 个值（**卡在 1 不动 + setup_rc=0 = FIRA 中断自旋死锁征兆**，记录发回，别重烧）|
 
-3. **导出这个 build 的 .map**——发回（PM 验 FIRA 工作集 pin 到 Block1 ≥0x2c0000）。
+4. **导出这个 build 的 .map**——发回（PM 验 FIRA 工作集 pin 到 Block1 ≥0x2c0000 + 栈长 ldf_stack_length）。
+5. **跑完 1B 立刻恢复工程**：Properties → Preprocessor → **删掉 `M2_FIRA_INLOOP=1` 和
+   `FIRA_USE_REAL_ADI_FIR_HEADER`**（include 目录/链接源留着无害）。**这两个宏会留在工程里不删就一直生效**，
+   下次 build（含第 2 次验证）会悄悄变成 M2 build（见 IMPORT_GUIDE M2 节第 4 步）。
 
 ### 1C — 交接（发回，到此停）
 把 1A（+ 可选 1B）所有数字 + .map 文件，按下面「交接」节发出。**到此停，等回话。** 不要自己改任何东西。
@@ -93,14 +109,19 @@
 
 ## 交接（CTO 出门期间：测试员 → CTO 中转 → PM）
 - **PM 是一个 Claude agent，没人调它就不跑**——所以测试员**不直接联系 PM**。
-- 测试员把：① 上面所有读数（直接粘文本）② .map 文件（作为附件）**发给 CTO**：
-  邮箱 `taricqiu@gmail.com`（或约定的 IM）。
+- 测试员把：① 上面所有读数（直接粘文本）② .map 文件（作为附件）③ **本次 build 配置**（Properties →
+  Preprocessor → Defined symbols 的完整清单，截图或抄下来——没有这个 PM 无法判读数属于哪个 build）
+  **发给 CTO**：邮箱 `taricqiu@gmail.com`（或约定的 IM）。
 - **CTO 收到后转给 PM 判读**，PM 出下一步 build，CTO 再转回测试员。
-- **若 N 小时没回话**：停着等，**不要重烧、不要猜、不要自行改 build**。
+- **若 24 小时没回话**：重发一次邮件；仍无回话就停着等，**不要重烧、不要猜、不要自行改 build**。
 
 ---
 
 ## PM 判读（**测试员不做这节**，PM 远程做）—— 判读表
+
+> **⚠ 本表只适用于默认 0x22 诊断 build（第 1 次测试）。** override build（第 2 次验证）**不要**套此表——
+> override 下 sweep 仍扫 0x20-0x27、照样「恰一个 ACK 且非 0x22」，再套表会循环开 R1a 或误报 ANOMALY；
+> 第 2 次的判读标准见「第 2 次测试」节（R52）。
 
 > **hwerr 是枚举序数，不是位掩码**（核：ADI_TWI_EVENT 顺序枚举）：
 > `g_m1_softcfg_hwerr == 0`→无错 ｜ `==3`→**DNAK**(数据相 NAK) ｜ `==4`→**ANAK**(地址相 NAK) ｜ `==5`→**LOSTARB**(总线仲裁丢失)。
@@ -118,7 +139,7 @@
 | **≥2 个=1**（多地址应答）| 任意 | 任意 | **ANOMALY 外来器件** | **不自动 override**，PM re-scope |
 | 任一=1 **且 codec_write_rc 非0 / LOSTARB** | 非0 | 5=LOSTARB | **ANOMALY**（应答但总线也坏）| 不自动结论，PM re-scope |
 
-判读注意（PM 侧）：① `codec_write_rc` 是**最后一次** codec 写的 rc——中途瞬时 NACK 可能读回 0；若有 LOSTARB 或 sweep 全 0 等总线征兆，别过信 cwrc=0。② 若 sweep 全 0，下「U6 缺」结论前先看 `g_m1_softcfg_open_rc`==0（sweep 与 enable 共用 TWI 内存；INSUFFICIENT_MEMORY 也会让 sweep 全 0=软件 bug 非板况）。
+判读注意（PM 侧）：① `codec_write_rc` 是**最后一次** codec 写的 rc——中途瞬时 NACK 可能读回 0；若有 LOSTARB 或 sweep 全 0 等总线征兆，别过信 cwrc=0。② 若 sweep 全 0，下「U6 缺」结论前先看 `g_m1_softcfg_open_rc`==0（sweep 与 enable 共用 TWI 内存；INSUFFICIENT_MEMORY 也会让 sweep 全 0=软件 bug 非板况）。③ `g_m1_main_init_rc`=1 时（init 失败、~9 条失败腿折叠成一个 1，R52）：配合 `codec_write_rc` 拆——cwrc=**-99** ⇒ 挂在第一次 DAC 写之前（SPU/TWI open/时钟 Set/DAC 地址）；cwrc=**0** ⇒ codec 写都过了、挂在 ADC 地址或 SPORT 段。
 
 ### 哨兵值（-99 / 0xFFFFFFFF）= 那步没跑（测试员也要懂这条）
 - 任何读数 = **-99**（或 hwerr = **0xFFFFFFFF**）= 该步**根本没执行**——**原样记录，不要当成 0**。
@@ -132,12 +153,24 @@
 
 ## 第 2 次测试 · 验证（PM 指定 build 后）
 
-1. PM 会告诉你**具体 build 配置**（比如「加 `-DM1_U6_TWI_ADDR_OVERRIDE=0x21u` rebuild」）。
-2. **Build + Load + Run ~5 秒 + Suspend**，读：
-   - `g_m1_softcfg_rc[0]`..`[4]` —— **目标：全 = 0**（5 个写全成功 = F-SRU-1 真生效）
-   - `g_m1_u6_addr_sweep` —— 复确认
-   - `g_m1_valid` / `g_m1_fg_stream_live` —— 应 1/1
-3. 抄数字发回。**rc 全 0 = softcfg 命脉修好。** 否则发回 PM 再判。
+1. **先恢复工程**：确认 Preprocessor Defined symbols 里**没有** `M2_FIRA_INLOOP=1`（1B 跑过就会残留，
+   必须删掉——否则验证 build 悄悄变成 M2 build，可能挂死/灌噪声，被误读成「override 把板搞坏了」）。
+2. **加 PM 指定的宏**（GUI 操作，和 1B 加宏同一个地方）：Project Properties → C/C++ Build → Settings →
+   SHARC C/C++ Compiler → Preprocessor → Defined symbols → Add，输入比如 `M1_U6_TWI_ADDR_OVERRIDE=0x21u`
+   （**不带 `-D` 前缀**——`-D` 是命令行写法，GUI 里直接填 `名字=值`）→ Rebuild。
+3. **留 build 凭证**：build 完从 Console 里复制 m1_softconfig.c 那行编译命令（里面能看到
+   `-DM1_U6_TWI_ADDR_OVERRIDE=...`），一起发回——这是「override 真编进去了」的唯一证据。
+4. **Load + Run ~5 秒 + Suspend**，读**完整 1A 清单**（全部变量，含 `g_m2_fira_inloop`/`hwerr`/
+   `codec_write_rc`/`open_rc`——第 2 次失败时若只有 rc 没有这些，还得跑第 3 次）。
+5. 抄数字 + build 凭证发回。
+
+**第 2 次的判读标准（PM 侧，R52——不要套第 1 次的判读表！）**：
+- **期望模式**：`g_m2_fira_inloop`=0 ／ sweep **不变**（仍是恰一个 ACK、在 override 的那个地址——sweep 永远
+  扫 0x20-0x27，与 override 无关，这**不是** R1a 复发）／ `hwerr`=0 ／ `softcfg_rc[0..4]` **全 0** ／
+  `valid`/`fg_stream_live`=1/1。
+- **全中 = F-SRU-1 真修好，softcfg 命脉收口。**
+- rc 仍非 0：先核 build 凭证里 override 真在（不在=改宏没生效/旧拷贝工程，回准备节查）；真在仍失败 →
+  连同完整清单发回 PM 重判（**不自动升级成 R0**——先排除 build 没生效）。
 
 ---
 
@@ -152,7 +185,7 @@
 
 ## 文档/路径
 - 诊断原理：sprint6/dsp/audio/M1_SOFTCFG_U6_ADDR_SWEEP.md
-- 导入 + M2 接线 + F1–F6：sprint6/dsp/audio/m1_cces_project/M1_CCES_IMPORT_GUIDE.md
+- 导入 + M2 接线 + F1–F7：sprint6/dsp/audio/m1_cces_project/M1_CCES_IMPORT_GUIDE.md
 - 计划全景：sprint6/STAGE4_BATCH_PLAN.md
 
 ---

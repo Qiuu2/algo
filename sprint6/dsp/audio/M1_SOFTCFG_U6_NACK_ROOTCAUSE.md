@@ -1,5 +1,13 @@
 # M1 softcfg U6 all-NACK (code 11=PERIPHERAL_ERROR) root-cause + block B (HALT)
 
+> **R51/R52 CORRECTION (2026-06-10, supersedes the hwerr wording below)**: `g_m1_softcfg_hwerr` is an **enum
+> ORDINAL, not a bit-mask** (ADI_TWI_EVENT sequential enum, installed adi_twi_2156x.h:99-104): `0`=none,
+> `1/2`=BUFWRERR/BUFRDERR, `3`=DNAK, `4`=ANAK, `5`=LOSTARB. **Decode by EQUALITY (==4 ANAK etc.), never by
+> bit-AND** -- bit-decoding flips bus-level vs address-error (e.g. 5=LOSTARB would bit-AND as "ANAK set").
+> The readout-map rows below have been REWRITTEN to ordinal equality (==3/==4/==5) in this same
+> correction; conditions and next-steps unchanged. Authoritative tables: STAGE4_TESTER_RUNBOOK "PM 判读" (PM-judge) section /
+> M1_SOFTCFG_U6_ADDR_SWEEP sec 3.
+>
 > dsp-algorithm teammate, 2026-06-08. Board re-run with block A: g_m1_softcfg_rc[0..4] ALL = 11 =
 > ADI_TWI_PERIPHERAL_ERROR = every U6 write bus-NACKs (systematic, not sporadic); open/addr = 0. Task:
 > root-cause from SOURCE + datasheet/installed-header, block B (CTO-gated, no blind fix). ASCII. No commit.
@@ -135,10 +143,10 @@ enum :100-105.)
 |---|---|---|
 | **g_m1_codec_write_rc = 0** (codec write ACK) | **BUS GOOD** -> U6 NACK is address/device specific = R1 | -> hwerr ANAK -> block B (B-b/B-c); DNAK -> (B-d) |
 | **g_m1_codec_write_rc = 11 / non-zero** (codec write NACK) | **BUS-LEVEL fault (R0)** -- NOT U6-specific; audio was carrier default | -> block B (B-e) bus-level |
-| g_m1_softcfg_hwerr has ANAK bit (addr-phase) | 0x22 wrong / U6 unreachable (R1, IF bus good) | (B-b) addr / (B-c) readiness |
-| g_m1_softcfg_hwerr has DNAK bit (data-phase) | U6 answers 0x22, NAKs data (R1-DNAK, IF bus good) | (B-d) BANK / register-addr |
-| **g_m1_softcfg_hwerr has LOSTARB bit** (arbitration loss) | **BUS-LEVEL** (another master / SDA stuck / pull-up) | (B-e) bus-level |
-| g_m1_softcfg_hwerr has BUFWRERR/BUFRDERR | driver buffer error | investigate driver memory/handle |
+| g_m1_softcfg_hwerr == 4 (ANAK, addr-phase) | 0x22 wrong / U6 unreachable (R1, IF bus good) | (B-b) addr / (B-c) readiness |
+| g_m1_softcfg_hwerr == 3 (DNAK, data-phase) | U6 answers 0x22, NAKs data (R1-DNAK, IF bus good) | (B-d) BANK / register-addr |
+| **g_m1_softcfg_hwerr == 5 (LOSTARB)** (arbitration loss) | **BUS-LEVEL** (another master / SDA stuck / pull-up) | (B-e) bus-level |
+| g_m1_softcfg_hwerr == 1 / == 2 (BUFWRERR/BUFRDERR) | driver buffer error | investigate driver memory/handle |
 | set_rc all 0 | the 3 clock Sets took (config applied) | -> failure is transact-level, not Set-config |
 | set_rc any !=0 | a Set itself rejected the value | rules out clock-config-applied; check value/range |
 

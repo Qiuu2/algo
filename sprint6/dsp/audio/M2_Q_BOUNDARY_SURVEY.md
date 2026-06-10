@@ -163,7 +163,7 @@ RIGHT-JUSTIFIED case (if DAC slot expects data in low 24):
     -- read whether the word-length arg (31) + SIGN_FILL documents MSB-justified (bit31) or LSB-justified.
   - HRM "Serial Word Length (SLEN)" + "Data Type / sign-fill" sections: confirm received word is
     left-justified in the 32-bit memory word with sign at the configured MSB.
-  - Cross-check on the LIVE board: dump a few `g_m1_rx_buf` words while feeding a known small DC/tone; if the
+  - Cross-check on the LIVE board: dump a few `s_m1_rx_buf[0][...]` (R52: real 2D file-static symbol; the old name g_m1_rx_buf does not exist) words while feeding a known small DC/tone; if the
     24 valid bits sit at bit31..bit8 (low byte ~0) => LEFT-justified => IDENTITY confirmed; if at bit23..bit0
     (high byte = sign extension) => RIGHT-justified => need <<8 / >>8.
 - **The board check is BACKED UP by the desktop bit-exact test (section 3)**: even before HRM is read, the
@@ -259,7 +259,7 @@ Two test modes:
 
 ## 5. OPEN ITEMS / board-confirm (collected)
 - [board-confirm] SPORT justification (left vs right): HRM "SLEN"/sign-fill + adi_sport.h ConfigData doc +
-  live `g_m1_rx_buf` dump (2.3). Leading verdict LEFT => IDENTITY conversion; SHIFT8 is the falsifiable
+  live `s_m1_rx_buf[0][...]` dump (2.3). Leading verdict LEFT => IDENTITY conversion; SHIFT8 is the falsifiable
   alternative. The desktop bit-exact test (section 3) settles WHICH conversion reproduces the anchor.
 - [board-confirm] low-8-bits of the RX word (hard 0 vs sign/garbage to mask): if non-zero garbage, IDENTITY
   must add `& 0xFFFFFF00` mask; the bit-exact test (over the clean golden) does not exercise this -- it is a
