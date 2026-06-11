@@ -67,6 +67,23 @@
  *   (dsp/fira, dsp/core_only/src, dsp/core_only/include, dsp/core_only/bench) and LINK the frozen
  *   sources fira_tree.c / tree_filterbank.c / tfb_8ch.c. This is an import-time .cproject/source-link
  *   step (CTO action list), kept OUT of this TU so M1's transparent build needs none of it.
+ *
+ * ---- WO-S6-M2FIX (2026-06-11, CTO-approved plan A): BEAM MOVED OUT OF THE INTERRUPT CONTEXT ----
+ *   ROOT CAUSE [L1 board-pinned]: the M2 board run deadlocked on the FIRST frame. Call stack:
+ *     __dispatcher_SEC_rtn -> sport_DataHandler -> m1_sport_rx_callback -> m2_fira_beam_frame ->
+ *     fira_tfb_analyze -> fira_run_segment_stateful -> fira_run_segment, PC parked at fira_tree.c:481
+ *     `while (g_FIRTaskDoneCount < 1u)`. The FIRA busy-wait ran INSIDE the SPORT DMA SEC interrupt, so
+ *     the FIR DONE interrupt that releases the spin could never preempt -> spin forever (board readout:
+ *     valid=1 / setup_rc=0 / rx_block_count=0 / beam_live=-99 / output all-0). H1/H2 ran the SAME FIRA
+ *     chain from MAIN context and is board-verified -- the bug is the CALLING CONTEXT, not FIRA.
+ *   FIX (this TU, all guarded by M2_FIRA_INLOOP): the RX-done ISR no longer computes. It publishes the
+ *     completed ping-pong half (s_m2_pending_half) + a ready flag (s_m2_ready) and returns; the beam runs
+ *     in m2_beam_poll(), called from the m1_main.c while(1) idle loop = MAIN context, where the FIR DONE
+ *     interrupt CAN land and release the fira_tree spin (the verified H1/H2 working mode). If main has
+ *     not consumed the previous frame when the next RX-done fires, the ISR counts g_m2_overrun_count and
+ *     overwrites with the latest half (drop-oldest, never block, never queue). New raw readouts:
+ *     g_m2_overrun_count / g_m2_poll_count. FROZEN FIRA sources remain call-only zero-touch; the M1
+ *     transparent build is byte-identical (every change sits behind M2_FIRA_INLOOP).
  * ============================================================================================ */
 #ifndef M2_FIRA_INLOOP
 #define M2_FIRA_INLOOP 0          /* default 0 = M1 transparent passthrough (board-PASS path preserved) */
@@ -116,6 +133,22 @@ volatile uint32_t g_m2_out_nonzero      = 0u;             /* count of non-zero F
 volatile uint32_t g_m2_out_max_abs      = 0u;             /* peak |FIRA TX output sample| (FG: silent beam detector) */
 volatile int      g_m2_fg_beam_live     = -99;            /* 1 = blocks grew AND FIRA output non-zero; 0 = FAIL; -99 not-run */
 volatile int      g_m2_valid            = 0;              /* 1 = ran on board with FIRA beam in-loop; 0 = M1/desktop */
+
+#if M2_FIRA_INLOOP
+/* WO-S6-M2FIX readouts (raw counters only -- C9). GUARDED, unlike the g_m2_* block above: the M1
+ * transparent build must stay BYTE-IDENTICAL (M2FIX hard constraint), so these symbols exist only in
+ * the M2 .dxe (they are meaningless on the M1 build anyway -- no poll path there). */
+volatile uint32_t g_m2_overrun_count    = 0u;             /* RX-done found the previous frame unconsumed -> dropped oldest */
+volatile uint32_t g_m2_poll_count       = 0u;             /* beam frames actually computed by main (m2_beam_poll) */
+/* R56 MAJOR-3: beam-only CCNT bracket (raw -- C9). CALIBER = exactly the m2_fira_beam_frame call in
+ * m2_beam_poll, nothing else (R42 lesson: a bracket's span IS its caliber) -- claim/FG-accumulate/
+ * counters/latch stay OUTSIDE the bracket. Purpose: (a) main-context beam compute cost observable
+ * on-board; (b) covers the overrun blind band -- tearing can occur with overrun==0 when claim+compute
+ * lands inside (frame_period - beam_cost, frame_period), and beam_cyc_max makes the compute leg of
+ * that sum observable (see the m2_beam_poll DEGRADATION note). */
+volatile uint32_t g_m2_beam_cyc_last    = 0u;             /* CCNT of the LAST beam call (main-context compute, raw) */
+volatile uint32_t g_m2_beam_cyc_max     = 0u;             /* max beam-call CCNT over the run (beam WCET, raw) */
+#endif
 
 #if defined(M1_TARGET_BOARD) && defined(TARGET_SHARC)
 
@@ -202,6 +235,18 @@ static ADI_SPU_HANDLE   s_m1_hspu = NULL;
 
 static uint8_t          s_m1_twi_txbuf[M1_TWI_BUF_SZ];   /* TWI register-write scratch */
 static volatile uint32_t s_m1_pp_index = 0u;            /* which ping-pong half the callback services next */
+
+#if M2_FIRA_INLOOP
+/* WO-S6-M2FIX ISR->main handoff (the ONLY state shared between the RX-done ISR and m2_beam_poll).
+ * Single-word volatile accesses (SHARC word-atomic). ORDERING CONTRACT:
+ *   ISR (producer):  write s_m2_pending_half FIRST, then set s_m2_ready = 1.
+ *   main (consumer): see s_m2_ready != 0, read s_m2_pending_half, THEN clear s_m2_ready (claim).
+ * The consumer must NOT clear ready before reading the half -- doing so re-opens the slot and a new
+ * RX-done could republish, making poll compute the SAME half twice = the cross-frame FIRA state is
+ * advanced twice on one input (state corruption). See m2_beam_poll for the full race ledger. */
+static volatile uint32_t s_m2_ready        = 0u;        /* 1 = a beam frame is pending for main */
+static volatile uint32_t s_m2_pending_half = 0u;        /* which ping-pong half holds that frame */
+#endif
 
 /* ---- codec register tables: D5 per-bit DECODED + 48k-self-checked (NOT blind-copied from ALT) ----
  * Each value carries its bit-field decomposition. CRITICAL D5 catch (R35): ALT ADC SAI_CTRL0=0x1B has
@@ -337,12 +382,16 @@ static void m2_fira_beam_frame(const int32_t *rx, int32_t *tx, uint32_t *pnz, ui
 #endif /* M2_FIRA_INLOOP */
 
 /* ---- RX-buffer-processed callback: io-callback CCNT probe + FG audio scan + the datapath.
- *   io-callback probe: the CCNT bracket measures the io item-1 "codec/IO DMA" CORE cost (+ the M2 beam
- *   compute when M2_FIRA_INLOOP=1). RAW only (C9); cb_cyc caliber = APP LOAD (R42: the bracket spans the
- *   whole callback body, which under M2 INCLUDES the FIRA beam -- so g_m1_cb_cyc_* is core+beam+io, NOT
- *   io-callback alone; off-board separates them. io-callback-only allowance stays [L3 reserve 30].).
+ *   io-callback probe: the CCNT bracket measures the io item-1 "codec/IO DMA" CORE cost. RAW only (C9).
+ *   cb_cyc caliber (M2FIX REVISION of the R42 note): the bracket spans the callback body, which under
+ *   M2 is now ONLY the RX input FG scan + the ready-flag handoff -- the FIRA beam runs in MAIN context
+ *   (m2_beam_poll) and is NOT inside g_m1_cb_cyc_*. Beam fit-vs-frame-budget is evidenced by
+ *   g_m2_overrun_count staying ~0 (a too-slow beam would grow it). io-callback-only allowance stays
+ *   [L3 reserve 30].
  *   DATAPATH:
- *     M2_FIRA_INLOOP=1 -> 1 mono RX frame -> 8ch FIRA broadside beam -> 8-slot interleaved TX (OPENING-1).
+ *     M2_FIRA_INLOOP=1 -> publish the completed RX half to main (m2_beam_poll computes the 8ch FIRA
+ *                         broadside beam there -- WO-S6-M2FIX; was computed here, deadlocked at
+ *                         fira_tree.c:481, see file header). ISR also FG-scans the RX INPUT frame.
  *     M2_FIRA_INLOOP=0 -> M1 FAN-OUT 1->8: copy the one mono sample to all 8 TX slots (M1 board-PASS). */
 static void m1_sport_rx_callback(void *pAppHandle, uint32_t nEvent, void *pArg)
 {
@@ -359,14 +408,44 @@ static void m1_sport_rx_callback(void *pAppHandle, uint32_t nEvent, void *pArg)
         uint32_t nz = 0u, peak = 0u;
 
 #if M2_FIRA_INLOOP
-        /* OPENING-1 whole-frame rebuild: 1 mono RX frame -> 8ch FIRA broadside -> 8-slot interleaved TX. */
-        m2_fira_beam_frame(rx, tx, &nz, &peak);
-        g_m2_out_nonzero += nz;
-        if (peak > g_m2_out_max_abs) g_m2_out_max_abs = peak;
-        /* M1's nonzero/peak also track here (so the stream-live FG keeps working in the M2 build too);
-         * for M2, nz/peak are the BEAM-output stats (FIRA produced non-zero audio). */
-        g_m1_nonzero_samples += nz;
-        if (peak > g_m1_max_abs_sample) g_m1_max_abs_sample = peak;
+        /* WO-S6-M2FIX: the ISR NO LONGER runs the beam (fira_tree.c:481 spin in SEC context starved the
+         * FIR DONE interrupt -> first-frame deadlock, see file header). ISR work is now only:
+         *   (a) FG-scan the RX INPUT frame (64 samples, cheap). CALIBER CHANGE: g_m1_nonzero_samples /
+         *       g_m1_max_abs_sample are INPUT-liveness stats in the M2 build (were beam-OUTPUT stats
+         *       pre-M2FIX) -- now the SAME caliber as the M1 fan-out path (which scans the RX sample),
+         *       so g_m1_fg_stream_live uniformly means "input stream alive" in both builds. The beam-
+         *       output stats live in g_m2_out_nonzero/g_m2_out_max_abs, fed by m2_beam_poll.
+         *   (b) publish the completed half to main: pending_half FIRST, then ready (ordering contract
+         *       at the s_m2_ready definition). Previous frame still unconsumed (ready set) -> count an
+         *       overrun and OVERWRITE with the latest half: drop-oldest, never block, never queue.
+         *       OVERRUN SIGNAL SEMANTICS (R56 MINOR-1): a dropped frame is a SPLICE in the input each
+         *       of the 8 FiraChannelState delay lines sees vs the real audio stream -> after recovery
+         *       the filters ring out a ~ntaps-sample transient (an audible glitch per overrun event),
+         *       NOT data corruption -- state stays consistent with the spliced stream it was fed.
+         * TX POLICY when compute is not ready = KEEP-LAST (the ISR does NOT touch the TX half; the DMA
+         * re-transmits its previous contents). WHY keep-last and not silence-fill:
+         *   (1) zero ISR cycles -- a 512-word zero-fill would re-grow the very ISR we are evacuating;
+         *   (2) audibly milder -- repeating the previous 1.33ms beam frame keeps energy continuous (a
+         *       brief stutter at worst); a zero fill guarantees TWO hard discontinuities per overrun
+         *       (signal->0 and 0->signal) = a click every time;
+         *   (3) honest failure signature -- init zeroes the TX ping-pong, so output before the FIRST
+         *       computed frame is silence; a stuck main produces an audible looping last-frame PLUS a
+         *       growing g_m2_overrun_count (silence-fill would be ambiguous with a dead codec). */
+        (void)tx;                                 /* TX half untouched in the ISR (keep-last policy) */
+        {
+            uint32_t f;
+            for (f = 0u; f < M1_FRAME; f++) {
+                int32_t sample = rx[f];
+                uint32_t a = (sample < 0) ? (uint32_t)(-(int64_t)sample) : (uint32_t)sample;
+                if (sample != 0) nz++;
+                if (a > peak) peak = a;
+            }
+            g_m1_nonzero_samples += nz;
+            if (peak > g_m1_max_abs_sample) g_m1_max_abs_sample = peak;
+        }
+        if (s_m2_ready != 0u) g_m2_overrun_count++;   /* main missed a frame -> drop-oldest (counted) */
+        s_m2_pending_half = half;                     /* publish the half BEFORE the ready flag */
+        s_m2_ready = 1u;
 #else
         {
             uint32_t f, s8;
@@ -399,12 +478,65 @@ static void m1_sport_rx_callback(void *pAppHandle, uint32_t nEvent, void *pArg)
     if (g_m1_rx_block_count > 0u && g_m1_nonzero_samples > 0u) g_m1_fg_stream_live = 1;
 
 #if M2_FIRA_INLOOP
-    /* M2 beam-live FG (additional, anti-false-green for the FIRA path): green ONLY if blocks grew AND the
-     * FIRA beam produced non-zero output. A stubbed/dead FIRA (memset 0 / not-linked) -> g_m2_out_nonzero
-     * stays 0 -> g_m2_fg_beam_live never latches (placeholder-fails, DSP/FIRA special gate). */
-    if (g_m1_rx_block_count > 0u && g_m2_out_nonzero > 0u) g_m2_fg_beam_live = 1;
+    /* M2 beam-live FG latch MOVED to m2_beam_poll (WO-S6-M2FIX): the beam output it gates on is now
+     * produced in main context, so the latch lives where the stats are written. Latch condition and
+     * its anti-false-green property are UNCHANGED (see m2_beam_poll). */
 #endif
 }
+
+#if M2_FIRA_INLOOP
+/* ---- WO-S6-M2FIX: main-context beam service. Called from the m1_main.c while(1) idle loop (M2 build
+ *      only; the call there is #if-guarded so the M1 build is byte-identical). Runs the SAME whole-frame
+ *      8ch FIRA broadside rebuild as the pre-fix ISR path -- but from MAIN context, where the
+ *      fira_tree.c:481 g_FIRTaskDoneCount busy-wait CAN be released by the FIR DONE interrupt (the
+ *      board-verified H1/H2 working mode).
+ *      RACE LEDGER (ISR can preempt at any point):
+ *        - claim order = read pending half, THEN clear ready, THEN compute. A new RX-done DURING the
+ *          compute sees ready==0 -> publishes normally, NO overrun, serviced on the next poll call.
+ *        - the 1-2 instruction window between reading the half and clearing ready: an RX-done landing
+ *          exactly there counts an overrun and its half is then dropped by our clear -- honest
+ *          accounting (a dropped frame is counted as dropped). Clearing ready BEFORE reading the half
+ *          would instead allow the same half to be computed twice = the cross-frame FIRA state advances
+ *          twice on one input (state corruption) -- that order is deliberately NOT used.
+ *      BUFFER TIMING: pending half h is the half the RX DMA just completed; the RX DMA now fills h^1 and
+ *      the TX DMA has just wrapped away from h, so rx[h] is stable and tx[h] is not read by the DMA for
+ *      ~1.33ms. Beam compute ~130us (H2 account, off-board caliber) fits well inside when overrun==0.
+ *      DEGRADATION (R56 honest rewording): g_m2_overrun_count only proves CLAIM latency < the frame
+ *      period -- it does NOT bound the read/write of the half. When claim+compute lands inside
+ *      (frame_period - beam_cost, frame_period), the DMA can wrap into the half mid-compute (torn
+ *      RX read and/or TX write) while overrun stays ==0 -- an overrun-blind band. g_m2_beam_cyc_max
+ *      (beam-only CCNT bracket below) makes the compute leg of that sum observable: blind-band entry
+ *      requires beam_cyc approaching the frame budget, so beam_cyc_max << 1.33ms-equivalent cycles
+ *      rules the band out; expected steady state is overrun ~0 AND beam_cyc_max far below budget. */
+void m2_beam_poll(void)
+{
+    uint32_t half, nz, peak, t0, t1;
+
+    if (s_m2_ready == 0u) return;            /* nothing pending (idle poll) */
+    half = s_m2_pending_half;                /* claim: read the half ... */
+    s_m2_ready = 0u;                         /* ... THEN release the slot (race ledger above) */
+
+    nz = 0u; peak = 0u;
+    /* may spin on the FIR DONE interrupt inside the frozen fira_tree.c -- LEGAL here (main context).
+     * R56 MAJOR-3: the CCNT bracket spans ONLY this call (R42: the span IS the caliber); the FG
+     * accumulation / counters / latch below are deliberately OUTSIDE it. */
+    t0 = bench_cyc_target();
+    m2_fira_beam_frame(s_m1_rx_buf[half], s_m1_tx_buf[half], &nz, &peak);
+    t1 = bench_cyc_target();
+    g_m2_beam_cyc_last = t1 - t0;
+    if (g_m2_beam_cyc_last > g_m2_beam_cyc_max) g_m2_beam_cyc_max = g_m2_beam_cyc_last;
+
+    g_m2_out_nonzero += nz;
+    if (peak > g_m2_out_max_abs) g_m2_out_max_abs = peak;
+    g_m2_poll_count++;
+
+    /* M2 beam-live FG (moved from the ISR -- latch condition UNCHANGED, anti-false-green preserved):
+     * green ONLY if blocks grew AND the FIRA beam produced non-zero output. A stubbed/dead FIRA
+     * (memset 0 / not-linked) keeps g_m2_out_nonzero at 0 -> never latches (placeholder FAILs,
+     * DSP/FIRA special gate). */
+    if (g_m1_rx_block_count > 0u && g_m2_out_nonzero > 0u) g_m2_fg_beam_live = 1;
+}
+#endif /* M2_FIRA_INLOOP */
 
 /* ---- build the circular ping-pong descriptor rings (ALT.c:250-284 pattern). RX/TX have DIFFERENT
  *   XCount now (RX = 64 words/half packed, TX = 512 words/half). ---- */
@@ -543,6 +675,9 @@ static int m2_fira_setup(void)
     int c, rc;
     g_m2_setup_rc = -99; g_m2_out_nonzero = 0u; g_m2_out_max_abs = 0u;
     g_m2_fg_beam_live = -99; g_m2_valid = 0;
+    g_m2_overrun_count = 0u; g_m2_poll_count = 0u;   /* WO-S6-M2FIX counters */
+    g_m2_beam_cyc_last = 0u; g_m2_beam_cyc_max = 0u; /* R56 MAJOR-3 beam-only CCNT bracket */
+    s_m2_ready = 0u; s_m2_pending_half = 0u;         /* WO-S6-M2FIX ISR->main handoff state */
 
     rc = fira_tree_setup();          /* Open -> RegisterCallback -> CreateTask -> FixedPointEnable(SIGNED) */
     g_m2_setup_rc = rc;
@@ -625,9 +760,18 @@ int m1_loopback_init(void)
     /* M2 globals honest-0 too (no FIRA + no SPORT off-board; g_m2_fira_inloop keeps the build identity). */
     g_m2_setup_rc = -99; g_m2_out_nonzero = 0u; g_m2_out_max_abs = 0u;
     g_m2_fg_beam_live = 0; g_m2_valid = 0;
+#if M2_FIRA_INLOOP
+    g_m2_overrun_count = 0u; g_m2_poll_count = 0u;   /* WO-S6-M2FIX counters (desktop honest-0) */
+    g_m2_beam_cyc_last = 0u; g_m2_beam_cyc_max = 0u; /* R56 beam CCNT (desktop honest-0) */
+#endif
     return 1;                  /* non-zero: cannot run loopback off-board (honest fail, no fake) */
 }
 
 int m1_loopback_stop(void) { return 0; }
+
+#if M2_FIRA_INLOOP
+/* WO-S6-M2FIX: desktop M2 build keeps the symbol so any host harness links; no stream, no FIRA here. */
+void m2_beam_poll(void) { /* honest no-op off-board */ }
+#endif
 
 #endif /* M1_TARGET_BOARD && TARGET_SHARC */

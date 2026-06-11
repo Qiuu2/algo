@@ -98,7 +98,14 @@
 | `g_m2_fg_beam_live` | 1 个值（应=1；⚠ =1 只在声音正常时可信——刺耳噪声+max_abs 顶满幅=逐帧失败假绿）|
 | `g_m2_out_nonzero` / `g_m2_out_max_abs` | 2 个值（setup_rc=0 但 out_nonzero=0 = 波束静默，记录别盲重跑）|
 | `g_m2_valid` | 1 个值 |
-| `g_m1_rx_block_count` | 1 个值（**卡在 1 不动 + setup_rc=0 = FIRA 中断自旋死锁征兆**，记录发回，别重烧）|
+| `g_m1_rx_block_count` | 1 个值（应持续增长 ~750/s；=0 卡死征兆见下注）|
+| **`g_m2_poll_count`** | **M2FIX 新增**：应 ≈ rx_block_count（main 循环服务的波束帧数）|
+| **`g_m2_overrun_count`** | **M2FIX 新增**：应 ≈0（持续增长 = main 来不及，丢帧）|
+| **`g_m2_beam_cyc_last` / `g_m2_beam_cyc_max`** | **M2FIX 新增**：板上 beam 耗时；max 应远小于 1.33M cyc 帧周期 |
+
+> 注（M2FIX 后语义更新）：原「rx_block_count 卡死 + setup_rc=0 = 自旋死锁」已由 M2FIX（beam 挪 main 循环）
+> 修复，**不应再现**；板上实测当时的签名是 =0（beam 调用在计数之前）。若修后仍见 count=0/不增长，记录
+> PC/调用栈发回——那是另一类问题，不是已修的自旋。
 
 4. **导出这个 build 的 .map**——发回（PM 验 FIRA 工作集 pin 到 Block1 ≥0x2c0000 + 栈长 ldf_stack_length）。
 5. **跑完 1B 立刻恢复工程**：Properties → Preprocessor → **删掉 `M2_FIRA_INLOOP=1` 和

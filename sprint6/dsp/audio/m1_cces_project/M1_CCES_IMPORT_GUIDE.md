@@ -184,8 +184,13 @@ NOT code edits -- the source already has the M2 path behind `#if M2_FIRA_INLOOP`
    c. **read M2 readouts at idle**: g_m2_fira_inloop=1; g_m2_setup_rc=0 (fira_tree_setup ok);
       g_m2_valid=1; g_m2_fg_beam_live=1 (green ONLY if blocks grew AND FIRA output non-zero -- a dead/stub
       FIRA keeps it 0; R52: green is trustworthy ONLY with plausible audio -- harsh full-scale noise +
-      out_max_abs pinned near 0x7FFFFFFF = per-frame FIRA failure latching a false green, power amps down); g_m2_out_nonzero / g_m2_out_max_abs > 0 AND not pinned near 0x7FFFFFFF (beam produced audio); g_m1_cb_cyc_* now =
-      core+beam+io (NOT io-callback alone -- caliber = app load, R42; separate off-board).
+      out_max_abs pinned near 0x7FFFFFFF = per-frame FIRA failure latching a false green, power amps down); g_m2_out_nonzero / g_m2_out_max_abs > 0 AND not pinned near 0x7FFFFFFF (beam produced audio);
+      **M2FIX (R56) new health counters -- READ THESE**: g_m2_poll_count (≈ rx_block_count, main-loop beam
+      frames served), g_m2_overrun_count (≈0; growing = main too slow, frames dropped), g_m2_beam_cyc_last /
+      g_m2_beam_cyc_max (beam time on board; max must be << 1.33M cyc frame period).
+      **cb_cyc caliber CHANGED by M2FIX**: g_m1_cb_cyc_* now = io+handshake ONLY (beam moved to main loop,
+      no longer in the callback bracket); beam time has its own g_m2_beam_cyc_* bracket. The old
+      "core+beam+io" caliber is retired (pre-M2FIX builds only).
    d. **R14 bit-exact (INTEGER-enum)**: the FIRA fixed-point INTEGER enum vs the Q15xQ31 signed-fractional
       semantics is a board bit-exact check (fira_tree.h:42-43, per-subband criterion) -- do NOT read M2
       audio as correct until this passes; broadside audio sounding "present" is not bit-exact proof.

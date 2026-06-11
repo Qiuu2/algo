@@ -12,7 +12,9 @@
  *   3. m1_sru_init()         -- SRU audio routing (R39 table)
  *   4. m1_softconfig_enable_codecs() -- EXPLICIT carrier codec enable (F-SRU-1; NOT carrier default)
  *   5. m1_loopback_init()    -- TWI codec PLL+regs (DAC master FIRST), then SPORT4 TDM ping-pong + cb
- *   6. while(1) idle         -- audio flows in the callback; read g_m1_* at idle
+ *   6. while(1) idle         -- audio flows in the callback; read g_m1_* at idle. M2 build (WO-S6-M2FIX):
+ *      the loop also services m2_beam_poll() -- the FIRA beam runs HERE in main context, NOT in the ISR
+ *      (fira_tree.c:481 spin in the SPORT SEC ISR starved FIR DONE -> deadlock; #if-guarded, M1 byte-same)
  * (m1_loopback_init itself does codec-config-before-SPORT-enable internally, so the DAC master clocks
  *  are programmed before the SPORT halves are enabled.)
  */
@@ -55,6 +57,14 @@ void main(void)
      *    breakpoints -- F2). A debugger halt here sees a consistent snapshot. */
     while (1) {
         /* nothing -- the DMA + callback do the work. (No printf in the hot path; RAW counters only.) */
+#if M2_FIRA_INLOOP
+        /* WO-S6-M2FIX (M2 build ONLY -- this block preprocesses away on the M1 transparent build, so the
+         * M1 binary is byte-identical): service the deferred FIRA beam frame from MAIN context. The
+         * SPORT RX-done ISR no longer computes (its fira_tree.c:481 busy-wait starved the FIR DONE
+         * interrupt -> first-frame deadlock); it publishes the half and m2_beam_poll computes it here,
+         * where the FIR DONE interrupt CAN preempt and release the spin (H1/H2-verified context). */
+        m2_beam_poll();
+#endif
     }
 }
 

@@ -41,7 +41,7 @@ E 往后全部卡硬件/外部，整合不进远程软件测试模型。
   - `g_m1_softcfg_hwerr`（ANAK 地址相 / DNAK 数据相 / LOSTARB 总线级）
   - `g_m1_softcfg_set_rc[3]`（三个 Set 时钟配置成功否）
   - **`g_m1_u6_addr_sweep[8]`（NEW · U6 地址自探测 0x20-0x27 哪个 ACK）** ← 若地址错，这一跑直接找到对的；全不 ACK→U6 缺/上电/总线级
-- **M2（B）**：`g_m2_setup_rc/fg_beam_live/out_nonzero` + .map（pin ≥0x2c0000 验）
+- **M2（B）**：`g_m2_setup_rc/fg_beam_live/out_nonzero` + **M2FIX 健康计数器 `g_m2_poll_count`(≈rx_block_count)/`g_m2_overrun_count`(≈0)/`g_m2_beam_cyc_last|max`(板上 beam 耗时)** + .map（pin ≥0x2c0000 验，1B 板测已 PASS [L1]：rx@0x2c0000/tx@0x2c0200/fa@0x2c1200，栈 82KB）
 - **对齐 dump（R51：移到 1A 做，注入已知中等幅度输入）**：`s_m1_rx_buf[0][0..7]`（2D file-static，非 g_m1_rx_buf）；SPORT 对齐 M1/M2 build 相同，在易测的 M1 build 取即可
 
 ### 自探测判读【R55 存史：1A 实测=恰一 ACK@0x21+cwrc0+hwerr4，但真因=载板架构不匹配（0x21 是 SOM 系统扩展器 U13），R1a 行已被推翻——见 M1_SOFTCFG_BOARD_RESCOPE.md】

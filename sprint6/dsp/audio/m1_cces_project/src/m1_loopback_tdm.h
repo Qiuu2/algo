@@ -58,4 +58,19 @@ extern volatile uint32_t g_m2_out_max_abs;        /* peak |FIRA TX output sample
 extern volatile int      g_m2_fg_beam_live;       /* 1 = blocks grew AND FIRA output non-zero; 0 = FAIL; -99 not-run */
 extern volatile int      g_m2_valid;              /* 1 = ran on board w/ FIRA beam in-loop; 0 = M1/desktop */
 
+/* ---- WO-S6-M2FIX (2026-06-11): beam moved OUT of the SPORT ISR (fira_tree.c:481 spin starved the FIR
+ *      DONE interrupt -> first-frame deadlock, [L1 board]). The ISR now only publishes the completed RX
+ *      half; main computes it via m2_beam_poll(). GUARDED (M2 build only): the M1 transparent build must
+ *      stay byte-identical, so neither the symbols nor the prototype exist there (an undefined
+ *      M2_FIRA_INLOOP evaluates to 0 in #if, standard C). ---- */
+#if M2_FIRA_INLOOP
+extern volatile uint32_t g_m2_overrun_count;      /* RX-done found previous frame unconsumed -> dropped oldest (expect ~0) */
+extern volatile uint32_t g_m2_poll_count;         /* beam frames computed by main (expect ~= rx_block_count) */
+extern volatile uint32_t g_m2_beam_cyc_last;      /* R56: CCNT of the LAST m2_fira_beam_frame call ONLY (beam-only caliber) */
+extern volatile uint32_t g_m2_beam_cyc_max;       /* R56: max beam-call CCNT (beam WCET, raw; expect << frame budget) */
+void m2_beam_poll(void);   /* call from the main idle loop: claims the pending half, runs the 8ch FIRA
+                            * broadside beam (may spin on FIR DONE -- legal in main), writes the TX half,
+                            * updates g_m2_out_* / poll counter / fg_beam_live latch. Desktop: no-op. */
+#endif
+
 #endif /* M1_LOOPBACK_TDM_H */
