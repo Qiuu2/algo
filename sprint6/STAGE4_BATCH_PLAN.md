@@ -42,7 +42,7 @@ E 往后全部卡硬件/外部，整合不进远程软件测试模型。
   - `g_m1_softcfg_set_rc[3]`（三个 Set 时钟配置成功否）
   - **`g_m1_u6_addr_sweep[8]`（NEW · U6 地址自探测 0x20-0x27 哪个 ACK）** ← 若地址错，这一跑直接找到对的；全不 ACK→U6 缺/上电/总线级
 - **M2（B）**：`g_m2_setup_rc/fg_beam_live/out_nonzero` + **M2FIX 健康计数器 `g_m2_poll_count`(≈rx_block_count)/`g_m2_overrun_count`(≈0)/`g_m2_beam_cyc_last|max`(板上 beam 耗时)** + .map（pin ≥0x2c0000 验，1B 板测已 PASS [L1]：rx@0x2c0000/tx@0x2c0200/fa@0x2c1200，栈 82KB）
-- **对齐 dump（R51：移到 1A 做，注入已知中等幅度输入）**：`s_m1_rx_buf[0][0..7]`（2D file-static，非 g_m1_rx_buf）；SPORT 对齐 M1/M2 build 相同，在易测的 M1 build 取即可
+- **对齐 dump（R51 移到 1A 做；R57 修订：音源开**最大音量**并 Run 后耳听确响——中等幅度不够判，0x39FC00 教训）**：`s_m1_rx_buf[0][0..7]`（2D file-static，非 g_m1_rx_buf）；SPORT 对齐 M1/M2 build 相同，在易测的 M1 build 取即可
 
 ### 自探测判读【R55 存史：1A 实测=恰一 ACK@0x21+cwrc0+hwerr4，但真因=载板架构不匹配（0x21 是 SOM 系统扩展器 U13），R1a 行已被推翻——见 M1_SOFTCFG_BOARD_RESCOPE.md】
 > **hwerr=枚举序数非位掩码**（R51 audit）：0=none/3=DNAK/4=ANAK/5=LOSTARB，**相等判**。主判据=(sweep,codec_write_rc)，hwerr 佐证；矛盾→ANOMALY。完整判读表见 M1_SOFTCFG_U6_ADDR_SWEEP.md §3 / runbook PM 节。
@@ -92,6 +92,7 @@ E 往后全部卡硬件/外部，整合不进远程软件测试模型。
 - **R55 判据替换**：换同款 AD-EXKIT 载板=安全（使能硬连线，原理图 L1）；换官方 SOMCRR 载板才需 U6@0x22 代码（届时 rc 全 0 判据复活）。本板 rc=11×5 是永久预期值。
 - 任何 logic 修（block B 各分支）CTO-gated；本批量诊断/自探测是 obs/probe-only。
 - cycle 读数引用前确认 bracket 口径（R42）；冻结/M2 段零触碰。
+- **R57/R58：下次板测前任何 commit 不得碰 .cproject/.project**（测试员本地这俩文件按设计永久脏——.map 启用+M2 接线都存在里面；仓里一动他 git pull 就卡死。§4B 的「.cproject 预启用 map」defer 项在板测后才可做）。
 
 ---
 *生成 2026-06-09，PM lead。批量包实现待 dsp+critic 门。*

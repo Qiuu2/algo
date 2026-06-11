@@ -326,6 +326,28 @@ static void m1_twi_w8(uint8_t reg, uint8_t val)
  *     - If the magnitude sits in the low 24 bits (sign-extended high byte) -> RIGHT-aligned ->
  *       apply  RX: x_q31 = rx[f] << 8 ;  TX: tx_slot = (out_q31) >> 8  (arithmetic shifts).
  *   This discriminant is a board action (CTO list); the code path here assumes LEFT-aligned (R46).
+ *
+ * ---- M2_RX_RIGHT_ALIGNED (R57 contingency pre-build, CTO-approved) ----
+ *   The RIGHT-aligned prescription above is now PRE-BUILT behind #ifdef M2_RX_RIGHT_ALIGNED at the two
+ *   shift sites in m2_fira_beam_frame (RX <<8 before the Dolph weight; TX >>8 at slot pack-out).
+ *   DEFAULT OFF: the macro is NOT defined anywhere in source; the #else paths are token-identical to
+ *   the pre-R57 code, so the default M2 build (and the M1 build) is byte-level unchanged. Rebuild with
+ *   -DM2_RX_RIGHT_ALIGNED ONLY if the 1A alignment dump / scalar rule proves RIGHT-aligned; CTO-gated
+ *   to apply (same rebuild-only-no-source-edit precedent as M1_U6_TWI_ADDR_OVERRIDE, b3d7f74).
+ *   FG CALIBER IS SHIFT-INVARIANT BY DESIGN: the output FG scan (nz/peak -> g_m2_out_nonzero/
+ *   g_m2_out_max_abs) reads the PRE-SHIFT Q31 value in BOTH modes, so out_max_abs stays comparable
+ *   against 0x7FFFFFFF (the amp-safety / near-full-scale indicator) regardless of alignment mode.
+ *   SIGN-BIT SEMANTICS OF THE TWO SHIFTS:
+ *     RX <<8 : implemented as (int32_t)((uint32_t)rx[i] << 8). A bare signed left shift of a NEGATIVE
+ *       value is UNDEFINED in C (C11 6.5.7p4), so we shift the uint32 bit pattern and reinterpret --
+ *       the standard two's-complement idiom. Value-exact: a right-aligned 24-bit sample lies in
+ *       [-2^23, 2^23-1], so x*256 fits int32 with sign landing in bit31 = legal Q31, low 8 bits zero.
+ *     TX >>8 : signed right shift is IMPLEMENTATION-DEFINED in C, arithmetic (sign-extending) on BOTH
+ *       toolchains in play -- evidenced by PRECEDENT IN THIS VERY DATAPATH, not assumption: the Q15
+ *       ">> 15" postscale on signed products (this file + the frozen FIRA core) ran BIT-EXACT vs
+ *       golden with negative samples on desktop gcc (R46) and on-board CCES SHARC (H1/H2 [L1]); a
+ *       logical (zero-filling) shift would have failed every negative-sample compare. Result =
+ *       sign-extended 24-bit right-aligned word, which is what a right-aligned DAC slot consumes.
  * ============================================================================================ */
 
 /* M2 scratch: one channel's 4 analyzed subbands + that channel's reconstructed full-rate output.
@@ -345,6 +367,8 @@ static int32_t s_m2_chout[M1_FRAME];   /* per-channel FIRA synthesize output (fu
  *      (product topology = 8 DACs, broadside = ACOUSTIC superposition, NOT a digital sum).
  *      OPENING-4: broadside = input-scale Dolph weight ONLY, NO frac-delay focusing (v2 deferred).
  *      OPENING-5: rx[] used as Q31 with NO shift (zero-transform identity; board-confirm align above).
+ *        DEFAULT mode. R57: the RIGHT-aligned fallback (RX<<8 / TX>>8) is pre-built behind
+ *        #ifdef M2_RX_RIGHT_ALIGNED (default OFF, CTO-gated rebuild -- see Q-BOUNDARY NOTE above).
  *      @param rx   packed mono RX frame, M1_FRAME int32 (Q31 by identity)
  *      @param tx   8-slot interleaved TX frame, M1_FRAME*M1_TX_SLOTS int32 ; tx[f*8 + c] = ch c, samp f
  *      @return     accumulates FG stats into *pnz / *ppeak over the 8-channel output. */
@@ -357,7 +381,14 @@ static void m2_fira_beam_frame(const int32_t *rx, int32_t *tx, uint32_t *pnz, ui
         const int32_t w = g_dolph_w8_q15[c];            /* Dolph-Cheb -20dB Q15 weight for channel c */
         /* input-scale weight (== f5_apply_w / H2:117-118): Q15 x Q31 >> 15. rx[i] is Q31 by identity. */
         for (i = 0u; i < M1_FRAME; i++)
+#ifdef M2_RX_RIGHT_ALIGNED
+            /* R57 fallback (default OFF, CTO-gated -DM2_RX_RIGHT_ALIGNED rebuild; see Q-BOUNDARY NOTE):
+             * right-aligned 24-bit RX -> Q31 via <<8 BEFORE the weight. uint32 shift avoids the signed-
+             * negative left-shift UB (C11 6.5.7p4); value-exact, sign lands in bit31 (NOTE above). */
+            s_m2_xw[i] = (int32_t)(((int64_t)w * (int64_t)(int32_t)((uint32_t)rx[i] << 8)) >> 15);
+#else
             s_m2_xw[i] = (int32_t)(((int64_t)w * (int64_t)rx[i]) >> 15);
+#endif
 
         /* FIRA analyze (1ch -> 4 subbands) then synthesize (4 subbands -> 1ch full-rate). CALL-ONLY into
          * the frozen fira_tree.c; s_m2_fa[c] carries this channel's cross-frame filter state. */
@@ -372,7 +403,15 @@ static void m2_fira_beam_frame(const int32_t *rx, int32_t *tx, uint32_t *pnz, ui
         for (i = 0u; i < M1_FRAME; i++) {
             int32_t o = s_m2_chout[i];
             uint32_t a = (o < 0) ? (uint32_t)(-(int64_t)o) : (uint32_t)o;
+#ifdef M2_RX_RIGHT_ALIGNED
+            /* R57 fallback pack-out: Q31 -> right-aligned 24-bit via ARITHMETIC >>8 (sign-extending on
+             * both toolchains -- bit-exact precedent basis in the Q-BOUNDARY NOTE). FG scan above stays
+             * on the PRE-SHIFT o/a, so nz / out_max_abs keep the Q31 caliber in both modes (0x7FFFFFFF
+             * amp-safety comparability -- R57 requirement). */
+            tx[i * M1_TX_SLOTS + c] = o >> 8;
+#else
             tx[i * M1_TX_SLOTS + c] = o;
+#endif
             if (o != 0) nz++;
             if (a > peak) peak = a;
         }

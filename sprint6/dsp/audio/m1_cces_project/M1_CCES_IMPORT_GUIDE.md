@@ -126,7 +126,9 @@ Project Explorer -> right-click each SoftConfig_*.c -> Resource Configurations -
 - **system.svc driver versions** vs the M1 source calls (sport 1.0 / twi 2.0 / spu 1.0 / pdma 1.0 per the
   .cproject macros) -- confirm the install has these.
 - **SelectChannel single-slot driver minimum** (grep G1-G2) -> M1_RX_SLOTS 1 (512B) or 2 (1024B).
-  **R52 WARNING: do NOT just flip M1_RX_SLOTS=2** -- the fallback ALSO requires the rx[] consumers to index
+  **R52 WARNING: do NOT just flip M1_RX_SLOTS=2** -- and **R57: the fallback is M1-transparent-build ONLY
+  (the M2 beam + ISR scan hard-assume 64 packed mono words; =2 under M2 breaks frame semantics)** --
+  the fallback ALSO requires the rx[] consumers to index
   at `rx[f*M1_RX_SLOTS]` (beam AND fan-out; packed DMA delivers 2 words/frame). Flipping the macro alone =
   garbled-but-green audio. If the driver floors: send the grep result back and WAIT for a PM-issued build
   (the stride change is a CTO-gated edit to a board-PASS-protected TU).
@@ -155,6 +157,9 @@ NOT code edits -- the source already has the M2 path behind `#if M2_FIRA_INLOOP`
 3. **Pin proof**: the M2 build pins s_m1_rx_buf / s_m1_tx_buf / s_m2_fa to L1 Block 1 via
    `#pragma section("seg_l1_block1")` (already in the .c). After the M2 build, **re-read the .map** and
    confirm all three land at >= 0x2c0000 (Block 1) -- see the m1_app.ldf banner + the honest gap below.
+   **R57 addition**: ALSO confirm the frozen FIRA DMA scratch statics `s_seg_in` / `s_seg_out3` /
+   `s_taskMem` land in **L1** (NOT mem_L2_bw, which is cached -- an L2 spill silently corrupts the FIRA
+   input leg with rc==0 and FG green). 1B board .map verified PASS for the pinned three [L1].
 4. **RESTORE before any non-M2 build (R52 -- project state persists!)**: the macros stay in the project's
    Defined symbols across sessions. Before building 1A / the round-2 validation build, **DELETE
    `M2_FIRA_INLOOP=1` and `FIRA_USE_REAL_ADI_FIR_HEADER`** from Preprocessor definitions (the include dirs /
@@ -185,6 +190,20 @@ NOT code edits -- the source already has the M2 path behind `#if M2_FIRA_INLOOP`
       g_m2_valid=1; g_m2_fg_beam_live=1 (green ONLY if blocks grew AND FIRA output non-zero -- a dead/stub
       FIRA keeps it 0; R52: green is trustworthy ONLY with plausible audio -- harsh full-scale noise +
       out_max_abs pinned near 0x7FFFFFFF = per-frame FIRA failure latching a false green, power amps down); g_m2_out_nonzero / g_m2_out_max_abs > 0 AND not pinned near 0x7FFFFFFF (beam produced audio);
+      **R57 judgment notes**: (a) pinned out_max_abs = per-frame FIRA failure ONLY IF g_m1_max_abs_sample
+      is ALSO well below ~0x49A00000 (-4.8 dBFS, the frozen chain's headroom contract) -- both high means
+      the SOURCE is too hot, lower it and re-run before declaring failure; (b) setup_rc=0 does NOT prove
+      the FIRA tasks are OK (CreateTask/FixedPointEnable run per-frame inside fira_run_segment, rcs
+      (void)-discarded per the known defer) -- per-frame health is judged by out_nonzero/poll/beam_cyc;
+      (c) expected per-channel DAC amplitude ratios = g_dolph_w8_q15/32768 incl. the RAISED-EDGE c0>c1
+      (taper minimum at c1, center unity) -- a scope/probe seeing c0 louder than c1 is CORRECT, not a
+      wiring fault; (d) keep-last stall sounds like TWO stale frames alternating at 375 Hz (buzzy), not
+      one looping frame; (e) the .c file-header's FOUR include dirs (incl. core_only/bench) is a stale
+      comment -- the three dirs in this guide suffice (board-proven last session). (f) **alignment contingency
+      pre-built (R57)**: if the 1A dump/scalar rule proves RIGHT-aligned, rebuild the M2 config with ONE
+      extra define `M2_RX_RIGHT_ALIGNED` (RX<<8/TX>>8 at the two Q-boundary sites; default OFF =
+      byte-identical M2 build, guard config (C) proves compile; **CTO-gated to apply**, precedent
+      M1_U6_TWI_ADDR_OVERRIDE b3d7f74).
       **M2FIX (R56) new health counters -- READ THESE**: g_m2_poll_count (≈ rx_block_count, main-loop beam
       frames served), g_m2_overrun_count (≈0; growing = main too slow, frames dropped), g_m2_beam_cyc_last /
       g_m2_beam_cyc_max (beam time on board; max must be << 1.33M cyc frame period).

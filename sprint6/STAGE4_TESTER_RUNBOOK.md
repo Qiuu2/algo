@@ -17,6 +17,20 @@
   详见 M1_SOFTCFG_BOARD_RESCOPE.md。**下方判读表/第 2 次测试节仅存史**，剩余任务见横幅下「剩余」。
 - **剩余要测**：①1A 欠的对齐 dump（s_m1_rx_buf[0][0..7]，立体声源）+ .map ②1B M2 FIRA（功放断电/音量最小）。
 - 交付前 gate（原理图确认 0x20-0x27 只有 MCP23017 类）：**已闭合**（critic R54 亲读三份原理图 PDF 枚举全总线）。
+
+### 📋 本次板测执行单（R57 深审版——照这个顺序，一次做完）
+1. `git pull`（**若报 local changes would be overwritten：原样发回等 PM 回 stash 指令，不要 reset**）
+2. **M1 默认 build**：确认 Defined symbols 里**没有**两个 M2 宏 → Rebuild → Load .dxe →
+   放**最大音量**立体声源 → **一次不间断 Run**（Run 起来后耳听透传输出确实响，保持不间断 ~5 秒）→ Suspend →
+   读 1A 全表 + 对齐 dump → **把 `Debug/M1_Loopback.map`（或 .xml）复制改名 `map_1A_M1build`** 再进下一步
+3. **M2 build**：只需重新加两个宏（include 目录/链接源上周已在，**不要重加**——重加会报 resource already exists，
+   报了就跳过那步）→ **Rebuild**（Console 里找 m1_loopback_tdm.c 编译行含 `M2_FIRA_INLOOP=1`，截图=build 凭证）
+   → Load **新** .dxe → 放同样音源 → 一次不间断 Run ~5 秒 → Suspend → 读 1B 全表 →
+   分级听音（见 1B 步 4：**功放上电后要重新 Load 重跑再听**，不能 Resume 接着听）→ .map 复制改名 `map_1B_M2build`
+4. **恢复**：删两个 M2 宏 → 把两个改名 .map + 两表读数 + build 凭证截图 + 听感一行话，发 CTO
+> **⚠ JTAG 纪律（R57 BLOCKER 级）**：**听感判定和 fg_beam_live/out_max_abs 只认「第一次不间断运行」**。
+> 任何 Suspend→Resume 之后音频不可信（ping-pong 奇偶可能翻转：声音乱但计数器全绿）——要再判听感，
+> **重新 Load .dxe 重跑**。计数器「在增长」的检查不受影响。
 - 确认 codec_write_rc 在 M1 透传 build 里有效（已核：m1_twi_w8 在 #if M2_FIRA_INLOOP 外，init step 5 跑）。
 
 ---
@@ -68,7 +82,8 @@
 | `g_m1_main_pwrinit_rc` / `g_m1_main_init_rc` | 2 个值（**注意是 `g_m1_main_init_rc`，不是 g_m1_init_rc**）|
 
 4. **对齐 dump（在 1A 这里做，不放 1B）**：SPORT 对齐是 M1/M2 build 相同的属性，在容易的 M1 build 就能取。
-   - **先给一个已知的、稳定的中等幅度音频输入**（不能静音，否则 dump 全 0 没法判）。
+   - **音源开到最大音量；Run 起来之后耳听透传输出确实响**（没 Run 板子不出声，别在 Run 前听；R57：
+     上次 0x39FC00 音量太小不够判；Run 后输出不响 → 加大音量重新 Run，不判）。
    - **⚠ 输入必须用立体声源、左右声道都有信号**（手机/电脑放音乐即可）。**不要用单声道插头**——
      当前 build 捕获的 TDM slot 吃的是 ADC **ch2**（CMAP12=0x01，注释写反了，R52 按数据手册核实），单声道
      插头通常只驱动一个声道（载板 jack→ADC 通道接线未板证）→ 可能读出全 0，被误判成「无输入/流没起」。
@@ -76,7 +91,12 @@
    - 读 `s_m1_rx_buf[0][0]`..`s_m1_rx_buf[0][7]`（**注意是 `s_m1_rx_buf`，2 维 file-static**；
      在 Expressions 里按文件作用域输入，若调试器看不到此 file-static 符号，**原样记「符号不可见」发回**）。
    - 抄这 8 个值发回（PM 判左/右对齐）。**若全是 0 → 注明「无实时输入/未注入」一并发回。**
-5. **导出 .map**（准备步骤 3 启用后，在 `Debug/*.map`）——整个文件发回。
+   - **符号不可见的兜底（R57）**：大声源确认响的前提下，`g_m1_max_abs_sample` **> 0x00800000 = 左对齐铁证**；
+     ≤ 0x00800000 且确认很响 = 右对齐（右对齐符号扩展数学上不可能超过 0x00800000）。
+   - **若判出右对齐**：修法已预建——PM 会指令在 M2 build 上**再加一个宏 `M2_RX_RIGHT_ALIGNED`** rebuild
+     （和加 M2 宏同一个地方；CTO 批准后才加，默认不加）。当天即可收口，不用等下次。
+5. **导出 .map**：先把 `Debug/M1_Loopback.map`（或 .xml）**复制改名 `map_1A_M1build`** 再做 1B——
+   **1B rebuild 会覆盖同名文件**（上次 1A 的 .map 就是这么丢的，R57）。发回改名后的。
 
 ### 1B — M2 FIRA（build 加 M2_FIRA_INLOOP=1）—— **不确定就跳过，只做 1A**
 > M2 = FIRA 波束。要改 build 接线，**非专家做不了就明确只做 1A，M2 等 CTO 回来或 PM 指导**。
@@ -86,29 +106,42 @@
      `…\sprint4\dsp\fira`、`…\sprint4\dsp\core_only\src`、`…\sprint4\dsp\core_only\include`；
    - link 3 个源文件（linked resource）：`fira_tree.c` / `tree_filterbank.c` / `tfb_8ch.c`；
    - 编译宏再加 `FIRA_USE_REAL_ADI_FIR_HEADER`。
+   - **上周已接线过的工程：include 目录/链接源还在，只需重新加两个宏**（重加链接源会报
+     resource already exists——报了就跳过，不是错）。
    - **任一步不确定 → 停，只交 1A，把卡在哪发回。**
+1b. **Rebuild（必须显式做）**：加宏后 Build Project；Console 找 m1_loopback_tdm.c 编译行确认含
+   `M2_FIRA_INLOOP=1`（截图=build 凭证）。**不 Rebuild 直接 Load = 烧的还是旧 M1 .dxe。**
 2. **⚠ M2 首跑安全（R52）**：第一次跑 M2 build 前，**功放断电或音量最小**——若 FIRA 逐帧失败，输出可能是
    近满幅噪声直灌 8 路功放（指示：声音刺耳 + `g_m2_out_max_abs` 顶在 0x7FFFFFFF 附近 = 逐帧失败，**不是**波束活）。
-3. **Load + Run ~5 秒 + Suspend**，读：
+3. **Load 新 .dxe → 放立体声源（同 1A，1B 期间也要放！没输入「波束静默」和「波束死」分不开）→
+   一次不间断 Run ~5 秒 → Suspend**，读：
 
 | 变量 | 抄什么 |
 |---|---|
-| **`g_m2_fira_inloop`** | **第一个读！1B 应=1**（=0 说明宏没接上，M2 没真编进去）|
+| **`g_m2_fira_inloop`** | **第一个读！1B 应=1**（=0 → 宏没接上**或没 Rebuild/Load 了旧 .dxe**——先做 1b 步再查宏）|
 | `g_m2_setup_rc` | 1 个值（应=0；**=-99 表示 FIRA setup/link 没跑成**）|
-| `g_m2_fg_beam_live` | 1 个值（应=1；⚠ =1 只在声音正常时可信——刺耳噪声+max_abs 顶满幅=逐帧失败假绿）|
-| `g_m2_out_nonzero` / `g_m2_out_max_abs` | 2 个值（setup_rc=0 但 out_nonzero=0 = 波束静默，记录别盲重跑）|
-| `g_m2_valid` | 1 个值 |
+| `g_m2_fg_beam_live` | 1 个值（应=1；板上只可能 -99 或 1，**读到 0 = build 异常**；⚠ =1 只在声音正常时可信）|
+| `g_m2_out_nonzero` / `g_m2_out_max_abs` | 2 个值（out_nonzero=0 → **先看 fg_stream_live**：≠1 是输入问题不是波束死；max_abs 顶 0x7FFFFFFF = 逐帧失败**仅当** `g_m1_max_abs_sample` 远低于 0x49A00000——两个都高=音源太响，调小重跑再判，R57）|
+| `g_m2_valid` | 1 个值（应=1；=0 且 setup_rc=0 ⇒ M2 build 下 SPORT init 失败，看 main_init_rc）|
 | `g_m1_rx_block_count` | 1 个值（应持续增长 ~750/s；=0 卡死征兆见下注）|
 | **`g_m2_poll_count`** | **M2FIX 新增**：应 ≈ rx_block_count（main 循环服务的波束帧数）|
-| **`g_m2_overrun_count`** | **M2FIX 新增**：应 ≈0（持续增长 = main 来不及，丢帧）|
+| **`g_m2_overrun_count`** | **M2FIX 新增**：应 ≈0（**持续增长 + poll_count 不增 + beam_cyc 冻结 = beam 卡在 FIRA 自旋**，记录 PC/调用栈发回；只 overrun 涨而 poll 也在涨 = main 来不及丢帧）|
 | **`g_m2_beam_cyc_last` / `g_m2_beam_cyc_max`** | **M2FIX 新增**：板上 beam 耗时；max 应远小于 1.33M cyc 帧周期 |
+| `g_m1_fg_stream_live` / `g_m1_nonzero_samples` | **R57 新增读**：输入活性（M2 下 g_m1_* = RX 输入口径）|
+| `g_m1_max_abs_sample` / `g_m1_main_init_rc` | **R57 新增读**：输入幅度（热输入判据用）/ init rc |
 
 > 注（M2FIX 后语义更新）：原「rx_block_count 卡死 + setup_rc=0 = 自旋死锁」已由 M2FIX（beam 挪 main 循环）
 > 修复，**不应再现**；板上实测当时的签名是 =0（beam 调用在计数之前）。若修后仍见 count=0/不增长，记录
 > PC/调用栈发回——那是另一类问题，不是已修的自旋。
+> **PC 位置常态（R57）**：M2 build Suspend 时 PC **偶尔停在 fira_tree.c 自旋里属正常**（main 上下文合法忙等，
+> ~1/10 概率赶上）——判死活只看计数器在不在涨，不看 PC 停哪。Suspend 后 PC 多数应在 main/while(1)。
 
-4. **导出这个 build 的 .map**——发回（PM 验 FIRA 工作集 pin 到 Block1 ≥0x2c0000 + 栈长 ldf_stack_length）。
-5. **跑完 1B 立刻恢复工程**：Properties → Preprocessor → **删掉 `M2_FIRA_INLOOP=1` 和
+4. **分级听音（R57，「有声」交付物这么拿）**：先在功放断电下读完上表 → **若 out_max_abs 没顶满幅 且 overrun≈0**
+   → 功放上电、音量最小 → **重新 Load .dxe → 一次不间断 Run → 听**（刚才读表 Suspend 过，Resume 接着听
+   音频不可信——必须重 Load 重跑，JTAG 纪律）→ 发回一行话（正常 / 刺耳 / 无声 / 循环卡顿）。
+   ⚠ 声音正常+读数全绿**不能证明对齐假设对**（左/右移相互抵消）——对齐结论只来自 1A 的 dump/标量判据。
+5. **导出这个 build 的 .map**：**复制改名 `map_1B_M2build`**——发回（PM 验 pin ≥0x2c0000 + 栈长 + FIRA scratch 落 L1）。
+6. **跑完 1B 立刻恢复工程**：Properties → Preprocessor → **删掉 `M2_FIRA_INLOOP=1` 和
    `FIRA_USE_REAL_ADI_FIR_HEADER`**（include 目录/链接源留着无害）。**这两个宏会留在工程里不删就一直生效**，
    下次 build（含第 2 次验证）会悄悄变成 M2 build（见 IMPORT_GUIDE M2 节第 4 步）。
 
@@ -190,8 +223,10 @@
 - 读数异常/build 报错：**原样复制发回**，不要猜不要改。
 - **跑两遍一致的口径**（别误报）：
   - `rc` / `sweep` / `hwerr` / `set_rc` 这些**快照值**——两次**各自重新 Load/重启后**应一致；
-  - `rx_block_count` / `tx_block_count` / `g_m2_out_nonzero` 这些是**累加计数器**，会一直增长——
-    **只看它在增长**，**不要要求两次相等**（不重启会越来越大，重启会归零再长，都正常）。
+  - `rx_block_count` / `tx_block_count` / `g_m2_out_nonzero` / `g_m2_poll_count` / `g_m2_overrun_count`
+    这些是**累加计数器**，会一直增长——**只看它在增长**，**不要要求两次相等**。
+  - `g_m2_beam_cyc_last` 每帧都变（不要求一致）；`g_m2_beam_cyc_max` 只看量级。
+  - `g_m2_out_nonzero` 连续放 ~3 小时会回绕归零再长（变小=回绕，不是坏了）。
 
 ## 文档/路径
 - 诊断原理：sprint6/dsp/audio/M1_SOFTCFG_U6_ADDR_SWEEP.md

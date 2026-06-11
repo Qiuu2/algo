@@ -58,5 +58,10 @@ run_one() {  # $1=label  $2=extra-define(or empty)  shift2=include array name
 run_one "M1-transparent (M2_FIRA_INLOOP=0)" "" "${INC_M1[@]}"
 # (B) M2 FIRA beam in-loop (the new datapath + the frozen FIRA call surface)
 run_one "M2-FIRA-inloop (M2_FIRA_INLOOP=1)" "-DM2_FIRA_INLOOP=1" "${INC_M2[@]}"
+# (C) R57 contingency config: M2 + RIGHT-aligned Q-boundary fallback (-DM2_RX_RIGHT_ALIGNED, default-OFF
+#     macro, CTO-gated rebuild -- see the Q-BOUNDARY NOTE in m1_loopback_tdm.c). Institutionalized here
+#     (same pattern as the WO-S6-M2 extension) so the contingency shift paths (RX<<8 / TX>>8) are proven
+#     compile-clean BEFORE they are ever needed on the bench. All three configs must PASS.
+run_one "M2-FIRA+RX-right-aligned (M2_RX_RIGHT_ALIGNED)" "-DM2_FIRA_INLOOP=1 -DM2_RX_RIGHT_ALIGNED" "${INC_M2[@]}"
 
 exit $overall
