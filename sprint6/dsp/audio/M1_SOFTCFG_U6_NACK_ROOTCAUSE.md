@@ -1,5 +1,12 @@
 # M1 softcfg U6 all-NACK (code 11=PERIPHERAL_ERROR) root-cause + block B (HALT)
 
+> **R55 FINAL (2026-06-11)**: root cause RESOLVED -- the board is a third-party AD-EXKIT V2.1 carrier with
+> NO device at 0x22 and codec resets HARDWIRED (no enable expander exists). All-NACK is this board's
+> permanent, correct behavior. **All block-B branches below are MOOT for this carrier** (kept for official
+> SOMCRR-carrier compatibility only). The retired criterion "no swap-safe claim before rc all-0" is replaced
+> by: same-carrier (AD-EXKIT) swap = safe; official SOMCRR carrier would need the U6@0x22 code. See
+> M1_SOFTCFG_BOARD_RESCOPE.md / DEC-S6-FSRU1-RESCOPE-01.
+
 > **R51/R52 CORRECTION (2026-06-10, supersedes the hwerr wording below)**: `g_m1_softcfg_hwerr` is an **enum
 > ORDINAL, not a bit-mask** (ADI_TWI_EVENT sequential enum, installed adi_twi_2156x.h:99-104): `0`=none,
 > `1/2`=BUFWRERR/BUFRDERR, `3`=DNAK, `4`=ANAK, `5`=LOSTARB. **Decode by EQUALITY (==4 ANAK etc.), never by

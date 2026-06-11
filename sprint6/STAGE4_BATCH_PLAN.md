@@ -9,7 +9,7 @@
 ## 0. 现在精确位置
 ```
 阶段4 实时音频通路
-  ├ M1 透传      board PASS（但 F-SRU-1 codec 使能坏=靠载板默认兜，R48 确诊）
+  ├ M1 透传      board PASS；softcfg 线 R55 收口（板=AD-EXKIT 硬连线使能，F-SRU-1 不适用，DEC-S6-FSRU1-RESCOPE-01）
   ├ M2 FIRA 入环 实现过门(12a5920, broadside v1)，未上板
   └ M3 可听 demo  待 M2 + 阵列硬件(Stage 5)
 ```
@@ -44,7 +44,7 @@ E 往后全部卡硬件/外部，整合不进远程软件测试模型。
 - **M2（B）**：`g_m2_setup_rc/fg_beam_live/out_nonzero` + .map（pin ≥0x2c0000 验）
 - **对齐 dump（R51：移到 1A 做，注入已知中等幅度输入）**：`s_m1_rx_buf[0][0..7]`（2D file-static，非 g_m1_rx_buf）；SPORT 对齐 M1/M2 build 相同，在易测的 M1 build 取即可
 
-### 自探测判读（一次跑定 root-cause）
+### 自探测判读【R55 存史：1A 实测=恰一 ACK@0x21+cwrc0+hwerr4，但真因=载板架构不匹配（0x21 是 SOM 系统扩展器 U13），R1a 行已被推翻——见 M1_SOFTCFG_BOARD_RESCOPE.md】
 > **hwerr=枚举序数非位掩码**（R51 audit）：0=none/3=DNAK/4=ANAK/5=LOSTARB，**相等判**。主判据=(sweep,codec_write_rc)，hwerr 佐证；矛盾→ANOMALY。完整判读表见 M1_SOFTCFG_U6_ADDR_SWEEP.md §3 / runbook PM 节。
 
 | u6_addr_sweep | codec_write_rc | hwerr | → 结论 |
@@ -67,7 +67,7 @@ E 往后全部卡硬件/外部，整合不进远程软件测试模型。
 |---|---|---|
 | 1 诊断 | 烧诊断镜像，读 ~20 全局 + dump rx_buf + 导出 .map，发 PM | root-cause 方向定 + M2 状态曝光 |
 | （PM 远程判 + 从预建指定修 build）| | |
-| 2 验证 | 套指定 build，读 softcfg_rc 全 0 + M2 绿 | A+B 收口 |
+| 2 验证 | ~~套指定 build，读 softcfg_rc 全 0~~〔R55 已取消：本板 rc=11×5 永久预期，判据已替换，见 DEC-S6-FSRU1-RESCOPE-01〕；剩余=对齐 dump/.map + 1B M2 绿 | A 已收口；B 待 1B |
 
 ## 4. 诚实风险（攒不进去的硬钉子）
 1. **softcfg 若 R0 总线级** → 需示波器+电子工程师（按钮工搞不定）；但诊断第 1 次会明确告诉是这种，好安排人。
@@ -86,10 +86,10 @@ E 往后全部卡硬件/外部，整合不进远程软件测试模型。
 | 8 | .cproject loader 2.11.1 硬路径 + device-programmer 路径 | build 尾步报错 | IMPORT_GUIDE F7 |
 | 9 | 暴露 `g_m1_u6_addr_used = M1_U6_TWI_ADDR`（override 生效的直接观测）| 现靠 build console 凭证 | runbook 第 2 次步骤 3 |
 | 10 | M2 .map 须核 ldf_stack_length ≥ ~16KB（fira_tfb 栈帧 ~6.7KB 进回调）| 栈溢出 | runbook 1B .map 检查项 |
-（前轮已 defer：sweep 移出 boot 路径/hwerr 逐写/.cproject 预启用 map/sweep open_rc/cwrc OR 聚合。）
+（前轮已 defer：sweep 移出 boot 路径/hwerr 逐写/.cproject 预启用 map/sweep open_rc/cwrc OR 聚合。R55 追加：11=载板 flag 跳过 U6@0x22 使能序列（本板上 vestigial，保留作官方 SOMCRR 兼容）。）
 
 ## 5. 纪律
-- F-SRU-1 修复 + 板上 softcfg_rc 全 0 复验前，**不得宣称换板安全**（R48 确诊未生效）。
+- **R55 判据替换**：换同款 AD-EXKIT 载板=安全（使能硬连线，原理图 L1）；换官方 SOMCRR 载板才需 U6@0x22 代码（届时 rc 全 0 判据复活）。本板 rc=11×5 是永久预期值。
 - 任何 logic 修（block B 各分支）CTO-gated；本批量诊断/自探测是 obs/probe-only。
 - cycle 读数引用前确认 bracket 口径（R42）；冻结/M2 段零触碰。
 

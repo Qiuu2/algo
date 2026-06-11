@@ -1,5 +1,14 @@
 # M1 softcfg U6 address self-probe (R50 batch-pack core) -- diagnostic + pre-built fix (HALT)
 
+> **R55 FINAL (2026-06-11)**: the sweep RAN on the board and did its job -- exactly-one ACK at **0x21**,
+> cwrc=0, hwerr==4 [L1]. Schematic read (critic R54) then identified 0x21 as the SOM's OWN system-management
+> expander **U13** (UART/flash switches + LEDs, ZERO codec bits); the physical board is a third-party
+> AD-EXKIT V2.1 carrier whose codec resets are HARDWIRED to SYS_HWRST#. **The R1a row below is superseded:
+> the root cause is carrier-architecture mismatch, not an address error; the override build is CANCELLED**
+> (blind-writing U13 would toggle UART0_EN#/FLOW_EN). F-SRU-1 re-scoped not-applicable on this carrier
+> (DEC-S6-FSRU1-RESCOPE-01). The schematic-confirm gate in sec 2 is CLOSED (only device in 0x20-0x27 is a
+> true MCP23017 -> probe harmlessness confirmed). See M1_SOFTCFG_BOARD_RESCOPE.md.
+
 > dsp-algorithm teammate, 2026-06-08. Batch-pack goal (STAGE4_BATCH_PLAN.md): compress softcfg
 > diagnose -> fix -> verify into ONE diagnostic run. The existing obs (codec_write_rc / hwerr / set_rc,
 > 3a3bb50) already splits R1(U6-specific) vs R0(bus-level); this adds a U6 ADDRESS SELF-PROBE so the SAME
