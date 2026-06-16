@@ -149,13 +149,27 @@ RIGHT-JUSTIFIED case (if DAC slot expects data in low 24):
 - **Where it lives**: after `fira_tfb_synthesize` returns `fout[64]`, in the deinterleave-to-TX-slot write
   (M2_SURVEY.md item 1.3: `[8ch][64] -> [64frame][8slot]`). One op per output sample. No frozen code touched.
 
-### 2.3 ALIGNMENT RULING (left vs right) -- leading verdict + the board check that closes it
-- **LEADING VERDICT [inferred, HIGH confidence]: LEFT-JUSTIFIED => RX/TX conversion = IDENTITY (zero shift).**
+### 2.3 ALIGNMENT RULING (left vs right) -- **CLOSED = LEFT (board L1, 2026-06-16, DEC-S6-ALIGN-LEFT-01)**
+> **CLOSED LEFT-JUSTIFIED on the board.** 1A M1-build read [L1] (map_1A archived board_artifacts/
+> M1_Loopback_M1build_1A_20260616.map.xml) with a loud stereo source:
+> - `s_m1_rx_buf[0][0..7]` = 0xFABBED00 / 0x063B4800 / 0x035AD500 / 0x06141D00 / 0x01EF0100 / 0x0156E900 /
+>   0x0409CE00 / 0x02EA8200 -- **ALL 8 low bytes = 0x00** => 24 valid bits at bit31..bit8 => the section-2.3 dump
+>   criterion's LEFT branch, met unanimously (not one sample shows low-byte data).
+> - `g_m1_max_abs_sample` = 0x42C92C00 > 0x00800000 => scalar rule (sign-extended RIGHT could never exceed
+>   0x00800000) independently confirms LEFT. (Also < 0x49A00000 => within the M2 headroom contract [L2/H2 caliber, derived -4.8 dB budget, NOT a measured threshold], ~9% margin.)
+> - genuine M1 build cross-check: g_m2_fira_inloop=0; rx/tx buffers in Block0 (0x243d00 / 0x243f00, not pinned).
+> **=> RX/TX conversion = IDENTITY (zero shift, zero mask).** The pre-built `M2_RX_RIGHT_ALIGNED` macro (R57)
+> is therefore NOT needed -- it stays default-OFF as an official-board compat hedge. OPENING-5 closed.
+> The 1B M2 build (committed, identity) is the correct-alignment build; the desktop bit-exact CRC test
+> (section 3) remains the per-subband correctness gate, independent of this placement closure.
+> reviewer: critic @ claude-opus-4-8 (R59 ran on Opus=Fable-529-fallback; CONDITIONAL->fixes->PASS) / 2026-06-16.
+
+- **[SUPERSEDED by the 2026-06-16 board L1 closure banner above -- kept for provenance]** LEADING VERDICT [was: inferred, HIGH; now BOARD-CONFIRMED LEFT]: LEFT-JUSTIFIED => RX/TX conversion = IDENTITY (zero shift).
   Basis: (a) `ConfigData(..., ADI_SPORT_DTYPE_SIGN_FILL, 31, ...)` -- SIGN_FILL extends the sign through to
   bit 31, which is the left-justified MSB-at-bit31 convention; (b) ADI TDM/I2S codecs (ADAU1979/1962A) are
   MSB-first, data left-aligned in the slot (`SLOT_WIDTH=32, DATA_WIDTH=24`); (c) this is the same data path
   M1 passthrough already runs bit-for-bit, so any 24<->32 placement is already exercised by the live M1 PASS.
-- **WHY IT IS NOT YET CLOSED [board-confirm]**: the precise bit position the SPORT driver/HRM places the
+- **[SUPERSEDED 2026-06-16 -- this 'not yet closed' reasoning is HISTORICAL; the board read below under 'Cross-check on the LIVE board' is exactly what ran and closed it LEFT]** WHY IT WAS NOT YET CLOSED [board-confirm, now CLOSED]: the precise bit position the SPORT driver/HRM places the
   24 valid bits at (and what the low 8 bits actually hold: hard 0, or sign/garbage that must be masked) is a
   driver+HRM property, not derivable from the .c alone. M2_SURVEY.md:139-142 already left this open.
 - **HRM/driver grep to close it [board-confirm]** (CTO Windows CCES 2.12.1 tree):
@@ -258,7 +272,7 @@ Two test modes:
 ---
 
 ## 5. OPEN ITEMS / board-confirm (collected)
-- [board-confirm] SPORT justification (left vs right): HRM "SLEN"/sign-fill + adi_sport.h ConfigData doc +
+- [CLOSED 2026-06-16 LEFT, DEC-S6-ALIGN-LEFT-01 -- was board-confirm] SPORT justification (left vs right): HRM "SLEN"/sign-fill + adi_sport.h ConfigData doc +
   live `s_m1_rx_buf[0][...]` dump (2.3). Leading verdict LEFT => IDENTITY conversion; SHIFT8 is the falsifiable
   alternative. The desktop bit-exact test (section 3) settles WHICH conversion reproduces the anchor.
 - [board-confirm] low-8-bits of the RX word (hard 0 vs sign/garbage to mask): if non-zero garbage, IDENTITY
@@ -277,7 +291,7 @@ Two test modes:
 1. **CONVERSION POINT**: RX = at the `xw[]` load before `fira_tfb_analyze` (h2:117-118 region); TX = at the
    deinterleave write after `fira_tfb_synthesize` (fout -> tx slot). One op per sample each, fused into M2's
    board TU; frozen core untouched.
-2. **ZERO-CONVERSION RULING [inferred, HIGH, board+test-confirmable]**: a 24-bit value left-justified to
+2. **ZERO-CONVERSION RULING [BOARD-CONFIRMED LEFT 2026-06-16, DEC-S6-ALIGN-LEFT-01; was inferred/HIGH]**: a 24-bit value left-justified to
    bit31 IS ALREADY a legal Q31 (high 24 bits = Q31 high bits, low 8 = 0). With DTYPE_SIGN_FILL-31
    (left-justified), **RX and TX conversion = IDENTITY (zero shift, zero mask)**. The falsifiable alternative
    (right-justified) needs RX `<<8` / TX `>>8`. Which one is correct is settled by (a) HRM/board read of
@@ -299,5 +313,5 @@ Two test modes:
 
 Do not predict the critic bit-exact verdict (critic runs the test in section 3). Frozen code zero-touch
 (read-only here). Alignment justification + FIRA INTEGER-enum = board-confirm, not closed on desktop.
-No commit. reviewer pending: critic gate (three-gate, POLICY v1.8 §4B).
+No commit. reviewer pending: critic gate (three-gate, POLICY v1.8 section 4B).
 dsp-algorithm @ claude-opus-4-8 / 2026-06-08.
