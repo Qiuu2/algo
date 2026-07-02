@@ -577,6 +577,24 @@ void m2_beam_poll(void)
 }
 #endif /* M2_FIRA_INLOOP */
 
+#if M2_STATIC_TXTEST
+#include "m2_static_txtest_table.h"   /* python-baked final Q31 table (512 = one TX half); board does NO arithmetic */
+/* WO diagnostic (EXP_STATIC_TXTEST.md): overwrite BOTH TX halves with the static in-phase Dolph 2250Hz
+ * tone. Called ONCE from m1_main after m1_loopback_init; the m2_beam_poll() call is #if-skipped in the
+ * same build, so nothing ever rewrites s_m1_tx_buf again -> the TX DMA re-transmits a fixed waveform
+ * forever -> read/write tearing (A) is impossible by construction. This partitions A (write-path/timing)
+ * from B (DAC/analog polarity): static-directional => A; static-still-flat => B. Requires M2_FIRA_INLOOP=1.
+ * M2_STXT_TBL is 512 words = M1_TX_HALF_WORDS (64 frames x 8 slots); both are 512 by construction. */
+void m2_static_txtest_fill(void)
+{
+    int i;
+    for (i = 0; i < M1_TX_HALF_WORDS; i++) {
+        s_m1_tx_buf[0][i] = M2_STXT_TBL[i];
+        s_m1_tx_buf[1][i] = M2_STXT_TBL[i];
+    }
+}
+#endif /* M2_STATIC_TXTEST */
+
 /* ---- build the circular ping-pong descriptor rings (ALT.c:250-284 pattern). RX/TX have DIFFERENT
  *   XCount now (RX = 64 words/half packed, TX = 512 words/half). ---- */
 static void m1_prepare_descriptors(void)

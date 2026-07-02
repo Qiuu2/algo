@@ -52,6 +52,14 @@ void main(void)
     /* 5. codec (DAC master first) + SPORT4 TDM ping-pong bring-up; arms the RX-done callback */
     g_m1_main_init_rc = m1_loopback_init();
 
+#if M2_STATIC_TXTEST
+    /* DIAGNOSTIC (EXP_STATIC_TXTEST.md): freeze BOTH TX halves to a static in-phase Dolph 2250Hz tone.
+     * With m2_beam_poll() #if-skipped below, nothing rewrites TX -> the DMA re-transmits a fixed
+     * waveform forever -> tearing (A) impossible by construction (isolates A vs B). Requires
+     * M2_FIRA_INLOOP=1. Brief <3ms startup transient (TX was zeroed in init), then static. */
+    m2_static_txtest_fill();
+#endif
+
     /* 6. FREE-RUN idle: audio flows in m1_sport_rx_callback (fan-out 1->8 + io-callback CCNT probe + FG).
      *    Read g_m1_valid / g_m1_fg_stream_live / g_m1_rx_block_count / g_m1_cb_cyc_* at idle (no mid-loop
      *    breakpoints -- F2). A debugger halt here sees a consistent snapshot. */
@@ -63,7 +71,11 @@ void main(void)
          * SPORT RX-done ISR no longer computes (its fira_tree.c:481 busy-wait starved the FIR DONE
          * interrupt -> first-frame deadlock); it publishes the half and m2_beam_poll computes it here,
          * where the FIR DONE interrupt CAN preempt and release the spin (H1/H2-verified context). */
+#if !M2_STATIC_TXTEST
         m2_beam_poll();
+#else
+        (void)0;   /* M2_STATIC_TXTEST diagnostic: poll SKIPPED so nothing overwrites the frozen TX buffer */
+#endif
 #endif
     }
 }

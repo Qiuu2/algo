@@ -73,4 +73,12 @@ void m2_beam_poll(void);   /* call from the main idle loop: claims the pending h
                             * updates g_m2_out_* / poll counter / fg_beam_live latch. Desktop: no-op. */
 #endif
 
+/* ---- M2_STATIC_TXTEST diagnostic (EXP_STATIC_TXTEST.md): freeze the 8-ch TX to a static in-phase
+ *      Dolph 2250Hz tone so nothing rewrites it -> DMA read/write tearing (A) impossible by
+ *      construction -> isolates A (write-path/timing) from B (DAC/analog polarity). Requires
+ *      M2_FIRA_INLOOP=1. Enable via build -D only (NOT .cproject); default-undefined = byte-identical. */
+#if M2_STATIC_TXTEST
+void m2_static_txtest_fill(void);   /* call ONCE from main after m1_loopback_init */
+#endif
+
 #endif /* M1_LOOPBACK_TDM_H */
