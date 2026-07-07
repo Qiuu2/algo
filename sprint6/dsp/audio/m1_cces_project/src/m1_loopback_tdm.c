@@ -585,9 +585,10 @@ void m2_beam_poll(void)
  * (edit via JTAG between measurements); de-selected channels are filled with 0 = silent. 375Hz's single
  * cycle spans the two ping-pong halves (half0 = samples 0..63, half1 = 64..127) so the loop half0,half1,
  * half0,... is seamless (and half-swap-safe: a global phase offset hits all channels equally). Solo one
- * channel (mask = 1u<<c) => alive-check + map channel->element; play a pair (mask = (1u<<7)|(1u<<c)) and
- * compare both-vs-each-alone at the pair bisector: same polarity adds (~+6dB), opposite cancels (deep
- * null). Requires M2_FIRA_INLOOP=1 && M2_STATIC_TXTEST=1. The m2_beam_poll() call stays #if-skipped;
+ * channel (mask = 1u<<c) => alive-check + map channel->element; play a pair (mask = (1u<<R)|(1u<<K),
+ * R = a central reference channel found in Phase A) and compare both-vs-each-alone at the pair bisector:
+ * same polarity adds (~+6dB), opposite cancels (deep null). Requires M2_FIRA_INLOOP=1 &&
+ * M2_STATIC_TXTEST=1. The m2_beam_poll() call stays #if-skipped;
  * m2_stxt_poll_mask() re-applies the buffer ONCE each time the tester changes the mask (no per-frame
  * write -> static between measurements). */
 volatile uint32_t g_stxt_ch_mask   = 0xFFu;         /* bit c = channel c audible; JTAG-editable; default all-on */
