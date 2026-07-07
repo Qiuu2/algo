@@ -53,10 +53,13 @@ void main(void)
     g_m1_main_init_rc = m1_loopback_init();
 
 #if M2_STATIC_TXTEST
-    /* DIAGNOSTIC (EXP_STATIC_TXTEST.md): freeze BOTH TX halves to a static in-phase Dolph 2250Hz tone.
-     * With m2_beam_poll() #if-skipped below, nothing rewrites TX -> the DMA re-transmits a fixed
-     * waveform forever -> tearing (A) impossible by construction (isolates A vs B). Requires
-     * M2_FIRA_INLOOP=1. Brief <3ms startup transient (TX was zeroed in init), then static. */
+    /* DIAGNOSTIC: freeze BOTH TX halves to a static tone so nothing rewrites TX -> the DMA re-transmits a
+     * fixed waveform forever. Two variants (both need M2_FIRA_INLOOP=1):
+     *   - default (M2_STXT_LOCALIZE undefined): static in-phase Dolph 2250Hz (EXP_STATIC_TXTEST.md) --
+     *     tearing (A) impossible by construction, isolates A vs B.
+     *   - M2_STXT_LOCALIZE: static EQUAL-amp 375Hz on a JTAG-selectable channel subset
+     *     (EXP_STATIC_POL375.md) -- pairwise cancellation to find reversed speaker polarity.
+     * Brief <3ms startup transient (TX was zeroed in init), then static. */
     m2_static_txtest_fill();
 #endif
 
@@ -73,6 +76,8 @@ void main(void)
          * where the FIR DONE interrupt CAN preempt and release the spin (H1/H2-verified context). */
 #if !M2_STATIC_TXTEST
         m2_beam_poll();
+#elif M2_STXT_LOCALIZE
+        m2_stxt_poll_mask();   /* POL375 localization: re-mute ONCE when tester edits g_stxt_ch_mask via JTAG */
 #else
         (void)0;   /* M2_STATIC_TXTEST diagnostic: poll SKIPPED so nothing overwrites the frozen TX buffer */
 #endif

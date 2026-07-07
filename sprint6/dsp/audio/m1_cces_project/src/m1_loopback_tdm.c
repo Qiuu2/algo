@@ -578,6 +578,37 @@ void m2_beam_poll(void)
 #endif /* M2_FIRA_INLOOP */
 
 #if M2_STATIC_TXTEST
+#if M2_STXT_LOCALIZE
+#include "m2_static_txtest375_table.h"   /* python-baked 375Hz EQUAL-amp cycle (128 mono); board does NO arithmetic */
+/* POLARITY LOCALIZATION variant (EXP_STATIC_POL375.md). Instead of the full 8-ch 2250 Dolph tone, emit an
+ * EQUAL-amplitude 375Hz tone on a SELECTABLE subset of channels. g_stxt_ch_mask bit c enables channel c
+ * (edit via JTAG between measurements); de-selected channels are filled with 0 = silent. 375Hz's single
+ * cycle spans the two ping-pong halves (half0 = samples 0..63, half1 = 64..127) so the loop half0,half1,
+ * half0,... is seamless (and half-swap-safe: a global phase offset hits all channels equally). Solo one
+ * channel (mask = 1u<<c) => alive-check + map channel->element; play a pair (mask = (1u<<7)|(1u<<c)) and
+ * compare both-vs-each-alone at the pair bisector: same polarity adds (~+6dB), opposite cancels (deep
+ * null). Requires M2_FIRA_INLOOP=1 && M2_STATIC_TXTEST=1. The m2_beam_poll() call stays #if-skipped;
+ * m2_stxt_poll_mask() re-applies the buffer ONCE each time the tester changes the mask (no per-frame
+ * write -> static between measurements). */
+volatile uint32_t g_stxt_ch_mask   = 0xFFu;         /* bit c = channel c audible; JTAG-editable; default all-on */
+static uint32_t   s_stxt_mask_seen = 0xFFFFFFFFu;   /* != default => first poll applies once */
+
+static void m2_stxt_apply(void)
+{
+    int f, c;
+    for (f = 0; f < (int)M1_FRAME; f++) {            /* 64 frames per half */
+        for (c = 0; c < (int)M1_TX_SLOTS; c++) {     /* 8 TDM slots (channels) */
+            int on = (int)((g_stxt_ch_mask >> c) & 1u);
+            s_m1_tx_buf[0][f * (int)M1_TX_SLOTS + c] = on ? M2_STXT375[f]      : 0;  /* half0 = n 0..63   */
+            s_m1_tx_buf[1][f * (int)M1_TX_SLOTS + c] = on ? M2_STXT375[f + 64] : 0;  /* half1 = n 64..127 */
+        }
+    }
+    s_stxt_mask_seen = g_stxt_ch_mask;              /* 63*8+7 = 511 < 512 : in bounds */
+}
+
+void m2_static_txtest_fill(void) { m2_stxt_apply(); }                                   /* ONCE from m1_main */
+void m2_stxt_poll_mask(void)     { if (g_stxt_ch_mask != s_stxt_mask_seen) m2_stxt_apply(); }  /* main idle */
+#else  /* !M2_STXT_LOCALIZE : original static 2250 Dolph fill (byte-identical to commit 4bf18b6) */
 #include "m2_static_txtest_table.h"   /* python-baked final Q31 table (512 = one TX half); board does NO arithmetic */
 /* WO diagnostic (EXP_STATIC_TXTEST.md): overwrite BOTH TX halves with the static in-phase Dolph 2250Hz
  * tone. Called ONCE from m1_main after m1_loopback_init; the m2_beam_poll() call is #if-skipped in the
@@ -593,6 +624,7 @@ void m2_static_txtest_fill(void)
         s_m1_tx_buf[1][i] = M2_STXT_TBL[i];
     }
 }
+#endif /* M2_STXT_LOCALIZE */
 #endif /* M2_STATIC_TXTEST */
 
 /* ---- build the circular ping-pong descriptor rings (ALT.c:250-284 pattern). RX/TX have DIFFERENT

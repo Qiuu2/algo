@@ -79,6 +79,11 @@ void m2_beam_poll(void);   /* call from the main idle loop: claims the pending h
  *      M2_FIRA_INLOOP=1. Enable via build -D only (NOT .cproject); default-undefined = byte-identical. */
 #if M2_STATIC_TXTEST
 void m2_static_txtest_fill(void);   /* call ONCE from main after m1_loopback_init */
+#if M2_STXT_LOCALIZE
+/* POLARITY LOCALIZATION (EXP_STATIC_POL375.md): 375Hz equal-amp tone on a JTAG-selectable channel subset. */
+extern volatile uint32_t g_stxt_ch_mask;  /* bit c = channel c audible (edit via JTAG between measurements) */
+void m2_stxt_poll_mask(void);             /* call each main idle iter: re-mutes ONCE when g_stxt_ch_mask changes */
+#endif
 #endif
 
 #endif /* M1_LOOPBACK_TDM_H */
