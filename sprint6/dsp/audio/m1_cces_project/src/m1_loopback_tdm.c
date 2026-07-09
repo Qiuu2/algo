@@ -372,13 +372,43 @@ static int32_t s_m2_chout[M1_FRAME];   /* per-channel FIRA synthesize output (fu
  *      @param rx   packed mono RX frame, M1_FRAME int32 (Q31 by identity)
  *      @param tx   8-slot interleaved TX frame, M1_FRAME*M1_TX_SLOTS int32 ; tx[f*8 + c] = ch c, samp f
  *      @return     accumulates FG stats into *pnz / *ppeak over the 8-channel output. */
+#ifdef M2_CHMAP_FIX
+/* CHANNEL->PHYSICAL-POSITION remap (basis: BEAM_POLARITY_CLOSURE_20260708.md sec5/6 + EXP_STATIC_POL375.md).
+ * The frozen g_dolph_w8_q15 is indexed edge(0)->center(7) ASSUMING TX slot c drives physical rank c.
+ * Phase A (375Hz solo) measured the ACTUAL wiring on this rig: slot3=center C7, slot4=edge C0, ... so
+ * the Dolph taper lands on the WRONG physical positions (the center pair gets w=0.733 instead of 1.0).
+ * FIX: channel c reads the weight for the physical RANK it actually drives -> g_dolph_w8_q15[perm[c]].
+ * perm[c] = physical rank (edge=0..center=7) of the pair driven by slot c:
+ *   slot 0->C4(r4) 1->C5(r5) 2->C6(r6) 3->C7(r7,center) 4->C0(r0,edge) 5->C1(r1) 6->C2(r2) 7->C3(r3).
+ * WHY WEIGHT-INDEX ONLY (state s_m2_fa[c] and slot tx[..+c] stay = c): common mono input + IDENTICAL
+ * per-channel broadside filter (NO frac-delay) => each ch output = w_c * y with y shared, so permuting
+ * the weight index is bit-equivalent to permuting TX slots. *** BROADSIDE v1 ONLY *** -- once v2 adds
+ * per-channel FRAC-DELAY focusing, the delay is ALSO position-dependent and must be permuted/re-derived
+ * too (a scalar-weight permute no longer suffices).
+ * *** ASSUMPTION (hard-gate on FAR-FIELD A/B before any lock): only C0=edge and C7=center are user-
+ * confirmed; the intermediate rank order C1..C6 is ASSUMED monotonic. A mid-pair swap only perturbs two
+ * near-equal weights (graceful); the raised edge g0=0.867 vs g1=0.504 is the one that matters (C0 IS the
+ * confirmed anchor). EFFECT [L2 numpy]: restores the DESIGN Dolph -> -6dB mainlobe WIDENS 25.7->29.3deg
+ * (@1k, still <=30 spec) but SLL -9.67->-20dB and 30deg rejection 10.3->23.1dB. The current narrow
+ * 25.7deg is a broken edge-heavy artifact (worthless: -9.67dB sidelobes leak to the sides = the "30deg
+ * weak" symptom). RIG-SPECIFIC (competitor speakers, our wiring) + HYPOTHESIS.
+ * s_m2_chmap is volatile + JTAG-editable: the tester may poke alternative permutations live (e.g. a
+ * suspected mid-pair swap) WITHOUT rebuild. Enable via build -D only (NOT .cproject); undefined = byte-
+ * identical. Index is masked (& NCH-1) so a mistyped JTAG value can never OOB-read the frozen table. */
+static volatile uint8_t s_m2_chmap[DOLPH_W8_NCH] = { 4u, 5u, 6u, 7u, 0u, 1u, 2u, 3u };
+#endif
+
 static void m2_fira_beam_frame(const int32_t *rx, int32_t *tx, uint32_t *pnz, uint32_t *ppeak)
 {
     uint32_t c, i;
     uint32_t nz = *pnz, peak = *ppeak;
 
     for (c = 0u; c < (uint32_t)DOLPH_W8_NCH; c++) {
+#ifdef M2_CHMAP_FIX
+        const int32_t w = g_dolph_w8_q15[s_m2_chmap[c] & (DOLPH_W8_NCH - 1u)];  /* MAPFIX: phys pos gets its Dolph weight (JTAG-editable; mask = OOB-safe) */
+#else
         const int32_t w = g_dolph_w8_q15[c];            /* Dolph-Cheb -20dB Q15 weight for channel c */
+#endif
         /* input-scale weight (== f5_apply_w / H2:117-118): Q15 x Q31 >> 15. rx[i] is Q31 by identity. */
         for (i = 0u; i < M1_FRAME; i++)
 #ifdef M2_RX_RIGHT_ALIGNED
