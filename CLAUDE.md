@@ -40,7 +40,7 @@
 
 **红线：C1 / C2 / C3 / C6 / C7 / C8 / C9①② / C10 任一 FAIL ⇒ 整体 BLOCKER，打回，不得进下一阶段。**
 
-### 八铁律（一句话）
+### 九铁律（一句话）
 1. 数字有来源身份证（L 标）｜2. L3 撑强约束须挂待验｜3. 不可逆决策 L1 或 L2+签字｜4. L1 与 LOCKED 冲突→强制重审、禁并存｜5. 撤回必须全库传播（声明+反扫+加标/删，三步缺一不生效）｜6. 外部输入 24h 入库｜7. 关键数字双轨独立工具核｜**8. R14 关闭前 FIRA/加速器收益一律标 `[L4/待验证]`、不计入任何选型/流片/客户承诺；选型只许引已坐实的纯核口径**（违反=BLOCKER，C9 守门）｜9. 硬件不可逆动作须先有 CTO 确认的操作清单+物理版本确认+安全硬规矩。
 
 > **三道关（POLICY v1.8 §4B，流程闸，非铁律）**：workflow 产出含修正稿须 自动verify→独立critic门→CTO常识审，不得假设"修过即对"（缘起 R8/R9 修正稿自带新错）。
@@ -97,7 +97,7 @@
 **teammate-4：Critic 评审员（横切所有领域）**
 - Profile：`agents/critic/profile.md`
 - Soul：`agents/critic/soul.md`
-- Skill：`agents/critic/skill.md`
+- Skill：`.claude/skills/critic/SKILL.md`（**唯一权威源**；旧 `agents/critic/skill.md` 现为指针，见该文件）
 - Memory：`agents/critic/memory.md`
 - 核心能力：对抗式评审、质量守门、所有产出必须先过 Critic
 

@@ -323,7 +323,7 @@ itc-enterprise-workflow/
 │   ├── critic/                           # 评审Agent (横切)
 │   │   ├── profile.md                    #   身份定义
 │   │   ├── soul.md                       #   核心驱动力与价值观
-│   │   ├── skill.md                      #   评审技能与流程
+│   │   ├── skill.md                      #   指针→.claude/skills/critic/SKILL.md（唯一权威源）
 │   │   └── memory.md                     #   评审知识库
 │   │
 │   ├── acoustic-simulation/             # 声学仿真领域Agent
