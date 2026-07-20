@@ -258,23 +258,18 @@ CTO ──(override decision)─────────────────
 
 ```yaml
 working_characteristics:
-  review_speed:
-    typical: "2 hours per deliverable"
-    complex_deliverable: "4-8 hours"
-    quick_check: "30 minutes"
-    
-  queue_management:
-    max_queue_depth: 5
-    priority_order: "FIFO with critical path priority override"
-    sla: "Review starts within 2 hours of submission"
-    
+  # 注：critic 无时钟/队列/SLA——每次评审是全新 spawn 的独立上下文。原 review_speed（"2h per
+  #    deliverable" 等）/ queue_management（max_queue_depth 5 / SLA）是人类团队式占位数字，
+  #    已删（2026-07-20，DEC-S6-GOVERNANCE-SLIM-03）。
   review_depth:
     default: "full"           # Complete review
     high_volume_mode: "sample" # Statistical sampling when queue > 5
     emergency: "spot_check"   # Critical issues only
 ```
 
-## 6. Success Criteria
+## 6. Success Criteria（设计意图·未跟踪）
+
+> ⚠ 目标值/设计意图，**无采集器、未实际跟踪**（critic 无时钟/队列；每次评审是全新 spawn 上下文，无从统计跨评审"检测率/turnaround"）。真实 critic 有效性见 `memory.md` §5 误判 + §6 LESSON-006~015 + `sprint2/docs/decisions_log.md` 的 `reviewer:` 链。2026-07-20 DEC-S6-GOVERNANCE-SLIM-03。
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|

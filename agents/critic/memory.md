@@ -39,6 +39,8 @@ Critic Memory Store
 
 ### 2.1 Individual Review Records
 
+> ⚠ **本节为占位/模板评审记录**（`total_reviews: 156`、`2024-01-XX` 假日期、`REV-XX` 假 ID，无采集器）——与已删的 §3/§4 同class 伪造，按本项目 POLICY 属无标 L0/L4。**SLIM-03 有意延后清理本节**（属"评审历史"非"指标层"）；真实评审见 `sprint2/docs/decisions_log.md` 的 `reviewer: critic @ …` 链。待后续一并归档或删。
+
 ```yaml
 review_history:
   total_reviews: 156
@@ -345,187 +347,15 @@ agent_review_profiles:
       - "Verify requirement coverage matrix"
 ```
 
-## 3. Checklist Evolution
+## 3–4. Checklist Evolution / Performance Metrics 〔占位与伪造数据已删除 2026-07-20，DEC-S6-GOVERNANCE-SLIM-03〕
 
-### 3.1 Current Checklist Versions
-
-```yaml
-checklist_versions:
-  acoustics: 3
-  dsp: 4
-  hardware: 5
-  structure: 3
-  test: 4
-  documentation: 2
-```
-
-### 3.2 Change History
-
-```yaml
-checklist_changes:
-  - date: "2024-01-08"
-    domain: "hardware"
-    version: 4 → 5
-    change: "Added mandatory thermal simulation checkpoint for all PCB layouts"
-    reason: "3 PCB layouts in Q4 had thermal issues in prototype — escaped Critic review"
-    triggered_by: "escaped_defect"
-    
-  - date: "2024-01-05"
-    domain: "dsp"
-    version: 3 → 4
-    change: "Added worst-case MIPS scenario verification"
-    reason: "dsp-agent occasionally misses edge case MIPS consumption"
-    triggered_by: "review_pattern"
-    
-  - date: "2023-12-20"
-    domain: "acoustics"
-    version: 2 → 3
-    change: "Added statistical significance check for measurement reports"
-    reason: "Multiple reports with insufficient sample sizes"
-    triggered_by: "review_pattern"
-    
-  - date: "2023-12-15"
-    domain: "test"
-    version: 3 → 4
-    change: "Added requirement-to-test bidirectional traceability check"
-    reason: "CTO gate review found untraced requirements"
-    triggered_by: "cto_feedback"
-    
-  - date: "2023-12-10"
-    domain: "hardware"
-    version: 3 → 4
-    change: "Added component derating analysis requirement"
-    reason: "hardware-agent consistently misses derating"
-    triggered_by: "review_pattern"
-```
-
-### 3.3 Checklist Effectiveness Tracking
-
-```yaml
-checklist_effectiveness:
-  # Track which checklist items catch the most issues
-  
-  hardware_checklist:
-    - item: "ERC通过"
-      times_triggered: 11
-      true_positive_rate: 1.00
-      effectiveness: "HIGH"
-      
-    - item: "热设计"
-      times_triggered: 9
-      true_positive_rate: 1.00
-      effectiveness: "HIGH"
-      
-    - item: "降额分析"
-      times_triggered: 6
-      true_positive_rate: 0.83
-      effectiveness: "MEDIUM"
-      
-    - item: "EMC设计"
-      times_triggered: 5
-      true_positive_rate: 0.80
-      effectiveness: "MEDIUM"
-      
-    - item: "丝印"
-      times_triggered: 2
-      true_positive_rate: 0.50
-      effectiveness: "LOW"
-      recommended_action: "Reduce to spot-check"
-```
-
-## 4. Performance Metrics
-
-### 4.1 Review Efficiency
-
-```yaml
-review_efficiency:
-  period: "2024-Q1"
-  
-  turnaround_time:
-    target: "< 2 hours"
-    median: "1.7 hours"
-    p95: "4.2 hours"
-    by_complexity:
-      simple: "0.8 hours"
-      standard: "1.7 hours"
-      complex: "4.5 hours"
-      
-  queue_depth:
-    avg_waiting: 1.3
-    max_observed: 4
-    sla_breach_count: 2    # Reviews that took > 2h to start
-    
-  review_depth_distribution:
-    full: 65%              # Complete checklist review
-    delta: 25%             # Revision review
-    spot_check: 10%        # Emergency/quick review
-```
-
-### 4.2 Detection Rates
-
-```yaml
-detection_rates:
-  overall:
-    blocker_detection_rate: 0.98     # 98% of BLOCKERs caught
-    major_detection_rate: 0.92       # 92% of MAJORs caught
-    minor_detection_rate: 0.85       # 85% of MINORs caught
-    
-  by_domain:
-    - domain: "acoustics"
-      detection_rate: 0.88
-      
-    - domain: "dsp"
-      detection_rate: 0.95
-      
-    - domain: "hardware"
-      detection_rate: 0.90
-      
-    - domain: "structure"
-      detection_rate: 0.93
-      
-    - domain: "test"
-      detection_rate: 0.91
-```
-
-### 4.3 Escaped Defect Analysis
-
-```yaml
-escaped_defects:
-  # Defects found AFTER Critic PASSED
-  
-  total_escaped: 3
-  period: "2024-Q1"
-  
-  escaped_defect_1:
-    date_found: "2024-01-14"
-    found_by: "test-agent"
-    deliverable: "Amplifier PCB Layout"
-    original_review: "REV-HW-005-v2"
-    what_was_missed: "散热过孔虽然存在但数量不足，导致原型测试时结温超标"
-    why_missed: "Checklist只检查'有/无'散热过孔，未检查数量 adequacy"
-    corrective_action: "Updated hardware checklist: thermal via count must be ≥ calculated minimum"
-    checklist_updated: true
-    
-  escaped_defect_2:
-    date_found: "2024-01-10"
-    found_by: "integration test"
-    deliverable: "DSP Filter Coefficients"
-    original_review: "REV-DSP-003-v1"
-    what_was_missed: "某极端频率组合下产生可闻artifacts"
-    why_missed: "Test stimulus didn't cover the specific frequency combination"
-    corrective_action: "Updated DSP checklist: require multi-tone and sweep test vectors"
-    checklist_updated: true
-    
-  escaped_defect_3:
-    date_found: "2024-01-08"
-    found_by: "acoustics-agent (cross-check)"
-    deliverable: "Enclosure 3D Model"
-    original_review: "REV-ST-002-v1"
-    what_was_missed: "出声孔位置与声学设计的最优位置有2mm偏差"
-    why_missed: "Cross-domain check didn't include precise coordinate comparison"
-    corrective_action: "Enhanced cross-domain verification: include coordinate-level comparison for acoustic ports"
-    checklist_updated: true
-```
+> 原 §3（Checklist 版本/变更史/有效性）+ §4（评审效率/检测率/逃逸缺陷）整段 = **占位模板 + 编造数字**：
+> 2023–2024 假日期、检测率 0.98/0.92/0.85、周转 median 1.7h/p95 4.2h、REV-XX 假评审 ID、escaped-defect 假案例。
+> 本项目实际用 **R 编号 / DEC-ID / 2026 日期**。这些数字**无任何采集器，按本项目 POLICY 属无标 L0/L4、违 C1/C2**——
+> 且躺在 critic 自己的记忆里执行溯源制度，最讽刺。已删。
+> **真实的 critic 学习/有效性记录见**：§5 误判分析、§6 知识库（LESSON-006~015）、§7 学习规则、
+> 文末「2026-06-06 轮次教训（R24–R34）」，以及 `sprint2/docs/decisions_log.md` 的 `reviewer: critic @ …` 标记链。
+> 若将来要真指标：先定「采集事件 + 存储位置 + L 级」，别再填常数。
 
 ## 5. Misjudgment Analysis
 

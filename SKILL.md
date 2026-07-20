@@ -476,40 +476,17 @@ tool_execution:
 
 ## 10. Metrics & Observability
 
-### 10.1 System Health Metrics
+> **状态：设计意图，非已实现。** 下列是"若要度量可采集什么"的候选清单——**当前无采集器 / 无存储 / 无仪表盘**。
+> 原 §10.2 的 ASCII 仪表盘（`ITC-Pro-2024-Q2` / CPI:0.98 / FP:5% / EAC:45 days 等）是**编造的占位数字，已删除**
+> （2026-07-20，DEC-S6-GOVERNANCE-SLIM-03；按本项目 POLICY 属无标 L0/L4）。真实进度/质量以
+> `sprint2/docs/decisions_log.md` + 各 `sprint*_status.md` 为准。
 
-```yaml
-metrics:
-  throughput:
-    - tasks_completed_per_day
-    - review_cycle_time_avg  # submit → pass time
-    - critical_path_adherence  # actual vs planned
-  
-  quality:
-    - critic_findings_per_deliverable
-    - false_positive_rate
-    - revision_cycles_avg  # how many tries to pass critic
-  
-  health:
-    - blocked_tasks_count
-    - escalation_frequency
-    - sla_breach_rate
-```
+### 10.1 候选指标（未采集）
+- throughput: `tasks_completed_per_day` / `review_cycle_time` / `critical_path_adherence`
+- quality: `critic_findings_per_deliverable` / `false_positive_rate` / `revision_cycles_avg`
+- health: `blocked_tasks_count` / `escalation_frequency` / `sla_breach_rate`
 
-### 10.2 Dashboard
-
-PM Agent maintains a real-time project dashboard:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ ITC Project Dashboard  [Project: ITC-Pro-2024-Q2]               │
-├──────────────┬──────────────┬──────────────┬────────────────────┤
-│ Progress     │ Quality      │ Schedule     │ Risks              │
-│ ██████░░ 67% │ Cycles: 1.8  │ On Track     │ ⚠ 2 Medium        │
-│ 8/12 tasks   │ Issues: 23   │ CPI: 0.98    │ ✖ 0 Critical      │
-│ 2 in review  │ FP rate: 5%  │ EAC: 45 days │ ⚡ 1 Escalation   │
-└──────────────┴──────────────┴──────────────┴────────────────────┘
-```
+> 要真度量任一项：先定「采集事件 + 存储位置 + L 级」，再填数字。别再放常数。
 
 ---
 

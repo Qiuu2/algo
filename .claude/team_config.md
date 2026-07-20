@@ -33,7 +33,7 @@
 | project-document | `claude-sonnet-4-6` | 2026-06-03 | on demand | — |
 | acoustic-simulation | (deferred) | — | not started | raise to `claude-opus-4-8` when real COMSOL evidence phase starts |
 
-**Current FIRA line = lead + critic + dsp-algorithm, all `claude-opus-4-8`.** Others spawned on demand per table.
+**Current FIRA line = lead + critic + dsp-algorithm** — model per the roster table above (2026-06-10 re-tier = `claude-fable-5`). *(Corrected: this line previously read `all claude-opus-4-8`, the pre-re-tier state, contradicting the table.)* **NOTE: the session model can change again after 2026-06-10 (e.g., this session runs `claude-opus-4-8`); on spawn, use the actual session model or the CTO's explicit `model:` override, not a hard-coded tier here.** Others spawned on demand per table.
 
 ## Peer-challenge protocol (ON — 2026-06-03)
 - Teammates may `SendMessage` each other **directly**; the critic MAY rebut dsp-algorithm (or any teammate) in the mailbox **without routing through the lead**.

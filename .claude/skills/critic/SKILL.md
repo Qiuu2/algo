@@ -4,7 +4,7 @@ description: >-
   Adversarial, fresh-context review gate for the ITC directional-column-speaker
   project. INVOKE this skill before ANY DSP / FIRA / acoustic / hardware / structure /
   test output, diagnosis, patch, or number reaches the team lead, the CTO, or the
-  board/bench. Enforces POLICY-PROV-001 v1.7 provenance gates C1-C10, L-grade
+  board/bench. Enforces POLICY-PROV-001 v1.8 provenance gates C1-C10, L-grade
   (L0/L1/L2/L3/L4) completeness, no-overclaim, geometry/retraction/ingest gates,
   the FIRA-offload irreversible gate (C9/iron-rule-8), the hardware irreversible-action
   gate (C10/iron-rule-9), the §12 DSP/FIRA verification gates (false-green FG1 /
@@ -1081,6 +1081,9 @@ provenance_mandatory_checks:
     check: "Sprint 收尾归档时，是否复核'近 1 周内 CTO 外部接收的入库状态'？以 CTO 外部接收声明清单（POLICY §4A.2，时间/来源/文档/入库日/是否超24h/备注）为唯一权威基线，逐份判定'已及时入库 / 超时入库 / 未入库(FAIL)'。无 CTO 声明 → 基线缺失 → ESCALATE。C7（撤回/出站）+ C8（入库/入站）= 双向传播门禁。"
     fail_severity: "BLOCKER（超 24h/未入库）；无声明基线 → ESCALATE"
   C9_fira_offload_irreversible_gate:   # v1.6 新增，缘起 R14（FIRA 定点 bit-exact 风险），CTO 拍板 2026-06-02
+    # 🔓 状态(2026-06-04)：R14 已 CLOSED（DEC-S4-R14-RULING-01）、C9/铁律八 已 RELEASED（DEC-S4-C9-RELEASE-01）。
+    #    → 本闸现仅适用【未来 R14 类不可逆闸】；FIRA 收益现以 [L1] 进选型，但须与 §8 未计入清单(43-379 MCPS)连体
+    #      呈现 + 官方锁 3.07x（3.13x 混 build 禁入选型/对外）。下方「R14 关闭前」条文为历史闸文，保留供同类闸复用。
     check: |
       在 R14 关闭（EZKIT bit-exact L1 实测通过）前，对任何含 FIRA/算力收益/选型/流片/客户承诺的产出做四查：
       ① R14 是否含 R-list 全部强制字段（编号/风险/等级/验证状态/数据出处/可逆性影响/风险声明/挂接）？缺 → BLOCKER
@@ -1114,7 +1117,7 @@ provenance_mandatory_checks:
 5. **铁律五（v1.3，缘起 PF-9）——撤回必须全库传播，三步缺一不可**：任何数字被撤回 = ① 发出撤回声明 + ② 全库反向扫描该数字及其派生值/别名所有引用 + ③ 逐处加撤回警示标签或删除；三步未全做完撤回不生效，不得宣称"已撤回/已修正"，由 C7 守门（残留 ≥1 处未处理 = BLOCKER）。C6 防进（入口门禁）、C7 防赖着不走（出口门禁）。
 6. **铁律六（v1.5，缘起 LESSON-013）——信息透明义务/外部输入 24h 入库（守入站，对偶铁律五守出站）**：凡 CTO 收到的外部技术输入须 24h 内进 KB + handover（CTO→PM→KB），由 C8 守门；**CTO 外部接收声明义务**：CTO 须在 Sprint 收尾主动声明近 1 周外部接收清单（格式规范化：时间/来源/文档/入库日/是否超24h/备注），作为 C8 唯一权威核对基线，无声明 → C8 基线缺失 → ESCALATE。
 7. **铁律七（v1.5，缘起 LESSON-012 M1 WNG 12dB bug）——关键数字双轨独立工具核**：进不可逆/强约束决策的关键几何/算力/统计/标准合规数字须第二独立工具（如 MATLAB）交叉核，不一致 → 定位错源 BLOCKER，定位修复前不得落盘（由 C5 扩守门，未交叉核 = MAJOR）。
-8. **铁律八（v1.6，缘起 R14 FIRA 定点 bit-exact 风险，CTO 拍板 2026-06-02）——加速器收益不可逆闸门**：凡"上板后才能实测的加速器/优化收益"（FIRA offload 算力等），在对应风险项（R14）以 L1 实测关闭前，**一律标 [L4/待验证]、不得计入任何选型/流片/客户承诺依据**；选型/承诺只许引已坐实的纯核口径。违反 → BLOCKER（由 C9①② 守门）。HIGH 级迁移复杂度（Split-Task 等）须进 Sprint 4 输入清单并标级（C9③）。
+8. **铁律八（v1.6，缘起 R14 FIRA 定点 bit-exact 风险，CTO 拍板 2026-06-02）——加速器收益不可逆闸门**：凡"上板后才能实测的加速器/优化收益"（FIRA offload 算力等），在对应风险项（R14）以 L1 实测关闭前，**一律标 [L4/待验证]、不得计入任何选型/流片/客户承诺依据**；选型/承诺只许引已坐实的纯核口径。违反 → BLOCKER（由 C9①② 守门）。HIGH 级迁移复杂度（Split-Task 等）须进 Sprint 4 输入清单并标级（C9③）。**【状态 2026-06-04：R14 已闭合、铁律八/C9 已 RELEASED（DEC-S4-C9-RELEASE-01）——本条现仅约束未来同类不可逆闸；FIRA 收益现 [L1] 进选型但须连体 §8 未计入清单 + 锁 3.07x。见 §11.2 C9 状态旗。】**
 9. **铁律九（v1.7，缘起 EZKIT 上板厂商三陷阱：boot 抢 JTAG / JTAG 热插拔烧板 / 供电跳线接错，CTO 拍板 2026-06-02）——硬件不可逆动作闸门**：涉上电/接仿真器/焊接/跳线等不可逆硬件动作，须先有①经 CTO 确认出稿的操作清单（如 `ezkit_bringup_checklist.md`）+ ②物理版本/配置肉眼确认（丝印 REV，禁预设单一版本接线）+ ③安全硬规矩（连接顺序「先插JTAG→板上电→仿真器接USB」/禁热插拔/供电跳线核对）写入清单；三者缺一不得指导执行（C10 守门，BLOCKER）。防"接错线烧板/找错跳线连不上"（PF-9 版本误判同类）。
 10. 关联教训：[[critic-memory]] LESSON-007（分级制度）、LESSON-008（AC-WP01 半角"实测"误称）、LESSON-006（反推让位实测）、**LESSON-009（PF-8 估测当实测 + 冲突未重审 → L0/铁律四/C6）**、**LESSON-010（PF-9 撤回未传播 → 铁律五/C7）**、**LESSON-012（M1 WNG 12dB bug 三轨抓出 → 铁律七双轨核/C5 扩）**、**LESSON-013（docx 入手未入库 → 铁律六/C8/CTO 外部接收声明义务）**、**LESSON-014（FIRA offload 收益未实测不得计入选型 → 铁律八/C9，含措辞红线正反示例）**。
 
@@ -1124,7 +1127,7 @@ provenance_mandatory_checks:
 
 > 适用：任何 DSP/FIRA 的 bit-exact 测试 / 诊断 / 补丁，**上板或上报前必查**。缘起本线两次连漏——① 端到端 telescoping 假绿（占位 FIRA 仍 PASS）；② FIRA I/O 缓冲契约垃圾（过读未初始化 + 双重抽取半填）——两次均由 CTO 兜住、非 critic/门禁拦下。这五条把那两次教训固化成门，与 C1–C10 并列执行。挂 [[critic-memory]] LESSON-015。
 >
-> **§12 实战记录（2026-06-04 板上 PASS 闭环）**：本节生效后六轮独立 critic 拦截（D1b 输入计数 / M2 哨兵自掩盖 / INT 历史域 / A5 flush-back / A5 符号 / DEC 抽取相位 + 否决 PM"FIRA MAC 不同"过度结论），全部在上板前；终局 FIRA 单通道子带 bit-exact L1 板上达成（commit 9d9fbec，R14 主门仍 OPEN）。全记录：`sprint4/dsp/fira/F4_BITEXACT_HANDOFF.md`。
+> **§12 实战记录（2026-06-04 板上 PASS 闭环）**：本节生效后六轮独立 critic 拦截（D1b 输入计数 / M2 哨兵自掩盖 / INT 历史域 / A5 flush-back / A5 符号 / DEC 抽取相位 + 否决 PM"FIRA MAC 不同"过度结论），全部在上板前；终局 FIRA 单通道子带 bit-exact L1 板上达成（commit 9d9fbec，R14 主门当时仍 OPEN；**R14 已于 2026-06-04 闭合 DEC-S4-R14-RULING-01**，本句存 commit 写时状态）。全记录：`sprint4/dsp/fira/F4_BITEXACT_HANDOFF.md`。
 
 - **FG1 假绿（恒等盲区）— BLOCKER**：测试是否**真依赖被测物**？若 `out == in` 由代数恒等成立（完美重建 telescoping / PR），端到端 CRC 只验算术+恒等、**验不了滤波/加速器段**。要求：(a) 比对目标取依赖被测物的中间值（如子带 sb0-3，非端到端输出）；(b) **必须证明占位/置零版会 FAIL**。未证 → BLOCKER。（R14 假绿病根；与 §11.2 C2/C3 联动）
 - **FG2 占位冒充实测 — BLOCKER**：compute 被 stub（`memset 0` / `#else` / 未接线）时测试是否**仍能 PASS**？能 = L4 占位冒充 L1 实测。要求：**跑占位版、确认其 FAIL**，否则该测试作废。（C3 同源：占位作"实测 PASS"依据）
@@ -1149,6 +1152,6 @@ provenance_mandatory_checks:
   Persona & memory (progressive disclosure -- load on demand):
     - Identity / persona:  agents/critic/profile.md , agents/critic/soul.md
     - LESSON-006~015 + review history:  agents/critic/memory.md
-    - Governance full text (v1.7):  sprint2/docs/POLICY-PROV-001_数字来源分级制度.md
+    - Governance full text (v1.8):  sprint2/docs/POLICY-PROV-001_数字来源分级制度.md
     - §12 battle record:  sprint4/dsp/fira/F4_BITEXACT_HANDOFF.md
 =========================================================================== -->

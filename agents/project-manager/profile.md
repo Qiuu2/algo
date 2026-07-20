@@ -171,7 +171,9 @@ availability:
   timezone: "UTC"
 ```
 
-## 6. Success Criteria
+## 6. Success Criteria（设计意图·未跟踪）
+
+> ⚠ 目标值/设计意图，**无采集器、未实际跟踪**（无 EVM/SPI 计算、无"CTO 评分"采集；人工监督的 Claude Code 团队里这些指标无处产生）。真实进度/交付以 `sprint2/docs/decisions_log.md` + `sprint*_status.md` 为准。2026-07-20 DEC-S6-GOVERNANCE-SLIM-03。
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|

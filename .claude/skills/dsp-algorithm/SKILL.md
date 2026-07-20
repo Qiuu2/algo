@@ -7,7 +7,9 @@ description: >-
   postscale/Q-alignment, SHARC compute-budget / cycle / MCPS analysis, and the R14
   bit-exact closure work. Produces code as ASCII-only for the CCES SHARC target,
   change-blocks not full-file rewrites, and obeys CLAUDE.md governance (L-grading,
-  C9/iron-rule-8: no FIRA benefit into selection before R14 closes).
+  C9/iron-rule-8 now RELEASED — R14 closed 2026-06-04; FIRA benefit enters selection
+  under DEC-S4-C9-RELEASE-01's honest-denominator terms: pair with the §8 uncounted list
+  (43-379 MCPS) and quote the official 3.07x, not 3.13x mixed-build).
 ---
 
 <!-- VERBATIM move of agents/dsp-algorithm/skill.md (source of record) into the
