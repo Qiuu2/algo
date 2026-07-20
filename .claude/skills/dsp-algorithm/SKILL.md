@@ -12,8 +12,9 @@ description: >-
   (43-379 MCPS) and quote the official 3.07x, not 3.13x mixed-build).
 ---
 
-<!-- VERBATIM move of agents/dsp-algorithm/skill.md (source of record) into the
-     auto-load location. Persona/memory: agents/dsp-algorithm/{profile,soul,memory}.md -->
+<!-- CANONICAL source of record for the dsp-algorithm skill (DEC-S6-GOVERNANCE-SLIM-04,
+     2026-07-20): the former 660-line copy at agents/dsp-algorithm/skill.md was reduced to a
+     pointer — edit skill content ONLY here. Persona/memory: agents/dsp-algorithm/{profile,soul,memory}.md -->
 
 ---
 name: "DSPAlgorithmAgent_Skill"

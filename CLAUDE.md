@@ -70,6 +70,7 @@
 | （按需）structure / testing / literature-patent / project-document | `agents/<role>/` | 见 `SKILL.md §6` |
 
 > 启动整支团队的标准 prompt 见 `PROJECT_REFERENCE.md §1`。
+> **skill 权威源规则**：**critic / dsp-algorithm / testing / structure** 四个角色（slash-invocable）的 skill 正文在 **`.claude/skills/<role>/SKILL.md`**，其 `agents/<role>/skill.md` 已是指针（DEC-S6-GOVERNANCE-SLIM-01/04 去重，避免双维护漂移）。其余角色 skill 正文仍在 `agents/<role>/skill.md`。
 
 ---
 

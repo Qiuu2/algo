@@ -7,7 +7,8 @@ description: >-
   per C6).
 ---
 
-<!-- VERBATIM move of agents/structure/skill.md. Persona/memory: agents/structure/{profile,soul,memory}.md -->
+<!-- CANONICAL source of record for the structure skill (DEC-S6-GOVERNANCE-SLIM-04, 2026-07-20);
+     agents/structure/skill.md is now a pointer — edit ONLY here. Persona/memory: agents/structure/{profile,soul,memory}.md -->
 
 ---
 name: Structure Engineer Agent Skills

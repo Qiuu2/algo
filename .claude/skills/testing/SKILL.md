@@ -8,7 +8,8 @@ description: >-
   DSP/FIRA special gates.
 ---
 
-<!-- VERBATIM move of agents/testing/skill.md. Persona/memory: agents/testing/{profile,soul,memory}.md -->
+<!-- CANONICAL source of record for the testing skill (DEC-S6-GOVERNANCE-SLIM-04, 2026-07-20);
+     agents/testing/skill.md is now a pointer — edit ONLY here. Persona/memory: agents/testing/{profile,soul,memory}.md -->
 
 ---
 name: Testing & Validation Agent Skills
