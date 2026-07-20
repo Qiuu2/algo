@@ -1,8 +1,9 @@
 ---
 name: Project Document & Knowledge Management Agent Skills
 description: |
-  技术文档与知识管理专家Agent的专业技能定义、工具使用规范、工作流程和输入输出标准。
-  遵循Kimi/Hermes Agent Skill标准，包含与其他Agent的明确协作接口。
+  ITC 项目的技术文档与知识管理【执笔】Agent：撰写 decisions_log、交付物与报告，
+  并强制执行 POLICY-PROV-001 溯源纪律（L0–L4 分级 / DEC 条目格式 / 铁律五撤回全库传播 / C1·C7·C8 门）。
+  通用文档技能（模板/多格式/术语）服务于该纪律，而非替代它。
 version: 1.0.0
 author: ITC Enterprise Agent System
 ---
@@ -21,8 +22,36 @@ author: ITC Enterprise Agent System
   - 跨域协作接口
 
 技能标准: Kimi/Hermes Agent Skill Specification v1.0
-认证级别: L3 (专家级)
 ```
+
+---
+
+## 技能0: 溯源纪律绑定 `SKILL-DOC-000`（本项目治理，最高优先，一切文档/日志写作的前置）
+
+> **本 agent 是 `sprint2/docs/decisions_log.md` 与所有交付物的执笔者——因此它必须先懂 `POLICY-PROV-001`。**
+> 项目化焊接（roadmap#5 样板，DEC-S6-GOVERNANCE-SLIM-05）：原 skill 通篇是通用技术写作，**零处提 L 分级/C 门/铁律/decisions_log**——写 log 的 agent 对 log 的规则失明。此技能把它绑回本项目治理。
+
+### 0.1 每个进文档/日志/规格/承诺的数字必须挂 L 级（C1，BLOCKER）
+- `[L1 实测]`（板上/EZKIT/仪器/measured）｜`[L2 仿真/工具]`（numpy/MATLAB/COMSOL/host）｜`[L3 解析]`（闭式/手算）｜`[L4 占位]`（placeholder/未实测收益）｜`[L0 目测]`（拍脑袋，严禁 LOCKED 决策）。
+- **绝不把 L2/L3/L4 措辞成"实测/measured/已验证"**（C2，BLOCKER，红线词只限真 L1）。无 L 标的数字**不得进 decisions_log**。（注：C2 的"确认/已验证"只在**修饰数字可信度**时触发，不误伤"CTO 确认决策"这类正当用法。）
+
+### 0.2 decisions_log 条目格式（POLICY §5 的**六个强制字段**，一个不能少）
+每条：`*YYYY-MM-DD **DEC-{S#}-{TOPIC}-{seq}**（一句话摘要）：<决策> ｜①依据数字 + ②来源等级 + ③数据出处 <如 94.0dB [L2/待消声室 L1]> ｜④可逆性 <可逆/不可逆> ｜⑤验证状态 <已验证L1 / 待L1回填 / 未验证> ｜⑥风险声明 <当证据强度低于可逆性要求时必须明示，如"桌面口径未含 cache/中断"> ｜reviewer: critic @ <exact model ID> / <date>。*`
+- **①–⑥ 是 POLICY §5 强制字段;`reviewer:` 属 §4B/commit 纪律(非 §5 字段),但同样必带。** 漏 ⑤⑥ = PF-1 类病根(不可逆 L2 决策没写风险)。
+- 不可逆决策须 L1（或 L2+CTO 签字）；强约束 L2 起（L3 须挂「待 L1/L2 验证」）。
+- **无 `reviewer:` 独立 critic 标记的承重结论不得落库**（commit 纪律）。
+
+### 0.3 撤回传播（铁律五 / C7，BLOCKER）——**这是执笔 agent 的核心职责**
+数字被撤回时,**三步缺一不生效**:①写撤回声明 ②**全库反扫**其所有引用(含派生值/反推值/别名,grep decisions_log + sprint*_status + deliverables + 对外交付) ③逐处「加撤回警示标 或 删除」。清扫未完成前不得宣称"已撤回/已修正"。（worked example：PF-8 撤 d=30→全库反扫加标，见 decisions_log。）
+
+### 0.4 外部输入入库（铁律六 / C8，≤24h，BLOCKER）
+CTO 外部接收的 datasheet/报价/文档 ≤24h 入库并标日期+来源；Sprint 收尾以 CTO 外部接收声明清单为唯一核对基线。
+
+### 0.5 三道关（产出含修正稿）
+本 agent 的文档/日志草稿**不是权威**,须过 自动verify→**独立 critic**→CTO 常识审;修正稿同等过门（缘起 R8/R9 修正稿自带新错）。
+
+### 0.6 绑定的真实产物（非虚构服务）
+权威源：`sprint2/docs/POLICY-PROV-001_数字来源分级制度.md`（治理全文）、`sprint2/docs/decisions_log.md`（决策）、`sprint*_status.md`（状态）、`deliverables/`（交付物）、`.claude/skills/critic/SKILL.md`（C1–C10/§12 门）。**读写=直接操作这些 repo 文件；通信=SendMessage；无独立数据库/REST 服务（原 §6 的 API 是虚构，已删）。**
 
 ---
 
@@ -74,6 +103,9 @@ report_generation_pipeline:
       - "一致性: 术语/格式/编号"
       - "可读性: 语言简洁，逻辑清晰"
       - "准确性: 数据与原始记录一致"
+      - "★溯源(§0/C1): 每个数字挂 L 标? 有无 L2/L3/L4 被措辞成'实测/measured'(C2)?"
+      - "★撤回(§0/C7): 引用的数字若已撤回,是否已加标/删(铁律五全库传播完成)?"
+      - "★权威: 承重结论有 reviewer:critic 标记? 未过独立 critic 的草稿不标'已发布'"
       
   Step_7_输出:
     formats: ["Markdown (源文件)", "PDF (发布版)", "HTML (在线版)"]
@@ -754,68 +786,14 @@ readability_check:
 
 ## 技能6: 跨域协作接口 `SKILL-COL-001`
 
-### 与数据库Agent的协作接口
+### 知识库 = repo 内的 markdown 文件（无独立数据库/REST 服务）
 
-```yaml
-agent_id: agent.database
-interface_type: 知识库CRUD + 全文检索
-protocol: REST API + GraphQL
+> **项目化焊接（roadmap#5 样板）：原文此处是虚构的 `agent.database` REST API + GraphQL（POST /api/kb/entries、graph_query、`total_hits: 156` 等）——本项目没有这个服务，全是占位。已删。**
 
-knowledge_base_crud:
-  create_entry:
-    method: "POST /api/kb/entries"
-    body:
-      entry_id: "KB-XXXX"
-      title: "条目标题"
-      category: "一级 > 二级 > 三级"
-      tags: ["tag1", "tag2"]
-      content: "Markdown内容"
-      metadata:
-        author: "agent.xxx"
-        source_project: "PRJ-XXXX"
-        source_doc: "DOC-XXXX"
-        version: "1.0"
-        status: "active"
-      related_entries: ["KB-YYYY", "KB-ZZZZ"]
-    response: "201 Created + entry_id"
-    
-  read_entry:
-    method: "GET /api/kb/entries/{id}"
-    response: "完整条目JSON + 关联条目 + 版本历史"
-    
-  update_entry:
-    method: "PATCH /api/kb/entries/{id}"
-    body: "变更字段 + 变更原因"
-    response: "200 OK + 新版本号"
-    
-  search:
-    method: "POST /api/kb/search"
-    body:
-      query: "搜索关键词"
-      filters:
-        category: "可选分类过滤"
-        tags: ["可选标签过滤"]
-        author: "可选作者过滤"
-        date_range: ["start", "end"]
-      sort: "relevance | date | title"
-      page: 1
-      per_page: 20
-    response:
-      total_hits: 156
-      results: [...]
-      facets:
-        categories: [...]
-        tags: [...]
-        authors: [...]
-        
-  graph_query:
-    method: "POST /api/kb/graph/query"
-    body:
-      start_node: "KB-XXXX"
-      depth: 2
-      relation_types: ["relates_to", "depends_on"]
-    response: "关联子图 (节点+边)"
-```
+- **知识库实体** = repo 里的 markdown：`sprint2/docs/decisions_log.md`（决策台账）、`sprint*_status.md`（状态）、`deliverables/`（交付物）、各 `sprint*/` 文档、`knowledge_base/`（厂商资料，gitignore 本地）。
+- **CRUD** = 直接用文件工具读写这些 md + git 版本管理（非 REST）；**检索** = 仓库内 grep/文件搜索。
+- **关联/图谱** = 靠文内 `[[链接]]` / DEC-ID 交叉引用 + grep，非图数据库。
+- **写入纪律**：任何进 decisions_log/交付物的数字先过 §0（L 标 / DEC 格式 / 铁律五传播）。
 
 ### 与各领域Agent的协作接口
 
@@ -829,14 +807,9 @@ collaboration_interfaces:
       output: "标准化文档包 + 知识库条目"
       feedback: "质量检查报告 (如有问题需修正)"
       
-    template_service:
-      endpoint: "GET /api/doc/templates?type=structure_design"
-      response: "可用模板列表 + 最新版本"
-      
-    term_query:
-      endpoint: "GET /api/doc/terms?q={query}"
-      response: "术语定义 + 推荐用法"
-      
+    # 模板/术语非 REST 服务（原 GET /api/doc/... 为虚构，已删）：模板 = 本 skill §技能2 的
+    # TPL-DOC-*；术语 = repo 内术语表文件；直接读取，不调 API。交付触发/输入靠 SendMessage。
+    
   testing_agent:
     document_delivery:
       trigger: "测试完成"
