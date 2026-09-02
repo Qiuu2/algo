@@ -1,4 +1,11 @@
 /*
+ * *** DEPRECATED COPY (2026-09-02 housekeeping) *** -- superseded by
+ *   sprint6/dsp/audio/m1_cces_project/src/m1_loopback_tdm.h (the AUTHORITATIVE, board-PASSed source; the CCES copy is
+ *   a strict superset: +M2_CHMAP_FIX / M2_STATIC_TXTEST / M2_STXT_LOCALIZE, 2026-07-07). This 2026-06-12
+ *   snapshot is kept for history only: do NOT build, edit, include, or guard-check from here.
+ *   See sprint6/dsp/audio/DEPRECATED_LOOSE_COPIES.md. Annotation only -- body below is byte-unchanged.
+ */
+/*
  * m1_loopback_tdm.h -- WO-S6-AUDIO M1 passthrough loopback (Stage-4 foundation) interface + readouts.
  *   ARCHITECTURE LOCKED: DEC-S6-M1-ARCH-01 (four openings, fb597f6). Re-vetted vs final spec (NOT the
  *   pre-arch draft): FRAME=64, block-rate 750Hz, fan-out 1->8 mono, TX=4096B, RX=512B (single-slot).

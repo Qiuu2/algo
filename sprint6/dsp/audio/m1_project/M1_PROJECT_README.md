@@ -1,3 +1,5 @@
+> **⚠ 已过期（2026-09-02 标注）：本目录 `m1_project/` 是 2026-06-08 的 route-B 早期骨架，无 `.cproject/.project`，其 `src/` 与 `../m1_loopback_tdm.c` 均已被 `sprint6/dsp/audio/m1_cces_project/`（唯一权威、板上 PASS 的 CCES 工程）取代。下文行数表、构建源清单、"opening 4 no-pin" 等描述对现行 M2 构建已不成立。只加标注不删除；导入/构建/检查一律以 `m1_cces_project/` 为准。详见 `../DEPRECATED_LOOSE_COPIES.md`。**
+
 # M1 independent audio project (WO-S6-AUDIO-M1-PROJ) -- build manifest + bring-up
 
 > dsp-algorithm teammate, 2026-06-08. Route B: a THIN standalone CCES project for the M1 passthrough

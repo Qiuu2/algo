@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# run_guard_check.sh -- desktop syntax check covering the BOARD-guarded regions of ALL M1-project TUs
-#   (m1_main.c / m1_sru.c / m1_softconfig.c / m1_cyc.c + the m1_loopback_tdm.c module).
+# run_guard_check.sh -- desktop syntax check covering the BOARD-guarded regions of the 5 AUTHORITATIVE TUs in
+#   ../m1_cces_project/src (m1_main.c / m1_sru.c / m1_softconfig.c / m1_cyc.c / m1_loopback_tdm.c).
+#   Since 2026-09-02 this script no longer checks the DEPRECATED ./src snapshots (see ../DEPRECATED_LOOSE_COPIES.md).
 #
 # WHY (R16/R25 lesson): plain gcc compiles only the desktop path; the board-guarded blocks (SRU routing,
 #   SoftConfig U6 writes, codec init, SPORT/TWI/SPU/PDMA, fan-out) are NEVER syntax-checked on host. This
@@ -17,10 +18,13 @@ ADIR="$(cd "$PDIR/.." && pwd)"                                          # sprint
 ROOT="$(cd "$ADIR/../../.." && pwd)"                                    # repo root
 STUB="$ADIR/guard_stub_inc"
 ADAU="$ROOT/knowledge_base/ezkit/vendor_docs/cces_examples/code/Audio_Loopback_TDM/src"  # ADAU_19xxCommon.h
-INC=( -I"$STUB" -I"$ADIR" -I"$PDIR/src" -I"$ADAU" )
+CCES_SRC="$ADIR/m1_cces_project/src"                                  # AUTHORITATIVE sources (2026-09-02)
+INC=( -I"$STUB" -I"$CCES_SRC" -I"$ADAU" )
 
-FILES=( "$PDIR/src/m1_main.c" "$PDIR/src/m1_sru.c" "$PDIR/src/m1_softconfig.c"
-        "$PDIR/src/m1_cyc.c" "$ADIR/m1_loopback_tdm.c" )
+# 2026-09-02 housekeeping: check the AUTHORITATIVE m1_cces_project/src TUs. The m1_project/src and the loose
+#   sprint6/dsp/audio/m1_loopback_tdm.c are DEPRECATED snapshots (see ../DEPRECATED_LOOSE_COPIES.md).
+FILES=( "$CCES_SRC/m1_main.c" "$CCES_SRC/m1_sru.c" "$CCES_SRC/m1_softconfig.c"
+        "$CCES_SRC/m1_cyc.c" "$CCES_SRC/m1_loopback_tdm.c" )
 [ "$#" -gt 0 ] && FILES=( "$@" )
 
 # [WO-S6-M2] frozen FIRA call-surface header dirs -- ONLY for the M2 variant of the loopback module
@@ -52,7 +56,7 @@ gcc -fsyntax-only -Wall -Wextra -Wno-main \
     -Werror=implicit-function-declaration \
     -Werror=int-conversion -Werror=incompatible-pointer-types \
     -DM1_TARGET_BOARD -DTARGET_SHARC -DM2_FIRA_INLOOP=1 \
-    "${INC_M2[@]}" "$ADIR/m1_loopback_tdm.c"
+    "${INC_M2[@]}" "$CCES_SRC/m1_loopback_tdm.c"
 rc=$?
 if [ $rc -eq 0 ]; then
     echo "[guard-check]   PASS (m1_loopback_tdm.c M2-FIRA)."

@@ -1,4 +1,11 @@
 /*
+ * *** DEPRECATED COPY (2026-09-02 housekeeping) *** -- superseded by
+ *   sprint6/dsp/audio/m1_cces_project/src/m1_loopback_tdm.c (the AUTHORITATIVE, board-PASSed source; the CCES copy is
+ *   a strict superset: +M2_CHMAP_FIX / M2_STATIC_TXTEST / M2_STXT_LOCALIZE, 2026-07-07). This 2026-06-12
+ *   snapshot is kept for history only: do NOT build, edit, include, or guard-check from here.
+ *   See sprint6/dsp/audio/DEPRECATED_LOOSE_COPIES.md. Annotation only -- body below is byte-unchanged.
+ */
+/*
  * m1_loopback_tdm.c -- WO-S6-AUDIO M1: ADAU1979 -> SPORT4 TDM -> 21569 -> SPORT4 -> ADAU1962A passthrough.
  *   Stage-4 foundation: sound in -> same sound out. M2 inserts the beamformer where M1 fans out 1->8.
  *   ARCHITECTURE LOCKED: DEC-S6-M1-ARCH-01 (fb597f6). This file is REWRITTEN against the final four

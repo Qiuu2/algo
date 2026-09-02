@@ -32,6 +32,7 @@
 | literature-patent | `claude-sonnet-4-6` | 2026-06-03 | on demand | — |
 | project-document | `claude-sonnet-4-6` | 2026-06-03 | on demand | — |
 | acoustic-simulation | (deferred) | — | not started | raise to `claude-opus-4-8` when real COMSOL evidence phase starts |
+| **current session (2026-09-02, Sprint 7)** | `claude-fable-5-1` | 2026-09-02 | ONLINE | lead + this round's spawns (critic / dsp-algorithm / acoustic-simulation / testing) inherit the session model; old→new = claude-opus-4-8 (07-20 actual, per reviewer tags) / claude-fable-5 (06-10 table) → claude-fable-5-1; reason = session model follows the harness; approver = CTO in-session. Rows above kept as the 06-10 historical tiering |
 
 **Current FIRA line = lead + critic + dsp-algorithm** — model per the roster table above (2026-06-10 re-tier = `claude-fable-5`). *(Corrected: this line previously read `all claude-opus-4-8`, the pre-re-tier state, contradicting the table.)* **NOTE: the session model can change again after 2026-06-10 (e.g., this session runs `claude-opus-4-8`); on spawn, use the actual session model or the CTO's explicit `model:` override, not a hard-coded tier here.** Others spawned on demand per table.
 
@@ -75,6 +76,7 @@
 
 ## Change control (audit)
 - Changing any role's model = edit this table + log the change (old->new, date, reason) in decisions_log, per POLICY-PROV-001 change-trail discipline.
+- **2026-09-02 (Sprint 7, CTO in-session)**: session lead now runs `claude-fable-5-1` (Fable 5.1; the `claude-fable-5` rows above are the 06-10 state). New spawns this round (critic / dsp-algorithm / acoustic-simulation / testing) OMIT `model` and inherit `claude-fable-5-1`; critic verdicts tag `reviewer: critic @ claude-fable-5-1 / <date>`. Logged in decisions_log (S7 housekeeping ④). Roster table: a `current session (2026-09-02)` row is added below the 06-10 rows (kept as historical tiering); the "use the actual session model" note in the FIRA-line paragraph governs.
 
 ## Step-3 audit integration (2026-06-04, CTO-mandated — IN EFFECT)
 - **Every critic verdict MUST carry**: `reviewer: critic @ <exact model ID> / <date>` in its report header (audit chain, aligns C5 traceability). The lead enforces this in every critic dispatch; a verdict without the tag is returned for re-issue.

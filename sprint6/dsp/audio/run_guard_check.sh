@@ -10,7 +10,7 @@
 #   warning-class -Werror promotions (R25/R26 lesson) make symbol-typo + handle-type mistakes hard FAILs.
 #   PROVEN by the falsifier (a broken version FAILS; the good version PASSES).
 #
-# Usage: run_guard_check.sh   (checks m1_loopback_tdm.c). -fsyntax-only ONLY (no link/run).
+# Usage: run_guard_check.sh [file.c]   (default = m1_cces_project/src/m1_loopback_tdm.c). -fsyntax-only ONLY (no link/run).
 #
 # WO-S6-M2 EXTENSION (2026-06-08): now syntax-checks BOTH callback datapaths in one run --
 #   (A) M1 transparent  (M2_FIRA_INLOOP undefined -> default 0) = the fan-out 1->8 passthrough.
@@ -28,10 +28,13 @@ ADAU="$ROOT/knowledge_base/ezkit/vendor_docs/cces_examples/code/Audio_Loopback_T
 FIRA="$ROOT/sprint4/dsp/fira"                                          # fira_tree.h, dolph_w8_q15.h
 CORE="$ROOT/sprint4/dsp/core_only/src"                                 # tree_filterbank.h
 CINC="$ROOT/sprint4/dsp/core_only/include"                             # fir_coeffs_hb63.h
-INC_M1=( -I"$STUB" -I"$HDIR" -I"$ADAU" )
+CCES_SRC="$HDIR/m1_cces_project/src"                                  # AUTHORITATIVE M1/M2 sources (2026-09-02)
+INC_M1=( -I"$STUB" -I"$CCES_SRC" -I"$ADAU" )
 INC_M2=( "${INC_M1[@]}" -I"$FIRA" -I"$CORE" -I"$CINC" )
 
-SRC="$HDIR/m1_loopback_tdm.c"
+# DEFAULT TARGET = the authoritative CCES-project copy (2026-09-02 housekeeping). The loose copy
+#   sprint6/dsp/audio/m1_loopback_tdm.c is a DEPRECATED 2026-06-12 snapshot (81 lines behind) -- do not check it.
+SRC="$CCES_SRC/m1_loopback_tdm.c"
 [ "$#" -gt 0 ] && SRC="$1"
 
 overall=0
@@ -63,5 +66,12 @@ run_one "M2-FIRA-inloop (M2_FIRA_INLOOP=1)" "-DM2_FIRA_INLOOP=1" "${INC_M2[@]}"
 #     (same pattern as the WO-S6-M2 extension) so the contingency shift paths (RX<<8 / TX>>8) are proven
 #     compile-clean BEFORE they are ever needed on the bench. All three configs must PASS.
 run_one "M2-FIRA+RX-right-aligned (M2_RX_RIGHT_ALIGNED)" "-DM2_FIRA_INLOOP=1 -DM2_RX_RIGHT_ALIGNED" "${INC_M2[@]}"
+# (D)(E)(F) 2026-09-02 housekeeping: the three diagnostic build gates added in July (chmap fix / static TX test /
+#     375Hz polarity localize) were NOT in this matrix, so their guarded code was never desktop-checked by the
+#     default run. Same institutionalization as (C): prove them compile-clean before they are needed on the bench.
+#     All six configs must PASS. (Config E prints one -Wsign-compare warning at the static-fill loop; not promoted.)
+run_one "M2-FIRA+chmap-fix (M2_CHMAP_FIX)" "-DM2_FIRA_INLOOP=1 -DM2_CHMAP_FIX" "${INC_M2[@]}"
+run_one "M2-FIRA+static-txtest (M2_STATIC_TXTEST=1)" "-DM2_FIRA_INLOOP=1 -DM2_STATIC_TXTEST=1" "${INC_M2[@]}"
+run_one "M2-FIRA+static-txtest+localize (M2_STXT_LOCALIZE=1)" "-DM2_FIRA_INLOOP=1 -DM2_STATIC_TXTEST=1 -DM2_STXT_LOCALIZE=1" "${INC_M2[@]}"
 
 exit $overall
