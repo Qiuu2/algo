@@ -1,0 +1,13 @@
+window_fullband,BW_max_1k-6k_deg,BW_min_1k-6k_deg,max_minus_min_deg,BW_1k_deg,L_grade
+uniform,27.203,4.492,22.710,27.203,L2/numpy
+dolph20_frozen,29.269,4.827,24.442,29.269,L2/numpy
+dolph25,32.184,5.296,26.888,32.184,L2/numpy
+dolph30,34.873,5.725,29.148,34.873,L2/numpy
+taylor25_nbar4,32.967,5.421,27.546,32.967,L2/numpy
+kaiser_b3,35.407,5.810,29.597,35.407,L2/numpy
+kaiser_b5,43.869,7.139,36.730,43.869,L2/numpy
+hann_edge_nonzero,42.971,6.999,35.971,42.971,L2/numpy
+hann_sym_edge0,49.051,7.934,41.117,49.051,L2/numpy
+"DESIGN_A_unconstrained(SB1=kaiser_b5,SB2=kaiser_b22.5)",29.269,14.306,14.963,29.269,L2/numpy
+"DESIGN_B_wng_ge_-3dB(SB1=gauss_s4.0,SB2=dolph120)",29.269,9.835,19.434,29.269,L2/numpy
+"DESIGN_C_table9_att30_grade1(SB1=kaiser_b5,SB2=kaiser_b22.5)",29.269,14.306,14.963,29.269,L2/numpy

@@ -1,0 +1,9 @@
+WNG_norm_floor_dB_per_band,best_max_minus_min_1k-6k_deg,SB1_window,SB2_window,WNG_norm_SB1_dB,WNG_norm_SB2_dB,DI_SB1_at_2k_dB,DI_SB2_at_4k_dB,L_grade
+0.0,24.777,uniform,uniform,0.000,0.000,10.170,13.085,L2/numpy
+-0.5,23.794,uniform,kaiser_b2.5,0.000,-0.464,10.170,12.655,L2/numpy
+-1.0,23.116,uniform,kaiser_b3.5,0.000,-0.941,10.170,12.181,L2/numpy
+-2.0,21.451,uniform,dolph62.5,0.000,-1.984,10.170,11.139,L2/numpy
+-3.0,19.434,dolph25,dolph120,-0.367,-2.983,9.784,10.140,L2/numpy
+-4.0,16.866,kaiser_b5,gauss_s1.8,-1.585,-3.992,8.528,9.130,L2/numpy
+-5.0,14.917,dolph52.5,kaiser_b23,-1.672,-4.664,8.441,8.459,L2/numpy
+-6.0,14.917,dolph52.5,kaiser_b23,-1.672,-4.664,8.441,8.459,L2/numpy

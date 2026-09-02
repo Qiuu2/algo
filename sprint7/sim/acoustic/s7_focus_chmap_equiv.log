@@ -1,0 +1,51 @@
+========================================================================
+ANCHORS (must pass before any Sprint-7 number is produced)
+========================================================================
+  A5_max_abs_diff_csv_vs_chebwin       = 0
+  A1_bw6_1k_deg                        = 29.269
+  A2_bw6_2k_deg                        = 14.5147
+  A3_sll_1k_db                         = -20
+  A3_sll_2k_db                         = -20
+  A4_uniform_sll_1k_db                 = -13.1468
+  A6_q15_bw_shift_deg                  = 6.62399e-05
+  A6_q15_sll_shift_db                  = 3.78301e-05
+  A7_di_closed_1k_db                   = 7.15529
+  A7_di_numeric_1k_db                  = 7.15529
+  A8_bw3_1k_deg                        = 21.2219
+ALL ANCHORS PASS
+
+==============================================================================================================
+B2 task-6: weight-index permute vs TX-slot permute under per-channel fractional delay  [L2/numpy]
+==============================================================================================================
+f= 2000 F=2m | focal gain REF +1.21 dB (S5 json +1.21)  WPERM -2.77  NOFIX -2.81  -> loss WPERM-REF = -3.98 dB
+            | lateral -6dB width @F: REF 0.515 m  WPERM 1.185 m  (x2.30) | axial peak REF 0.74 m  WPERM 0.60 m
+            | arc r=F: BW6 REF 14.76 deg  WPERM 33.72 deg | max|dP| (+/-30deg) = 40.37 dB | SLL REF -19.28 WPERM -6.40 dB
+            | controls: TXPERM==REF max|dp|=0.0e+00 ; broadside(tau=0) WPERM==REF rel=0.0e+00
+
+f= 4000 F=2m | focal gain REF +4.85 dB (S5 json +4.85)  WPERM -8.51  NOFIX -8.80  -> loss WPERM-REF = -13.36 dB
+            | lateral -6dB width @F: REF 0.257 m  WPERM 0.255 m  (x0.99) | axial peak REF 0.60 m  WPERM 0.60 m
+            | arc r=F: BW6 REF 7.36 deg  WPERM 7.24 deg | max|dP| (+/-30deg) = 48.88 dB | SLL REF -19.34 WPERM -0.00 dB
+            | controls: TXPERM==REF max|dp|=0.0e+00 ; broadside(tau=0) WPERM==REF rel=0.0e+00
+
+f= 4000 F=3m | focal gain REF +2.19 dB (S5 json +2.19)  WPERM -5.95  NOFIX -5.99  -> loss WPERM-REF = -8.15 dB
+            | lateral -6dB width @F: REF 0.382 m  WPERM 0.951 m  (x2.49) | axial peak REF 1.48 m  WPERM 0.90 m
+            | arc r=F: BW6 REF 7.30 deg  WPERM 18.05 deg | max|dP| (+/-30deg) = 51.66 dB | SLL REF -19.70 WPERM -0.00 dB
+            | controls: TXPERM==REF max|dp|=0.0e+00 ; broadside(tau=0) WPERM==REF rel=0.0e+00
+
+f= 6000 F=2m | focal gain REF +8.09 dB (S5 json +8.09)  WPERM +4.32  NOFIX +4.30  -> loss WPERM-REF = -3.77 dB
+            | lateral -6dB width @F: REF 0.171 m  WPERM 0.164 m  (x0.96) | axial peak REF 0.72 m  WPERM 0.68 m
+            | arc r=F: BW6 REF 4.91 deg  WPERM 4.71 deg | max|dP| (+/-30deg) = 49.71 dB | SLL REF -4.85 WPERM -1.72 dB
+            | controls: TXPERM==REF max|dp|=0.0e+00 ; broadside(tau=0) WPERM==REF rel=0.0e+00
+
+f= 6000 F=3m | focal gain REF +4.92 dB (S5 json +4.92)  WPERM -8.29  NOFIX -8.42  -> loss WPERM-REF = -13.21 dB
+            | lateral -6dB width @F: REF 0.255 m  WPERM 0.252 m  (x0.99) | axial peak REF 0.90 m  WPERM 0.90 m
+            | arc r=F: BW6 REF 4.86 deg  WPERM 4.80 deg | max|dP| (+/-30deg) = 55.32 dB | SLL REF -4.52 WPERM -0.00 dB
+            | controls: TXPERM==REF max|dp|=0.0e+00 ; broadside(tau=0) WPERM==REF rel=0.0e+00
+
+f= 6000 F=5m | focal gain REF +1.79 dB (S5 json +1.79)  WPERM -4.49  NOFIX -4.50  -> loss WPERM-REF = -6.27 dB
+            | lateral -6dB width @F: REF 0.422 m  WPERM 1.038 m  (x2.46) | axial peak REF 2.33 m  WPERM 1.50 m
+            | arc r=F: BW6 REF 4.84 deg  WPERM 11.86 deg | max|dP| (+/-30deg) = 57.38 dB | SLL REF -4.61 WPERM -0.00 dB
+            | controls: TXPERM==REF max|dp|=0.0e+00 ; broadside(tau=0) WPERM==REF rel=0.0e+00
+
+[CSV] /home/it1234/algorithm_speaker/Kimi_Agent_多Agent协作方案/itc-enterprise-workflow/sprint7/sim/acoustic/s7_focus_chmap_equiv.csv
+DONE s7_focus_chmap_equiv. [L2/numpy]; spherical-wave point sources, free field, no element directivity.

@@ -1,0 +1,5 @@
+freq_hz,lambda_m,L_over_lambda,BW_uniform_deg,BW_dolph20_deg,BW_min_at_WNGnorm_ge_-10dB_deg(ASSUMED_floor),eps_at_floor,DI_at_floor_dB,BW_eps_to_0_deg,WNG_norm_eps_to_0_dB,DI_eps_to_0_dB,DI_uniform_dB,DI_dolph20_dB,L_grade
+250,1.3720,0.601,140.328,180.000,60.740,1.41e-02,3.924,31.814,-74.13,6.681,1.741,1.555,L2/numpy (L/lambda: L3)
+500,0.6860,1.203,56.112,60.703,38.960,3.35e-02,5.842,24.028,-71.58,7.824,4.486,4.213,L2/numpy (L/lambda: L3)
+750,0.4573,1.804,36.547,39.373,29.037,1.68e-02,7.010,20.318,-67.97,8.456,6.064,5.943,L2/numpy (L/lambda: L3)
+1000,0.3430,2.405,27.203,29.269,22.663,6.49e-03,7.973,17.147,-59.34,9.102,7.258,7.155,L2/numpy (L/lambda: L3)
