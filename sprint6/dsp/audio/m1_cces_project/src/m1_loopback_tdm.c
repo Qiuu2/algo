@@ -89,6 +89,82 @@
 #define M2_FIRA_INLOOP 0          /* default 0 = M1 transparent passthrough (board-PASS path preserved) */
 #endif
 
+/* ============================================================================================
+ * WO-S7-B6 (DEC-S7-RULINGS-01 D3 / DEC-S7-IMPL-01 item 2, CTO_OK=1, 2026-09-02): build-gate #error
+ * guards + 6 runtime build fingerprints + M2_SELFTEST (eight-anchor init self-test) + M2_SEG_CYC (three-
+ * segment CCNT brackets) + g_m2_beam_cyc_min. DEFAULT-BYTE-EQUIVALENT: with none of the new macros defined,
+ * the ONLY change to the preprocessed TU is the 6 fingerprint globals + g_m2_beam_cyc_min (and its reset/
+ * update sites) -- proven by sprint7/dsp/host/run_s7_preproc_equiv.sh (gcc -E diff against HEAD for the
+ * M1 and the default-M2 macro sets). Everything else sits behind M2_SELFTEST / M2_SEG_CYC.
+ * ------------------------------------------------------------------------------------------
+ * #error GUARDS. fw audit sec 9.C [L2 gcc]: -DM2_STATIC_TXTEST=1 WITHOUT M2_FIRA_INLOOP compiled clean, the
+ * main.c #if M2_FIRA_INLOOP idle block vanished and the ISR fell into the M1 fan-out, which rewrote the
+ * "static" TX every 1.33 ms -- the diagnostic premise failed SILENTLY and no readout showed it. Each guard
+ * turns such a silently-wrong macro combination into a build FAIL (the tester's CCES build is the gate).
+ * Value-style macros (M2_STATIC_TXTEST / M2_STXT_LOCALIZE / M2_SELFTEST / M2_SELFTEST_NEGCTRL / M2_SEG_CYC)
+ * are tested with #if X exactly as their use sites test them; an undefined macro is 0 in #if (C99 6.10.1p4).
+ * Falsifiers (expected build FAIL) are in run_guard_check.sh configs X1..X5. */
+#if M2_STATIC_TXTEST && !M2_FIRA_INLOOP
+#error "M2_STATIC_TXTEST requires M2_FIRA_INLOOP=1 (without it the M1 fan-out rewrites the static TX every frame; fw audit 9.C)"
+#endif
+#if M2_STXT_LOCALIZE && !M2_STATIC_TXTEST
+#error "M2_STXT_LOCALIZE requires M2_STATIC_TXTEST=1 (it is a variant of the static TX test; alone it is a silent no-op)"
+#endif
+#if M2_SELFTEST && !M2_FIRA_INLOOP
+#error "M2_SELFTEST requires M2_FIRA_INLOOP=1 (the self-test drives the in-loop FIRA chain; without it there is nothing to test)"
+#endif
+#if M2_SELFTEST_NEGCTRL && !M2_SELFTEST
+#error "M2_SELFTEST_NEGCTRL requires M2_SELFTEST=1 (a negative control of a self-test that is not built = silent no-op)"
+#endif
+#if M2_SEG_CYC && !M2_FIRA_INLOOP
+#error "M2_SEG_CYC requires M2_FIRA_INLOOP=1 (the three-segment brackets live inside m2_fira_beam_frame)"
+#endif
+
+/* BUILD-FINGERPRINT DERIVATION. fw audit sec 9.H: 6 optional macros, 5 had no runtime fingerprint, so a
+ * Defined-symbol left over from a previous CCES session (R52 stale-state trap) was invisible in every
+ * readout. Each M2_FP_* / M1_FP_* is 1/0 derived from EXACTLY the test the code's own use sites apply:
+ *   #ifdef-style macros -> defined(X):  M2_RX_RIGHT_ALIGNED (#ifdef, two shift sites), M2_CHMAP_FIX (#ifdef),
+ *                                       M1_U6_TWI_ADDR_OVERRIDE (#ifdef, m1_softconfig.c; -D is project-wide)
+ *   #if-value-style      -> #if X:      M2_STATIC_TXTEST, M2_STXT_LOCALIZE (this TU + m1_main.c), M2_SELFTEST
+ * so a fingerprint reads 1 iff the guarded code path is actually compiled in (e.g. -DM2_STATIC_TXTEST=0 must
+ * read 0, which defined() would get wrong). NOTHING is #defined for the fingerprinted macros themselves, so
+ * deriving the fingerprint can never change the #ifdef semantics of an existing use site. */
+#if defined(M2_RX_RIGHT_ALIGNED)
+#define M2_FP_RX_RIGHT_ALIGNED   1
+#else
+#define M2_FP_RX_RIGHT_ALIGNED   0
+#endif
+#if defined(M2_CHMAP_FIX)
+#define M2_FP_CHMAP_FIX          1
+#else
+#define M2_FP_CHMAP_FIX          0
+#endif
+#if M2_STATIC_TXTEST
+#define M2_FP_STATIC_TXTEST      1
+#else
+#define M2_FP_STATIC_TXTEST      0
+#endif
+#if M2_STXT_LOCALIZE
+#define M2_FP_STXT_LOCALIZE      1
+#else
+#define M2_FP_STXT_LOCALIZE      0
+#endif
+#if M2_SELFTEST
+#define M2_FP_SELFTEST           1
+#else
+#define M2_FP_SELFTEST           0
+#endif
+#if M2_SELFTEST_NEGCTRL
+#define M2_FP_SELFTEST_NEGCTRL   1
+#else
+#define M2_FP_SELFTEST_NEGCTRL   0
+#endif
+#if defined(M1_U6_TWI_ADDR_OVERRIDE)
+#define M1_FP_U6_ADDR_OVERRIDE   1
+#else
+#define M1_FP_U6_ADDR_OVERRIDE   0
+#endif
+
 #if M2_FIRA_INLOOP
 /* M2 build pulls the frozen FIRA orchestration + core + weights (read-only call surface). Guarded so the
  * M1 transparent build (M2_FIRA_INLOOP=0) carries NONE of these includes and stays byte-clean. */
@@ -97,6 +173,9 @@
 #include "tree_filterbank.h"     /* [frozen, call-only] tfb_set_coeffs (core golden Q15 coeff inject) */
 #include "fir_coeffs_hb63.h"     /* [frozen, read-only]  g_hb63_q15, FIR_HB63_NTAPS */
 #include "dolph_w8_q15.h"        /* [frozen, read-only]  g_dolph_w8_q15[8], DOLPH_W8_NCH (broadside taper) */
+#if M2_SELFTEST
+#include "dolph_f5_goldens.h"    /* [frozen, read-only]  g_f5_golden_crc[8] = the F5 eight anchors (WO-S7-B6 self-test) */
+#endif
 #endif
 
 /* ---- COMPILE-TIME spec lock (DEC-S6-M1-ARCH-01): catch a four-opening regression at build, not runtime.
@@ -134,6 +213,17 @@ volatile uint32_t g_m2_out_max_abs      = 0u;             /* peak |FIRA TX outpu
 volatile int      g_m2_fg_beam_live     = -99;            /* 1 = blocks grew AND FIRA output non-zero; 0 = FAIL; -99 not-run */
 volatile int      g_m2_valid            = 0;              /* 1 = ran on board with FIRA beam in-loop; 0 = M1/desktop */
 
+/* ---- WO-S7-B6 BUILD FINGERPRINTS (fw audit 9.H; DEC-S7-IMPL-01 item 2). Defined in BOTH builds, volatile int,
+ *      so a debugger always finds them and nothing folds them. READ THEM FIRST every session: a value that does
+ *      not match the intended Defined-symbols set = wrong/stale build -> do not record its other readouts.
+ *      Derivation rule (defined() vs #if X, mirroring each macro's own use sites) is documented above. ---- */
+volatile int      g_m2_rx_right_aligned_built = M2_FP_RX_RIGHT_ALIGNED; /* 1 = R57 RX<<8 / TX>>8 fallback compiled in */
+volatile int      g_m2_chmap_fix_built        = M2_FP_CHMAP_FIX;        /* 1 = weight-index chmap permutation compiled in */
+volatile int      g_m2_static_txtest_built    = M2_FP_STATIC_TXTEST;    /* 1 = static TX tone diagnostic (beam poll skipped) */
+volatile int      g_m2_stxt_localize_built    = M2_FP_STXT_LOCALIZE;    /* 1 = 375Hz polarity-localize variant compiled in */
+volatile int      g_m2_selftest_built         = M2_FP_SELFTEST;         /* 1 = M2_SELFTEST eight-anchor init self-test compiled in */
+volatile int      g_m1_u6_addr_override_built = M1_FP_U6_ADDR_OVERRIDE; /* 1 = M1_U6_TWI_ADDR_OVERRIDE in effect (m1_softconfig.c) */
+
 #if M2_FIRA_INLOOP
 /* WO-S6-M2FIX readouts (raw counters only -- C9). GUARDED, unlike the g_m2_* block above: the M1
  * transparent build must stay BYTE-IDENTICAL (M2FIX hard constraint), so these symbols exist only in
@@ -148,6 +238,48 @@ volatile uint32_t g_m2_poll_count       = 0u;             /* beam frames actuall
  * that sum observable (see the m2_beam_poll DEGRADATION note). */
 volatile uint32_t g_m2_beam_cyc_last    = 0u;             /* CCNT of the LAST beam call (main-context compute, raw) */
 volatile uint32_t g_m2_beam_cyc_max     = 0u;             /* max beam-call CCNT over the run (beam WCET, raw) */
+/* WO-S7-B6 (DEC-S7-IMPL-01 1a, S7_DSP_ASSESSMENT 6.3 hypothesis a): the steady-state FLOOR of the same bracket.
+ * max carries the cold first frame(s); min/last together show whether the run-max is the steady state. Raw. */
+volatile uint32_t g_m2_beam_cyc_min     = 0xFFFFFFFFu;    /* min beam-call CCNT over the run (same bracket as _last/_max, raw) */
+
+#if M2_SEG_CYC
+/* WO-S7-B6 (DEC-S7-IMPL-01 1c) THREE-SEGMENT (+TX) CCNT brackets INSIDE m2_fira_beam_frame, summed over the 8
+ * channels of ONE frame, raw (C9). Symbol names are cross-referenced by sprint7/docs/S7_B63_WALLCLOCK_GAP.md --
+ * do NOT rename. CALIBER (R42: a bracket's span IS its caliber), per channel, chained reads:
+ *   w   = from the previous channel's tx-close (or the pre-loop read for c=0) to after the Q15 weight loop:
+ *         weight-index read (incl. the chmap lookup when M2_CHMAP_FIX) + 64 multiplies + loop overhead
+ *   ana = exactly the fira_tfb_analyze call   (INCLUDES the FIR-DONE busy-waits inside frozen fira_tree.c)
+ *   syn = exactly the fira_tfb_synthesize call (same)
+ *   tx  = the 8-slot interleave write + FG nz/peak scan loop
+ * claim / FG accumulate / counters / latch stay OUTSIDE every bracket (m2_beam_poll). The instrumentation adds
+ * 4 CCNT reads per channel (+1 per frame) INSIDE g_m2_beam_cyc_*, so a SEG_CYC build's beam_cyc is not directly
+ * comparable to a non-SEG_CYC build's -- read both builds, compare off-board. */
+volatile uint32_t g_m2_seg_w_cyc_last   = 0u;             /* last frame: sum over 8 ch of the weight-loop bracket */
+volatile uint32_t g_m2_seg_w_cyc_max    = 0u;
+volatile uint32_t g_m2_seg_ana_cyc_last = 0u;             /* last frame: sum over 8 ch of the fira_tfb_analyze bracket */
+volatile uint32_t g_m2_seg_ana_cyc_max  = 0u;
+volatile uint32_t g_m2_seg_syn_cyc_last = 0u;             /* last frame: sum over 8 ch of the fira_tfb_synthesize bracket */
+volatile uint32_t g_m2_seg_syn_cyc_max  = 0u;
+volatile uint32_t g_m2_seg_tx_cyc_last  = 0u;             /* last frame: sum over 8 ch of the TX interleave + FG scan bracket */
+volatile uint32_t g_m2_seg_tx_cyc_max   = 0u;
+#endif
+
+#if M2_SELFTEST
+/* WO-S7-B6 M2_SELFTEST readouts (DEC-S7-IMPL-01 item 2 / S7_VERIFICATION_PLAN B6-4). Written ONCE by
+ * m2_selftest_run() during m1_loopback_init (after FIRA setup, before the SPORT is armed); idle reads only.
+ * PASS[c] uses the F5 definition (fira_regression.c:369-371): no per-sample FIRA-vs-core mismatch AND FIRA CRC
+ * == live core CRC AND live core CRC == frozen anchor g_f5_golden_crc[c]. All values raw (C9). */
+volatile int      g_m2_selftest_rc            = -99;      /* -99 not run | -1 FIRA not ready (setup failed) | 0 all 8 PASS | n = # FAILING channels */
+volatile int      g_m2_selftest_negctrl_built = M2_FP_SELFTEST_NEGCTRL; /* 1 = unity-weight NEGATIVE-CONTROL build (expect rc=7) */
+volatile int      g_m2_selftest_pass[DOLPH_W8_NCH]         = { 0, 0, 0, 0, 0, 0, 0, 0 };        /* 1 = channel c PASS */
+volatile uint32_t g_m2_selftest_crc[DOLPH_W8_NCH]          = { 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u }; /* FIRA-path subband CRC (sb0|sb1|sb2|sb3 streaming) */
+volatile uint32_t g_m2_selftest_crc_core[DOLPH_W8_NCH]     = { 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u }; /* frozen-core subband CRC over the SAME weighted chirp (live golden) */
+volatile int      g_m2_selftest_mismatch_sb[DOLPH_W8_NCH]  = { -1, -1, -1, -1, -1, -1, -1, -1 }; /* first subband (0..3) where FIRA != core; -1 = none */
+volatile int      g_m2_selftest_mismatch_idx[DOLPH_W8_NCH] = { -1, -1, -1, -1, -1, -1, -1, -1 }; /* f*sz[sb]+i of that first mismatch; -1 = none */
+volatile uint32_t g_m2_selftest_frames        = 0u;       /* frames processed; expect 8 x 1024 = 8192 when the self-test completed */
+volatile uint32_t g_m2_selftest_cyc           = 0u;       /* whole self-test wall CCNT, raw. 32-bit: wraps at 2^32 cyc (4.29 s @ 1 GHz) -> cross-check _cyc_ch */
+volatile uint32_t g_m2_selftest_cyc_ch[DOLPH_W8_NCH]       = { 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u }; /* per-channel wall CCNT (1024 frames each; far below wrap) */
+#endif
 #endif
 
 #if defined(M1_TARGET_BOARD) && defined(TARGET_SHARC)
@@ -402,6 +534,11 @@ static void m2_fira_beam_frame(const int32_t *rx, int32_t *tx, uint32_t *pnz, ui
 {
     uint32_t c, i;
     uint32_t nz = *pnz, peak = *ppeak;
+#if M2_SEG_CYC
+    uint32_t sw = 0u, sana = 0u, ssyn = 0u, stx = 0u;   /* WO-S7-B6: per-frame segment sums (8 ch) */
+    uint32_t ta, tb;                                     /* chained bracket edges: one read closes a segment and opens the next */
+    ta = bench_cyc_target();                             /* opens the w bracket of c=0 (caliber note at the g_m2_seg_* definitions) */
+#endif
 
     for (c = 0u; c < (uint32_t)DOLPH_W8_NCH; c++) {
 #ifdef M2_CHMAP_FIX
@@ -419,14 +556,23 @@ static void m2_fira_beam_frame(const int32_t *rx, int32_t *tx, uint32_t *pnz, ui
 #else
             s_m2_xw[i] = (int32_t)(((int64_t)w * (int64_t)rx[i]) >> 15);
 #endif
+#if M2_SEG_CYC
+        tb = bench_cyc_target(); sw += tb - ta; ta = tb;      /* w CLOSE / ana OPEN */
+#endif
 
         /* FIRA analyze (1ch -> 4 subbands) then synthesize (4 subbands -> 1ch full-rate). CALL-ONLY into
          * the frozen fira_tree.c; s_m2_fa[c] carries this channel's cross-frame filter state. */
         fira_tfb_analyze(&s_m2_fa[c], s_m2_xw, (uint16_t)M1_FRAME,
                          s_m2_sb0, s_m2_sb1, s_m2_sb2, s_m2_sb3);
+#if M2_SEG_CYC
+        tb = bench_cyc_target(); sana += tb - ta; ta = tb;    /* ana CLOSE / syn OPEN */
+#endif
         /* broadside v1: NO frac-delay on the subbands (focusing = v2). Synthesize straight back. */
         fira_tfb_synthesize(&s_m2_fa[c], s_m2_sb0, s_m2_sb1, s_m2_sb2, s_m2_sb3,
                             (uint16_t)M1_FRAME, s_m2_chout);
+#if M2_SEG_CYC
+        tb = bench_cyc_target(); ssyn += tb - ta; ta = tb;    /* syn CLOSE / tx OPEN */
+#endif
 
         /* interleave channel c into the 8-slot TX layout (tx[f*8 + c]); OPENING-5: write Q31 with no
          * shift -- the DAC slot takes the high 24 bits. + FG scan of the FIRA output. */
@@ -445,8 +591,17 @@ static void m2_fira_beam_frame(const int32_t *rx, int32_t *tx, uint32_t *pnz, ui
             if (o != 0) nz++;
             if (a > peak) peak = a;
         }
+#if M2_SEG_CYC
+        tb = bench_cyc_target(); stx += tb - ta; ta = tb;     /* tx CLOSE; the same read opens the next channel's w bracket */
+#endif
     }
     *pnz = nz; *ppeak = peak;
+#if M2_SEG_CYC
+    g_m2_seg_w_cyc_last   = sw;   if (sw   > g_m2_seg_w_cyc_max)   g_m2_seg_w_cyc_max   = sw;
+    g_m2_seg_ana_cyc_last = sana; if (sana > g_m2_seg_ana_cyc_max) g_m2_seg_ana_cyc_max = sana;
+    g_m2_seg_syn_cyc_last = ssyn; if (ssyn > g_m2_seg_syn_cyc_max) g_m2_seg_syn_cyc_max = ssyn;
+    g_m2_seg_tx_cyc_last  = stx;  if (stx  > g_m2_seg_tx_cyc_max)  g_m2_seg_tx_cyc_max  = stx;
+#endif
 }
 #endif /* M2_FIRA_INLOOP */
 
@@ -594,6 +749,7 @@ void m2_beam_poll(void)
     t1 = bench_cyc_target();
     g_m2_beam_cyc_last = t1 - t0;
     if (g_m2_beam_cyc_last > g_m2_beam_cyc_max) g_m2_beam_cyc_max = g_m2_beam_cyc_last;
+    if (g_m2_beam_cyc_last < g_m2_beam_cyc_min) g_m2_beam_cyc_min = g_m2_beam_cyc_last;   /* WO-S7-B6 floor */
 
     g_m2_out_nonzero += nz;
     if (peak > g_m2_out_max_abs) g_m2_out_max_abs = peak;
@@ -797,6 +953,20 @@ static int m2_fira_setup(void)
     g_m2_fg_beam_live = -99; g_m2_valid = 0;
     g_m2_overrun_count = 0u; g_m2_poll_count = 0u;   /* WO-S6-M2FIX counters */
     g_m2_beam_cyc_last = 0u; g_m2_beam_cyc_max = 0u; /* R56 MAJOR-3 beam-only CCNT bracket */
+    g_m2_beam_cyc_min = 0xFFFFFFFFu;                 /* WO-S7-B6 floor (sentinel until the first beam frame) */
+#if M2_SEG_CYC
+    g_m2_seg_w_cyc_last = 0u;   g_m2_seg_w_cyc_max = 0u;
+    g_m2_seg_ana_cyc_last = 0u; g_m2_seg_ana_cyc_max = 0u;
+    g_m2_seg_syn_cyc_last = 0u; g_m2_seg_syn_cyc_max = 0u;
+    g_m2_seg_tx_cyc_last = 0u;  g_m2_seg_tx_cyc_max = 0u;
+#endif
+#if M2_SELFTEST
+    g_m2_selftest_rc = -99; g_m2_selftest_frames = 0u; g_m2_selftest_cyc = 0u;
+    for (c = 0; c < DOLPH_W8_NCH; c++) {
+        g_m2_selftest_pass[c] = 0; g_m2_selftest_crc[c] = 0u; g_m2_selftest_crc_core[c] = 0u;
+        g_m2_selftest_mismatch_sb[c] = -1; g_m2_selftest_mismatch_idx[c] = -1; g_m2_selftest_cyc_ch[c] = 0u;
+    }
+#endif
     s_m2_ready = 0u; s_m2_pending_half = 0u;         /* WO-S6-M2FIX ISR->main handoff state */
 
     rc = fira_tree_setup();          /* Open -> RegisterCallback -> CreateTask -> FixedPointEnable(SIGNED) */
@@ -808,6 +978,153 @@ static int m2_fira_setup(void)
         fira_channel_init(&s_m2_fa[c], (uint16_t)M1_FRAME);      /* 8 per-channel states, zero-init */
     return 0;
 }
+
+#if M2_SELFTEST
+/* ============================================================================================
+ * WO-S7-B6 M2_SELFTEST -- EIGHT-ANCHOR INIT SELF-TEST (DEC-S7-IMPL-01 item 2; S7_VERIFICATION_PLAN B6-4;
+ * DEC-S6-M2-BOARD-PASS-01 anti-false-green boundary: "functional PASS != bit-exact verified").
+ * ------------------------------------------------------------------------------------------
+ * WHAT: after m2_fira_setup() succeeded and BEFORE m1_sport_init() arms the stream, drive the SAME in-loop
+ *   FIRA chain the live beam uses (s_m2_fa[c] + fira_tfb_analyze, CALL-ONLY into frozen fira_tree.c) with the
+ *   frozen R14 excitation CHIRP_INPUT (64 x 1024 frames) under EXACTLY the F5 eight-anchor definition
+ *   (gen_f5_goldens.c:78-98 generator == fira_regression.c:328-372 board harness, commit 44a99e8 [L1]):
+ *     for c = 0..7:  fira_channel_init(&s_m2_fa[c], 64); per frame  xw[i] = (int32_t)(((int64_t)w_q15[c]*x[i])>>15)
+ *                    -> fira_tfb_analyze -> stream the 4 subbands sb0|sb1|sb2|sb3 into one CRC32
+ *                    -> compare with g_f5_golden_crc[c] (dolph_f5_goldens.h, frozen [L2] desktop golden).
+ *   The frozen core tfb_analyze runs side by side over the same xw (it is linked in every M2 build; F5 does the
+ *   same) so a FAIL is localizable: first mismatching subband / index (FIRA != core) and a separate live core
+ *   CRC (core != anchor => chirp/weight/core drifted, not FIRA). PASS[c] = F5's three-term AND (:369-371).
+ * WEIGHT INDEX = CHANNEL INDEX, NO chmap permutation, even in an M2_CHMAP_FIX build: the eight anchors are
+ *   DEFINED with w_q15[c] on channel c (gen_f5_goldens.c:82). The self-test verifies the CHAIN (weight arith +
+ *   FIRA analyze bit-exactness on THIS board/build), not the channel->position mapping; permuting here would
+ *   change which anchor each channel must hit and fail for a reason unrelated to the chain (host harness
+ *   s7_selftest_host.c mode neg-chmap demonstrates that FAIL).
+ * NEGATIVE CONTROL (-DM2_SELFTEST_NEGCTRL=1): every channel uses the unity weight DOLPH_W8_ONE (32768). Same
+ *   FG1 double-guard as gen_f5_goldens.c -DF5_GEN_UNWEIGHTED: all 8 CRCs MUST collapse to the F4 unity anchor
+ *   0x2E0D8C6E, only c=7 (whose real weight IS unity) passes, rc = 7. That readout is the evidence that this
+ *   self-test really depends on the per-channel weights and is not a constant.
+ * NOT run when FIRA setup failed (fira_tree_setup != 0, e.g. built without FIRA_USE_REAL_ADI_FIR_HEADER):
+ *   rc = -1, honest, nothing faked (FG2). A FIRA that is linked but stubbed (#else placeholder zero-fill) FAILS
+ *   every channel with mismatch_sb != -1 (the FG2 placeholder proof, host mode neg-stub).
+ * SCRATCH: reuses s_m2_xw / s_m2_sb0..3 (free -- the SPORT is not armed yet) + one core state + 4 core subband
+ *   buffers below (~2.8 KB, default placement, init-time only). Q boundary: CHIRP_INPUT is full-Q31 and fed
+ *   with NO shift exactly as F5 did (M2_Q_BOUNDARY_SURVEY 3.1); an M2_RX_RIGHT_ALIGNED build self-tests the
+ *   same chain (the shifts sit in m2_fira_beam_frame, which the self-test does not call).
+ * AFTER the run: fira_channel_init x8 again + zero the shared scratch, so the live stream starts from the
+ *   zero delay line exactly as a non-selftest build does (ST1: the self-test advanced every channel state
+ *   through 1024 chirp frames; that state must not leak into the first live frame).
+ * COST: init-time only (never in the frame budget); wall CCNT in g_m2_selftest_cyc / _cyc_ch (raw, C9).
+ * MEMORY: CHIRP_INPUT = 65536 x int32 = 256 KB const, pinned to L2 via the pragma below (input section
+ *   seg_l2_dmda_bw -> m1_app.ldf dxe_l2_data_bw > mem_L2_bw 0x20000000-0x200F9FFF, the [L1] ADI-example section
+ *   name, POST adc_dac_test.c:43 / H2_MAP_PLACEMENT_ADJUDICATION.md:114). The core reads it (cached L2, read-only
+ *   -> coherency-free); the FIRA DMA never touches it (it reads s_m2_xw in L1 like the live path). BOARD-CONFIRM:
+ *   the .map must show CHIRP_INPUT inside mem_L2_bw and Block 0/1 untouched by it (runbook check M1).
+ * ============================================================================================ */
+#pragma section("seg_l2_dmda_bw")
+#include "chirp_input.h"                 /* [frozen, read-only] CHIRP_INPUT[CHIRP_INPUT_N=65536]; pragma pins THIS definition to L2 */
+
+#define M2_SELFTEST_NFR   ((uint32_t)CHIRP_INPUT_N / M1_FRAME)   /* 1024 frames = BENCH_NFR, the full F5 span */
+
+static TreeChannelState s_m2_st_core;            /* frozen-core reference state (re-init per channel; init-time only) */
+static int32_t s_m2_st_csb0[M1_FRAME / 8];        /* core-side subbands for the per-sample compare */
+static int32_t s_m2_st_csb1[M1_FRAME / 4];
+static int32_t s_m2_st_csb2[M1_FRAME / 2];
+static int32_t s_m2_st_csb3[M1_FRAME];
+
+/* Incremental CRC32 (IEEE 802.3 reflected poly 0xEDB88320, init 0xFFFFFFFF, final ^0xFFFFFFFF), each int32 fed as
+ * 4 little-endian bytes. VERBATIM twin (C89 form, R16) of fira_regression.c:71-81 == gen_f5_goldens.c:54-64 (the
+ * eight anchors' generator) == sprint7/dsp/host/s7_selftest_host.c s7_crc32_update. Same bytes, same order. */
+static void m2_st_crc32_update(uint32_t *c, const int32_t *d, int n)
+{
+    int i, b, k;
+    for (i = 0; i < n; i++) {
+        uint32_t v = (uint32_t)d[i];
+        for (b = 0; b < 4; b++) {
+            uint8_t by = (uint8_t)(v >> (8 * b));
+            *c ^= by;
+            for (k = 0; k < 8; k++) *c = (*c & 1u) ? (*c >> 1) ^ 0xEDB88320u : (*c >> 1);
+        }
+    }
+}
+
+static void m2_selftest_run(void)
+{
+    const int32_t *chirp = CHIRP_INPUT;
+    const int sz[4] = { M1_FRAME / 8, M1_FRAME / 4, M1_FRAME / 2, M1_FRAME };
+    const int32_t *fb[4];
+    const int32_t *cb[4];
+    uint32_t c, f, i, t0, t1, tc0, tc1;
+    int b, nfail = 0;
+
+    fb[0] = s_m2_sb0;     fb[1] = s_m2_sb1;     fb[2] = s_m2_sb2;     fb[3] = s_m2_sb3;
+    cb[0] = s_m2_st_csb0; cb[1] = s_m2_st_csb1; cb[2] = s_m2_st_csb2; cb[3] = s_m2_st_csb3;
+
+    t0 = bench_cyc_target();                                     /* whole-run wall bracket OPEN */
+    for (c = 0u; c < (uint32_t)DOLPH_W8_NCH; c++) {
+#if M2_SELFTEST_NEGCTRL
+        const int32_t w = DOLPH_W8_ONE;                          /* NEGATIVE CONTROL: unity on every channel */
+#else
+        const int32_t w = g_dolph_w8_q15[c];                     /* anchor definition: weight index == channel index (NO chmap) */
+#endif
+        uint32_t cf = 0xFFFFFFFFu, cc = 0xFFFFFFFFu;             /* streaming CRC state: FIRA path / core path */
+        int mis = -1;                                            /* first per-sample mismatch found? (idx) */
+
+        tc0 = bench_cyc_target();
+        fira_channel_init(&s_m2_fa[c], (uint16_t)M1_FRAME);      /* same init as the live path (zero delay line) */
+        tfb_channel_init(&s_m2_st_core);
+
+        for (f = 0u; f < M2_SELFTEST_NFR; f++) {
+            const int32_t *xin = &chirp[f * M1_FRAME];
+            /* input-scale weight, bit-exact F5 arithmetic (f5_apply_w / gen_f5_goldens.c apply_w): Q15 x Q31 >> 15 */
+            for (i = 0u; i < M1_FRAME; i++)
+                s_m2_xw[i] = (int32_t)(((int64_t)w * (int64_t)xin[i]) >> DOLPH_W8_QBITS);
+
+            fira_tfb_analyze(&s_m2_fa[c], s_m2_xw, (uint16_t)M1_FRAME,
+                             s_m2_sb0, s_m2_sb1, s_m2_sb2, s_m2_sb3);              /* device under test */
+            tfb_analyze(&s_m2_st_core, s_m2_xw, (uint16_t)M1_FRAME,
+                        s_m2_st_csb0, s_m2_st_csb1, s_m2_st_csb2, s_m2_st_csb3);  /* frozen-core reference */
+
+            for (b = 0; b < 4; b++) {
+                if (mis < 0) {
+                    int j;
+                    for (j = 0; j < sz[b]; j++) {
+                        if (fb[b][j] != cb[b][j]) {
+                            g_m2_selftest_mismatch_sb[c]  = b;
+                            g_m2_selftest_mismatch_idx[c] = (int)(f * (uint32_t)sz[b]) + j;
+                            mis = g_m2_selftest_mismatch_idx[c];
+                            break;
+                        }
+                    }
+                }
+                m2_st_crc32_update(&cf, fb[b], sz[b]);           /* sb0|sb1|sb2|sb3 order, every frame */
+                m2_st_crc32_update(&cc, cb[b], sz[b]);
+            }
+            g_m2_selftest_frames++;
+        }
+
+        g_m2_selftest_crc[c]      = cf ^ 0xFFFFFFFFu;
+        g_m2_selftest_crc_core[c] = cc ^ 0xFFFFFFFFu;
+        /* F5 PASS (fira_regression.c:369-371): no mismatch AND FIRA == live core AND live core == frozen anchor */
+        g_m2_selftest_pass[c] = ((mis < 0)
+                               && (g_m2_selftest_crc[c] == g_m2_selftest_crc_core[c])
+                               && (g_m2_selftest_crc_core[c] == g_f5_golden_crc[c])) ? 1 : 0;
+        if (g_m2_selftest_pass[c] == 0) nfail++;
+        tc1 = bench_cyc_target();
+        g_m2_selftest_cyc_ch[c] = tc1 - tc0;
+    }
+    t1 = bench_cyc_target();                                     /* whole-run wall bracket CLOSE */
+    g_m2_selftest_cyc = t1 - t0;
+    g_m2_selftest_rc  = nfail;                                   /* 0 = all 8 PASS; n = failing channels */
+
+    /* clean slate for the live stream (ST1): re-zero all 8 FIRA channel states + the shared scratch */
+    for (c = 0u; c < (uint32_t)DOLPH_W8_NCH; c++)
+        fira_channel_init(&s_m2_fa[c], (uint16_t)M1_FRAME);
+    for (i = 0u; i < M1_FRAME; i++) { s_m2_xw[i] = 0; s_m2_chout[i] = 0; s_m2_sb3[i] = 0; }
+    for (i = 0u; i < M1_FRAME / 2; i++) s_m2_sb2[i] = 0;
+    for (i = 0u; i < M1_FRAME / 4; i++) s_m2_sb1[i] = 0;
+    for (i = 0u; i < M1_FRAME / 8; i++) s_m2_sb0[i] = 0;
+}
+#endif /* M2_SELFTEST */
 #endif /* M2_FIRA_INLOOP */
 
 int m1_loopback_init(void)
@@ -844,7 +1161,14 @@ int m1_loopback_init(void)
 #if M2_FIRA_INLOOP
     /* OPENING-1/4: bring the FIRA beam up BEFORE the SPORT callback can fire. If FIRA setup fails, do NOT
      * arm the stream -- the callback would call into an un-setup FIRA (undefined). Honest fail (no fake). */
+#if M2_SELFTEST
+    /* WO-S7-B6: setup fail -> self-test honestly NOT run (rc=-1, FG2); setup ok -> run the eight-anchor
+     * self-test HERE, after FIRA is up and BEFORE the SPORT is armed (scratch + main context are ours). */
+    if (m2_fira_setup() != 0) { g_m2_selftest_rc = -1; return 1; }
+    m2_selftest_run();
+#else
     if (m2_fira_setup() != 0) return 1;        /* g_m2_setup_rc carries the rc; stream NOT armed on fail */
+#endif
 #endif
 
     if (m1_sport_init() != 0) return 1;        /* SPORT4 TDM ping-pong + callback armed */
@@ -883,6 +1207,10 @@ int m1_loopback_init(void)
 #if M2_FIRA_INLOOP
     g_m2_overrun_count = 0u; g_m2_poll_count = 0u;   /* WO-S6-M2FIX counters (desktop honest-0) */
     g_m2_beam_cyc_last = 0u; g_m2_beam_cyc_max = 0u; /* R56 beam CCNT (desktop honest-0) */
+    g_m2_beam_cyc_min = 0u;                          /* WO-S7-B6 floor (desktop honest-0: no beam ran) */
+#if M2_SELFTEST
+    g_m2_selftest_rc = -99;                          /* WO-S7-B6: never runs off-board (no FIRA, no init path) */
+#endif
 #endif
     return 1;                  /* non-zero: cannot run loopback off-board (honest fail, no fake) */
 }

@@ -58,6 +58,17 @@ extern volatile uint32_t g_m2_out_max_abs;        /* peak |FIRA TX output sample
 extern volatile int      g_m2_fg_beam_live;       /* 1 = blocks grew AND FIRA output non-zero; 0 = FAIL; -99 not-run */
 extern volatile int      g_m2_valid;              /* 1 = ran on board w/ FIRA beam in-loop; 0 = M1/desktop */
 
+/* ---- WO-S7-B6 BUILD FINGERPRINTS (DEC-S7-RULINGS-01 D3; fw audit 9.H). Defined in BOTH builds, volatile int:
+ *      1 = that macro's guarded code path is compiled into THIS .dxe, 0 = not. Read FIRST every session; a
+ *      mismatch against the intended Defined-symbols set = stale/wrong build (R52), discard its readouts.
+ *      g_m2_fira_inloop above is the 7th (pre-existing) fingerprint. Derivation rule in the .c. ---- */
+extern volatile int      g_m2_rx_right_aligned_built; /* M2_RX_RIGHT_ALIGNED (#ifdef) */
+extern volatile int      g_m2_chmap_fix_built;        /* M2_CHMAP_FIX        (#ifdef) */
+extern volatile int      g_m2_static_txtest_built;    /* M2_STATIC_TXTEST    (#if value) */
+extern volatile int      g_m2_stxt_localize_built;    /* M2_STXT_LOCALIZE    (#if value) */
+extern volatile int      g_m2_selftest_built;         /* M2_SELFTEST         (#if value) */
+extern volatile int      g_m1_u6_addr_override_built; /* M1_U6_TWI_ADDR_OVERRIDE (#ifdef, m1_softconfig.c) */
+
 /* ---- WO-S6-M2FIX (2026-06-11): beam moved OUT of the SPORT ISR (fira_tree.c:481 spin starved the FIR
  *      DONE interrupt -> first-frame deadlock, [L1 board]). The ISR now only publishes the completed RX
  *      half; main computes it via m2_beam_poll(). GUARDED (M2 build only): the M1 transparent build must
@@ -68,6 +79,30 @@ extern volatile uint32_t g_m2_overrun_count;      /* RX-done found previous fram
 extern volatile uint32_t g_m2_poll_count;         /* beam frames computed by main (expect ~= rx_block_count) */
 extern volatile uint32_t g_m2_beam_cyc_last;      /* R56: CCNT of the LAST m2_fira_beam_frame call ONLY (beam-only caliber) */
 extern volatile uint32_t g_m2_beam_cyc_max;       /* R56: max beam-call CCNT (beam WCET, raw; expect << frame budget) */
+extern volatile uint32_t g_m2_beam_cyc_min;       /* WO-S7-B6: min beam-call CCNT (steady-state floor; 0xFFFFFFFF until 1st frame) */
+#if M2_SEG_CYC
+/* WO-S7-B6 (DEC-S7-IMPL-01 1c): per-frame (sum of 8 ch) CCNT of the four segments INSIDE m2_fira_beam_frame.
+ * Names are referenced by sprint7/docs/S7_B63_WALLCLOCK_GAP.md -- do not rename. Caliber note in the .c. */
+extern volatile uint32_t g_m2_seg_w_cyc_last,   g_m2_seg_w_cyc_max;     /* Q15 weight loop (+ chmap index read) */
+extern volatile uint32_t g_m2_seg_ana_cyc_last, g_m2_seg_ana_cyc_max;   /* fira_tfb_analyze call (incl. FIR-DONE busy-wait) */
+extern volatile uint32_t g_m2_seg_syn_cyc_last, g_m2_seg_syn_cyc_max;   /* fira_tfb_synthesize call (incl. busy-wait) */
+extern volatile uint32_t g_m2_seg_tx_cyc_last,  g_m2_seg_tx_cyc_max;    /* TX interleave write + FG scan loop */
+#endif
+#if M2_SELFTEST
+/* WO-S7-B6 M2_SELFTEST (S7_VERIFICATION_PLAN B6-4): eight-anchor init self-test readouts, written once during
+ * m1_loopback_init (after FIRA setup, before SPORT arm). Expected on a healthy board: rc=0, pass[] all 1,
+ * crc[] == dolph_f5_goldens.h g_f5_golden_crc[]. NEGCTRL build: rc=7, crc[] all 0x2E0D8C6E, only pass[7]=1. */
+extern volatile int      g_m2_selftest_rc;              /* -99 not run | -1 FIRA not ready | 0 all PASS | n failing channels */
+extern volatile int      g_m2_selftest_negctrl_built;   /* 1 = M2_SELFTEST_NEGCTRL unity-weight build */
+extern volatile int      g_m2_selftest_pass[8];
+extern volatile uint32_t g_m2_selftest_crc[8];          /* FIRA-path subband CRC per channel */
+extern volatile uint32_t g_m2_selftest_crc_core[8];     /* frozen-core subband CRC per channel (live golden) */
+extern volatile int      g_m2_selftest_mismatch_sb[8];  /* first FIRA!=core subband, -1 none */
+extern volatile int      g_m2_selftest_mismatch_idx[8]; /* f*sz+i of that mismatch, -1 none */
+extern volatile uint32_t g_m2_selftest_frames;          /* expect 8192 */
+extern volatile uint32_t g_m2_selftest_cyc;             /* whole-run wall CCNT, raw (32-bit wrap caveat in the .c) */
+extern volatile uint32_t g_m2_selftest_cyc_ch[8];       /* per-channel wall CCNT, raw */
+#endif
 void m2_beam_poll(void);   /* call from the main idle loop: claims the pending half, runs the 8ch FIRA
                             * broadside beam (may spin on FIR DONE -- legal in main), writes the TX half,
                             * updates g_m2_out_* / poll counter / fg_beam_live latch. Desktop: no-op. */

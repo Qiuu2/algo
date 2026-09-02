@@ -28,9 +28,10 @@ ADAU="$ROOT/knowledge_base/ezkit/vendor_docs/cces_examples/code/Audio_Loopback_T
 FIRA="$ROOT/sprint4/dsp/fira"                                          # fira_tree.h, dolph_w8_q15.h
 CORE="$ROOT/sprint4/dsp/core_only/src"                                 # tree_filterbank.h
 CINC="$ROOT/sprint4/dsp/core_only/include"                             # fir_coeffs_hb63.h
+BENCH="$ROOT/sprint4/dsp/core_only/bench"                              # chirp_input.h (WO-S7-B6 M2_SELFTEST; frozen, read-only)
 CCES_SRC="$HDIR/m1_cces_project/src"                                  # AUTHORITATIVE M1/M2 sources (2026-09-02)
 INC_M1=( -I"$STUB" -I"$CCES_SRC" -I"$ADAU" )
-INC_M2=( "${INC_M1[@]}" -I"$FIRA" -I"$CORE" -I"$CINC" )
+INC_M2=( "${INC_M1[@]}" -I"$FIRA" -I"$CORE" -I"$CINC" -I"$BENCH" )
 
 # DEFAULT TARGET = the authoritative CCES-project copy (2026-09-02 housekeeping). The loose copy
 #   sprint6/dsp/audio/m1_loopback_tdm.c is a DEPRECATED 2026-06-12 snapshot (81 lines behind) -- do not check it.
@@ -74,4 +75,49 @@ run_one "M2-FIRA+chmap-fix (M2_CHMAP_FIX)" "-DM2_FIRA_INLOOP=1 -DM2_CHMAP_FIX" "
 run_one "M2-FIRA+static-txtest (M2_STATIC_TXTEST=1)" "-DM2_FIRA_INLOOP=1 -DM2_STATIC_TXTEST=1" "${INC_M2[@]}"
 run_one "M2-FIRA+static-txtest+localize (M2_STXT_LOCALIZE=1)" "-DM2_FIRA_INLOOP=1 -DM2_STATIC_TXTEST=1 -DM2_STXT_LOCALIZE=1" "${INC_M2[@]}"
 
+# (G)(H)(I) WO-S7-B6 (DEC-S7-RULINGS-01 D3 / DEC-S7-IMPL-01 item 2, 2026-09-02): the eight-anchor init self-test
+#     (M2_SELFTEST, pulls the frozen 256 KB chirp_input.h from $BENCH + dolph_f5_goldens.h), the three-segment
+#     CCNT brackets (M2_SEG_CYC) and the unity-weight negative-control build (M2_SELFTEST_NEGCTRL). Same
+#     institutionalization as C..F: compile-clean on desktop BEFORE the tester's CCES build. All must PASS.
+run_one "M2-FIRA+selftest (M2_SELFTEST=1)" "-DM2_FIRA_INLOOP=1 -DM2_SELFTEST=1" "${INC_M2[@]}"
+run_one "M2-FIRA+selftest+seg-cyc (M2_SEG_CYC=1)" "-DM2_FIRA_INLOOP=1 -DM2_SELFTEST=1 -DM2_SEG_CYC=1" "${INC_M2[@]}"
+run_one "M2-FIRA+selftest+negctrl (M2_SELFTEST_NEGCTRL=1)" "-DM2_FIRA_INLOOP=1 -DM2_SELFTEST=1 -DM2_SELFTEST_NEGCTRL=1" "${INC_M2[@]}"
+# (J) all diagnostics together with chmap: proves the self-test's "no chmap" weight path coexists with M2_CHMAP_FIX.
+run_one "M2-FIRA+chmap+selftest+seg-cyc (all)" "-DM2_FIRA_INLOOP=1 -DM2_CHMAP_FIX -DM2_SELFTEST=1 -DM2_SEG_CYC=1" "${INC_M2[@]}"
+
+# ---- FALSIFIERS (X1..X5): macro combinations that MUST FAIL to compile via the WO-S7-B6 #error guards
+#     (fw audit 9.C: -DM2_STATIC_TXTEST=1 alone used to compile clean and silently broke the static-TX premise).
+#     Verdict rule: compile FAILURE whose diagnostic contains "#error" = PASS; a clean compile = FAIL (guard
+#     missing); a failure WITHOUT "#error" in the output = FAIL too (an unrelated error must not masquerade
+#     as the guard). Includes = the full M2 set so the ONLY possible reason to fail is the guard.
+run_must_fail() {  # $1=label  $2=defines  shift2=include array
+    local label="$1"; shift
+    local def="$1";   shift
+    local out rc
+    echo "[guard-check] ${label}: EXPECT compile FAIL via #error guard..."
+    out=$(gcc -fsyntax-only -Wall -Wextra \
+        -Werror=implicit-function-declaration \
+        -Werror=int-conversion -Werror=incompatible-pointer-types \
+        -DM1_TARGET_BOARD -DTARGET_SHARC $def \
+        "$@" "$SRC" 2>&1)
+    rc=$?
+    if [ $rc -ne 0 ] && printf '%s' "$out" | grep -q '#error'; then
+        echo "[guard-check]   PASS (${label}: build refused by #error guard as intended):"
+        printf '%s\n' "$out" | grep '#error' | head -2 | sed 's/^/[guard-check]     /'
+    elif [ $rc -eq 0 ]; then
+        echo "[guard-check]   FAIL (${label}: compiled CLEAN -- the #error guard is missing)."
+        overall=1
+    else
+        echo "[guard-check]   FAIL (${label}: failed for a reason OTHER than the #error guard):"
+        printf '%s\n' "$out" | head -5 | sed 's/^/[guard-check]     /'
+        overall=1
+    fi
+}
+run_must_fail "X1 M2_STATIC_TXTEST=1 alone (no INLOOP)"        "-DM2_STATIC_TXTEST=1"                          "${INC_M2[@]}"
+run_must_fail "X2 M2_SELFTEST=1 alone (no INLOOP)"             "-DM2_SELFTEST=1"                               "${INC_M2[@]}"
+run_must_fail "X3 M2_STXT_LOCALIZE=1 without STATIC_TXTEST"    "-DM2_FIRA_INLOOP=1 -DM2_STXT_LOCALIZE=1"       "${INC_M2[@]}"
+run_must_fail "X4 M2_SELFTEST_NEGCTRL=1 without SELFTEST"      "-DM2_FIRA_INLOOP=1 -DM2_SELFTEST_NEGCTRL=1"    "${INC_M2[@]}"
+run_must_fail "X5 M2_SEG_CYC=1 alone (no INLOOP)"              "-DM2_SEG_CYC=1"                                "${INC_M2[@]}"
+
+if [ $overall -eq 0 ]; then echo "[guard-check] OVERALL PASS (10 compile configs + 5 falsifiers)."; else echo "[guard-check] OVERALL FAIL."; fi
 exit $overall
