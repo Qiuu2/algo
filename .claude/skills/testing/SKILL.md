@@ -55,7 +55,7 @@ description: >-
 - **±90° ≥12dB [远场]**;**距离 = 2L²/λ [L3]**(1k≥4m/2k≥8m/4k≥16m);**SNR ≥15dB 逐 角度×频率×台 门**。`← STAGE4:136; EXP_CHMAP_AB.md:56; EXP_STATIC_TXTEST.md §4; EXP_COMPET:43`
 - **Test1 1A**:每镜像对 L-R 差 ≤1.5dB + 无元件低于均值 >6dB。实测 [L1 2026-06-29]:16 元 108.7-111.9dB(span 3.2)、最大对差 0.9dB、零哑路。`← STAGE4:81; TEST1_FIELDLOG:73`
 - **主瓣变宽是正常**:正确 Dolph 用 +3.6° 主瓣宽换 −10dB 旁瓣/+13dB@30°;错位版的"25.7°窄"是假象。`← EXP_CHMAP_AB.md:31; BEAM_POLARITY_CLOSURE §5.1`
-- **重复性地板 ~1.5dB [L1]** → −6dB 斜坡上 ±2-3° 波束宽不确定度;**实测的差必须 > 地板**才算数。`← EXP_COMPET:54 (§6④)`
+- **重复性地板 ~1.5dB [L4 工作假设，未落盘]**（2026-09-02 CTO D10 裁定：07-09~15 有测量但无单独原始记录，不升级）→ −6dB 斜坡上 ±2-3° 波束宽不确定度;**实测的差必须 > 地板**才算数；判据用几倍地板由各实验自定（`S7_VERIFICATION_PLAN.md:31` 取 2× = 3dB 工作假设 [L4]，testing 自定，非 CTO 裁定）。`← EXP_COMPET 顶注(2026-09-02 D10)；S7_VERIFICATION_PLAN.md:31；原 :54 引用为循环出处，已废`
 - **>3dB 散布 = 场地太糙,换场**;精确值终归 R3 消声室。左右对称 ≤6dB。`← STAGE4:124,137`
 - **Test4 频率**:越高越窄;**≥6.24kHz 栅瓣回归**(证 d=55mm)。`← STAGE4:143`
 - **SPL 94.0dB @1W 总输入 [L2 模型,待消声室 R3 L1]**(SPLo 82.161[L1单只]+10log10(16)−taper 0.17;对外冻结至 R3)。`← DEC-S5-SPL-CALIBER-01 (decisions_log:991)`
