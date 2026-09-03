@@ -274,7 +274,7 @@ JY/T 表 9 30° 门限（一/二/三级）：500 Hz 5/3/1、1k 18/15/12、2k 20/
 ### 5.4 与 [L3] 表述"1k 距超指向天花板仅 1.9 dB 且需 WNG=−43 dB"的一致性核对
 出处：`deliverables/algorithm_validation/EXP_COMPET_BEAM_VS_FREQ.md:5` 与 :66（[L3]，无脚本；**A2_fib_feasibility.md 中并无此数字**，任务书指向有误，此处按真实出处引）。
 本仿真 [L2]：DI(Dolph-20 @1k) = 7.16；DI 上限（ε→0）= 9.10 → **最大 DI 增益 +1.95 dB**（对 uniform +1.84 dB）；达到 +1.9 dB 需 ε = 2.4e-7，此时 **WNGa = −40.8 dB / WNGn = −52.8 dB**，BW = 17.6°；WNGa = −43 dB 处 DI 增益 +1.93 dB、BW 17.25°。
-**结论：[L3] 表述与 [L2] 计算一致**（天花板 1.9–1.95 dB；−43 dB 对应 m3/WNGa 口径，落在 −41…−47 dB 区间内）。该表述可升为 [L2]，口径注明 WNGa。
+**结论：[L3] 表述与 [L2] 计算一致**（天花板 1.9–1.95 dB；−43 dB 对应 m3/WNGa 口径，落在 −41…−47 dB 区间内）。该表述的数值有本仿真 [L2] 独立出处，口径注明 WNGa；**仿真 L2，不为 EXP_COMPET 未落盘实测数字背书**（CTO D10 补，DEC-S7-RULINGS-02）。
 
 ---
 

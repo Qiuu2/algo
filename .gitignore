@@ -3,3 +3,6 @@ knowledge_base/
 
 # 冗余压缩包(源码已在目录里,zip 是打包副本)
 *.zip
+
+# python 字节码缓存（脚本 import 时产生）
+__pycache__/

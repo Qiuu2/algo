@@ -85,7 +85,7 @@
    桌面已验：打补丁后的 `bench_main.c` 副本在 guard 配置下 `gcc -fsyntax-only` 通过（仅原有 `void main` 警告）[L2]；该检查的 `-I` 需含 `sprint6/dsp/audio/guard_stub_inc`（提供 `adi_initialize.h`）与 `sprint5/dsp/harness/guard_stub_inc`，再加四个 sprint4 目录与本目录。
 4. **可选宏**（Defined symbols）：
    - `S7_PROBE_FA_BLOCK1`：把 `s_s7_fa`（8 个 `FiraChannelState`，~18 KB）钉到 `seg_l1_block1`，镜像板上 `s_m2_fa` 的 pin（`m1_loopback_tdm.c:218-219`）。**默认不加** = 与 F7 的 `f7_fa[]` 同放置类（463,273 锚的放置）。两种各跑一次可 A/B 放置假设（排查表 #3）。
-   - `S7_PROBE_INNER`：仅当按 §4 用副本替换冻结件时加。
+   - `S7_PROBE_INNER`：仅当按 §4 用副本替换冻结件时加。**CTO 2026-09-03 裁定（DEC-S7-RULINGS-02）：本轮不必做、保持默认关；对照 build 后差距仍无法归因时另行申请。**
    - `S7_PROBE_SYN_FG`：合成侧对照旗（§6c；+≈18 KB 静态，括号外每帧 8 次核合成）。**默认不加，是否必做待 CTO 裁**。
    - `seg_l1_block1` 这个 section 名在 `m1_app.ldf` 与 ADI EE408 `app.ldf` 里都有，但 bench 工程的 `.ldf` 不在库内 → 它在 bench 里是否存在 [L4]，首编即知；不存在则不要加 `S7_PROBE_FA_BLOCK1`。
    - **绝不**在目标 build 里定义 `S7_PROBE_HOST_FORCE`（那是桌面负控制，会绕过 `fira_tree_setup` 失败门）。
@@ -174,7 +174,7 @@
 
 ## 6b. 板上括号实现回执（s7-base，2026-09-02）
 
-板上 `M2_SEG_CYC=1` 已落码：符号 `g_m2_seg_{w,ana,syn,tx}_cyc_last/_max` + 无条件 `g_m2_beam_cyc_min`；链式读法每帧 33 次 CCNT 读（4×8+1），全部落在 `g_m2_beam_cyc_*` 内 → SEG_CYC build 与非 SEG_CYC build 的 beam 数不可直接相减，两个 build 都读、离板比；`M2_SEG_CYC` 无 `M2_FIRA_INLOOP` 时 `#error`。板上 ana/syn 各自**含** FIRA DONE 忙等（冻结件内），compute vs 忙等只能靠本目录的副本内拆分（是否上 bench **待 CTO 确认**）。
+板上 `M2_SEG_CYC=1` 已落码：符号 `g_m2_seg_{w,ana,syn,tx}_cyc_last/_max` + 无条件 `g_m2_beam_cyc_min`；链式读法每帧 33 次 CCNT 读（4×8+1），全部落在 `g_m2_beam_cyc_*` 内 → SEG_CYC build 与非 SEG_CYC build 的 beam 数不可直接相减，两个 build 都读、离板比；`M2_SEG_CYC` 无 `M2_FIRA_INLOOP` 时 `#error`。板上 ana/syn 各自**含** FIRA DONE 忙等（冻结件内），compute vs 忙等只能靠本目录的副本内拆分（**CTO 2026-09-03 裁定不必做、保持默认关**，DEC-S7-RULINGS-02；对照 build 后仍无法归因时另行申请）。
 
 ## 7. 与板上三段的可比性（一句话版，全文见 `S7_B63_WALLCLOCK_GAP.md §2.3`）
 

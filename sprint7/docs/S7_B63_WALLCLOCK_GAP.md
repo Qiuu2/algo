@@ -27,7 +27,7 @@
 - §4 排查表（d）：优化等级之外的候选成因，每条给「用哪个读数证实/排除」；
 - §5 runbook 增量（e）+ 回填模板；§6 回填后的判读逻辑（决策树，不预填）；§7 诚实声明。
 
-**口径提醒（critic-C F-15，必须先读）**：CTO 定义的三段（加权乘法 / analyze / synthesize）是按**流水级**切的；FIRA DONE 忙等（`fira_tree.c:481`）在冻结件内、分布在 analyze 与 synthesize 两段各自的 6/3 个 FIRA 段里，所以**三段拆分本身拆不出「compute vs 忙等」**——它只能回答"差距落在哪一级、纯核段（w/tx）与 FIRA 段（ana/syn）是否同比例放大"。要拆 compute vs 忙等，只有 bench 侧的诊断副本内拆分（§2.1 `fira_tree_probe.c`，`S7_PROBE_INNER`）能做；**该内拆分是否必做，待 CTO 确认**（本文只交付设计与桌面验证，不假定它会上板）。
+**口径提醒（critic-C F-15，必须先读）**：CTO 定义的三段（加权乘法 / analyze / synthesize）是按**流水级**切的；FIRA DONE 忙等（`fira_tree.c:481`）在冻结件内、分布在 analyze 与 synthesize 两段各自的 6/3 个 FIRA 段里，所以**三段拆分本身拆不出「compute vs 忙等」**——它只能回答"差距落在哪一级、纯核段（w/tx）与 FIRA 段（ana/syn）是否同比例放大"。要拆 compute vs 忙等，只有 bench 侧的诊断副本内拆分（§2.1 `fira_tree_probe.c`，`S7_PROBE_INNER`）能做；**该内拆分 **CTO 2026-09-03 裁定不必做、保持默认关**（DEC-S7-RULINGS-02），对照 build 后差距仍无法归因时另行申请**（本文只交付设计与桌面验证，不假定它会上板）。
 
 ---
 
@@ -136,7 +136,7 @@ bench 侧对照：bench 工程（`bench_core_only`，从 ADI `FIR_Multi_Channel_
 | 文件 | 内容 |
 |---|---|
 | `s7_wallclock_probe.c/.h` | 新 bench TU：与 F5/F7/M2 同调用序列跑冻结 `CHIRP_INPUT` 全部 1024 帧，每帧三段括号（w / ana / syn，各为 8 通道之和）+ 外层 beam 括号（= F7 口径）；last/max/min；前 4 帧热身不进统计；读法与板上同构（链式，每帧 1+3×8 = 25 次读在 beam 括号内）；FG = 同一次跑的每通道 **analyze** 子带 CRC 逐位等于 `dolph_f5_goldens.h` 八锚（`g_s7_fg_anchor_pass[8]`、`g_s7_fg_pass_all`：证 **analyze 段**量的是真链）+ 核链正控制（`g_s7_core_selfcheck_all`）；**synthesize 段无锚**（既有盲区，F4/F5 只比子带、F7 只计时，463,273 同样如此），以 FG2（占位版必 FAIL）与副本 F4/F5 锚为据，读数置信低一档；可选 `S7_PROBE_SYN_FG` 合成对照旗见 §2.5（**是否必做待 CTO 裁**） |
-| `fira_tree_probe.c`（**待 CTO 确认是否必做**） | 冻结 `fira_tree.c`（md5 `7616c41102946c357e9c70fafcd51da3`）的**逐字副本 + 内括号**（`S7_PROBE_INNER` 门控；task / spin / flush / postscale / mem / core 六项），生成器 `tools/make_fira_tree_probe.py`，README §4 登记（复制自、md5、诊断专用、随冻结件变动同步或删除、不进产品 build、FG = 副本链接时 F4 锚 `0x2E0D8C6E` 与 F5 八锚仍逐位过）。这是唯一能把 ana/syn 里的 **FIRA DONE 忙等** 与核侧工作分开的手段（三段拆分做不到，见 §0 口径提醒）；已桌面验证，但是否上 bench 由 CTO 裁 |
+| `fira_tree_probe.c`（**CTO 2026-09-03 裁定：不必做，保持默认关；对照 build 后差距仍无法归因时另行申请**，DEC-S7-RULINGS-02） | 冻结 `fira_tree.c`（md5 `7616c41102946c357e9c70fafcd51da3`）的**逐字副本 + 内括号**（`S7_PROBE_INNER` 门控；task / spin / flush / postscale / mem / core 六项），生成器 `tools/make_fira_tree_probe.py`，README §4 登记（复制自、md5、诊断专用、随冻结件变动同步或删除、不进产品 build、FG = 副本链接时 F4 锚 `0x2E0D8C6E` 与 F5 八锚仍逐位过）。这是唯一能把 ana/syn 里的 **FIRA DONE 忙等** 与核侧工作分开的手段（三段拆分做不到，见 §0 口径提醒）；已桌面验证；按 DEC-S7-RULINGS-02 不上 bench |
 | `run_s7_probe_guard_check.sh` | 仿 `sprint5/dsp/harness/run_guard_check.sh`：`gcc -fsyntax-only -DFIRA_USE_REAL_ADI_FIR_HEADER -DTARGET_SHARC` + mock BSP，8 项 (A)–(H) **实跑全 PASS**（含副本逐字校验、ASCII、冻结 md5 守卫） |
 | `run_s7_probe_host.sh` | 桌面 gcc 编译 + 运行四种链接：核正控制 **8/8 PASS**，FIRA 占位链 **0/8 = 预期的诚实 FAIL**（FG2 负控制），副本链接结果与冻结件逐值相同（**桌面路径**；目标路径的副本忠实性靠板上 F4/F5 锚），`S7_PROBE_SYN_FG` 在桌面报 -2（不评估，非 PASS） |
 | `bench_main_s7.diff` | bench 接线补丁**文本**（extern 块 + F7 之后一行调用），不直接改 `bench_main.c`，由 CTO/测试员应用 |
@@ -187,7 +187,7 @@ bench 侧对照：bench 工程（`bench_core_only`，从 ADI `FIR_Multi_Channel_
 | `g_s7_reads_per_frame` | ____（应 25） | ____ |
 | bench build 的 `-O`/`-Ov` 凭证（Console 编译行截图） | ____ | ____ |
 
-### 2.5 syn 侧对照旗设计（F-2；`S7_PROBE_SYN_FG`，默认关，**是否必做待 CTO 裁**）
+### 2.5 syn 侧对照旗设计（F-2；`S7_PROBE_SYN_FG`，默认关，是否必做待 CTO 裁——与内拆分同批，DEC-S7-RULINGS-02 未单独裁此旗）
 
 - **盲区**：八锚 = analyze 子带 CRC；`fira_tfb_synthesize` 的 3 个 syn_int FIRA 段（`fira_tree.c:756-773`）rc 被 `(void)` 丢弃，bench 侧无任何锚（F4/F5 只比子带、F7 只计时）。某个 syn 段失败/早返回会给出**偏短**的 syn 读数而 FG-A 仍绿 → §12 FG1 对 syn 段不成立。这是项目既有盲区（463,273 同样无 syn FG），本文不再把 FG-A 写成"证明整链"。
 - **对照旗**（已实现、默认关）：每帧括号**之外**，把同一组 FIRA 子带喂给冻结核 `tfb_synthesize`（每通道一个 `TreeChannelState`，与 FIRA 路径的合成历史逐帧锁步），FIRA 合成输出与核合成输出各自流式 CRC → `g_s7_syn_fg[c]`（1 同 / 0 异）、`g_s7_syn_fg_all`；`g_s7_syn_crc_fira[8]`/`g_s7_syn_crc_core[8]` 可读。**只在 `g_s7_fg_pass_all==1` 时评估**，否则报 -2（占位子带 0,0,0,in 下两条合成路径平凡相等，桌面不得报 PASS；`run_s7_probe_host.sh` H4 实跑 = -2）。不等 → **记录并上报**，不默认作废 w/ana（由 CTO/critic 判）。
@@ -369,7 +369,7 @@ m2_beam_poll():
 - 本机无 cc21k、无板：探针与副本只过了 gcc 语法/宿主运行 [L2]（`sprint7/dsp/probe/README.md §5-§6`），编译门 = 测试员 CCES build（D14）。
 - 桌面 FG 负控制已证：占位链下八锚 0/8（预期 FAIL）；核正控制 8/8。**八锚只覆盖 analyze 段**；synthesize 段无锚（既有盲区，与 F4/F5/F7 相同），其读数置信低一档；`S7_PROBE_SYN_FG` 合成对照旗（§2.5）在桌面只能报 -2（不评估），真值上板，是否必做待 CTO 裁。上板若 `g_s7_fg_pass_all=0` → cycle 一律作废。
 - 板上三段括号（§3）由 s7-base 实现（2026-09-02 已落码、未 commit）；本文按其回执的符号命名与链式口径引用；`_min`/`g_m2_seg_frames` 为本文建议项，未实现不阻塞。对 `m1_loopback_tdm.c` 的行号引用是 2026-09-02 审计版（`fw_code_audit.md`）的行号，s7-base 改动后已移动（如 `m2_fira_beam_frame` 已在 :533 起），以函数名为锚。
-- 内拆分副本 `fira_tree_probe.c` **是否上 bench 待 CTO 确认**（§0 口径提醒）；未确认前它只是桌面验证过的设计件。
+- 内拆分副本 `fira_tree_probe.c` **CTO 2026-09-03 裁定不上 bench、保持默认关**（DEC-S7-RULINGS-02；对照 build 后仍无法归因时另行申请）；它只是桌面验证过的设计件，不进本轮任何板测臂。
 - 臂 0（无括号 Debug 基线）**不需要测试员额外 build**：取 s7-base runbook 的 B0（或 B2）读数即可（s7-base 2026-09-03 核对）；臂 0s = B1。
 - 三口径纪律：本文只用墙钟；不与 T2 争用账（95.59≤210.19）或纯核 MCPS 互称达标/矛盾。
 - **未做**：真冷 I/D cache 失效测量（21569 L1 不被数据 cache，本项对板上意义有限，见排查表 #6）；bench 工程 .map/.svc 核实（不在库内，待 CTO 提供）。
