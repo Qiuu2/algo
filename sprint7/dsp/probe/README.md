@@ -86,7 +86,7 @@
 4. **可选宏**（Defined symbols）：
    - `S7_PROBE_FA_BLOCK1`：把 `s_s7_fa`（8 个 `FiraChannelState`，~18 KB）钉到 `seg_l1_block1`，镜像板上 `s_m2_fa` 的 pin（`m1_loopback_tdm.c:218-219`）。**默认不加** = 与 F7 的 `f7_fa[]` 同放置类（463,273 锚的放置）。两种各跑一次可 A/B 放置假设（排查表 #3）。
    - `S7_PROBE_INNER`：仅当按 §4 用副本替换冻结件时加。**CTO 2026-09-03 裁定（DEC-S7-RULINGS-02）：本轮不必做、保持默认关；对照 build 后差距仍无法归因时另行申请。**
-   - `S7_PROBE_SYN_FG`：合成侧对照旗（§6c；+≈18 KB 静态，括号外每帧 8 次核合成）。**默认不加，是否必做待 CTO 裁**。
+   - `S7_PROBE_SYN_FG`：合成侧对照旗（§6c；+≈18 KB 静态，括号外每帧 8 次核合成）。**CTO 2026-09-03 裁定：不必做，保持默认关**（DEC-S7-RULINGS-03；仅当板上四段占比与 bench 四段占比在合成段出现不可归因分歧时再申请）。
    - `seg_l1_block1` 这个 section 名在 `m1_app.ldf` 与 ADI EE408 `app.ldf` 里都有，但 bench 工程的 `.ldf` 不在库内 → 它在 bench 里是否存在 [L4]，首编即知；不存在则不要加 `S7_PROBE_FA_BLOCK1`。
    - **绝不**在目标 build 里定义 `S7_PROBE_HOST_FORCE`（那是桌面负控制，会绕过 `fira_tree_setup` 失败门）。
 5. **内存**：新增静态 ≈ 18.3 KB（`s_s7_fa`）+ 2.3 KB（`s_s7_ca`）+ 3.8 KB（`s_s7_sb`）+ 2.3 KB（`s_s7_out[8][64]` 等），合计 ≈ 26.4 KB。bench 工程曾因 256 KB chirp 副本 li1040 溢出（`fira_regression.c:60-64`），本探针**不**再 include `chirp_input.h`，走 `bench_chirp_input()` 单副本。若链接仍报 li1040：先加 `S7_PROBE_FA_BLOCK1`（把最大的 18 KB 挪去 Block 1），再报回，**不要缩算法**。
@@ -168,7 +168,7 @@
 
 判读：核正控制 8/8 证明探针的 CRC 多项式/字节序、加权截断点、帧序与 `gen_f5_goldens.c` 同源；FIRA 占位 0/8 证明"八锚 PASS"只可能来自真 FIRA **analyze** 链。**synthesize 段无锚**（既有盲区，与 F4/F5/F7 相同）：syn 读数置信低一档，合成对照旗见 §6c。**上板时若 `g_s7_fg_pass_all=0` 而 `g_s7_core_selfcheck_all=1` → FIRA 链在探针调用序列下失真（不是探针 CRC 的问题），cycle 作废、先查链**。
 
-## 6c. syn 侧对照旗（`S7_PROBE_SYN_FG`，F-2；是否必做待 CTO 裁）
+## 6c. syn 侧对照旗（`S7_PROBE_SYN_FG`，F-2；**CTO 2026-09-03 裁定不必做、保持默认关**，DEC-S7-RULINGS-03）
 
 八锚只覆盖 analyze；`fira_tfb_synthesize` 的 3 个 FIRA 段 rc 被冻结件 `(void)` 丢弃，失败/早返回会给偏短的 syn 读数而 FG-A 仍绿。对照旗：每帧括号**外**把同一组 FIRA 子带喂冻结核 `tfb_synthesize`（每通道 `TreeChannelState` 与 FIRA 合成历史锁步），两路合成输出各自流式 CRC → `g_s7_syn_fg[c]`/`g_s7_syn_fg_all`（1 同 / 0 异 / -2 = FG-A 未过不评估 / -99 未编入）。不等 → 记录上报，不默认作废 w/ana。代价 ≈18 KB 静态 + 括号外核合成时间 → 默认关（bench 内存紧，li1040 先例）。它不是锚：只证"FIRA 合成 == 核合成"，不证合成正确。
 

@@ -1,8 +1,8 @@
 # S7 板测结果判读方案（S7_BOARD_RESULTS_INTAKE）— 四批回填表 · 判读决策树 · B1 启动条件 · 宿主判读脚本
 
-> **性质**：预写的判读方案（CTO 2026-09-03 指令，DEC-S7-RULINGS-02"准备工作"）。测试员数据回来之前写好，**避免临场决定怎么判**。本文与 `sprint7/tools/s7_intake.py`（v2.2，2026-09-03）同源：脚本 `--schema` 打印的回填模板 = §1 原文；脚本的判据 = §2/§3 决策树，§2 每一支都在脚本里有对应判定。
+> **性质**：预写的判读方案（CTO 2026-09-03 指令，DEC-S7-RULINGS-02"准备工作"）。测试员数据回来之前写好，**避免临场决定怎么判**。本文与 `sprint7/tools/s7_intake.py`（v3.3，2026-09-03）同源：脚本 `--schema` 打印的回填模板 = §1 原文；脚本的判据 = §2/§3 决策树，§2 每一支都在脚本里有对应判定。
 > **数字纪律**：本文**没有任何板上实测数字**。回填表全部留空；每个空位标明期望值来源：**冻结锚**（`dolph_f5_goldens.h`，脚本运行时解析）、**派生阈值**、**文档已登记的对照量**、或**"无期望值，只记录"**。容差（默认 5%）是工作假设 [L4]。
-> **CCLK 前提（C4）**：帧预算 = CCLK × 64/48000 = 1,333,333 cyc、1.5× 线 = 888,889 cyc，建立在 CCLK = 1e9 上。1e9 是 **bench F7 读回的 [L1]**（`F7_CLOSING_RECORDS.md:156`）；**M2 工程从未板上读 CCLK，同频只是推断 [L3]**（`S7_B63_WALLCLOCK_GAP.md` 排查表 #15，待 `g_m2_cclk_hz` 对照，CTO-gated）。B1 启动这类强约束决策前，CTO 须接受该推断或先做 #15 对照：脚本用 `--cclk-inference-accepted` 表示已接受，否则 B1 headline 带「待 CTO」；**bench-P 实测 `cclk_hz ≠ 1e9` 直接否定前提 → B1 挂起**，并按 bench cclk 重算一行参考。
+> **CCLK 前提（C4；CTO 2026-09-03 裁定，DEC-S7-RULINGS-03）**：帧预算 = CCLK × 64/48000、1.5× 线 = 帧预算 / 1.5，**一律用测试员实测的 M2 核心时钟重算，不设旗位放行**。测试员在 B0 上用 Register/Memory 视图读 `CGU0_CTL/STAT/DIV`（`0x3108D000` / `0x3108D008` / `0x3108D00C`，出处 CCES 2.12.1 `sys/ADSP_2156x_HPC.h`），只读、不改二进制、不加代码（runbook 第 6b 步与表 D）。脚本按 **`fPLL = (CLKIN / (DF+1)) × MSEL`、`CCLK = fPLL / CSEL`** 解码（`MSEL=0` 视为 128、`CSEL=0` 视为 32；`PLLEN=0` 或 `PLLBP=1` → `CCLK = CLKIN`）。出处 [L1 源码]：CCES 2.12.1 `lib/src/services/Source/pwr/adi_pwr_2156x.c` 的 `adi_pwr_GetCoreClkFreq()` —— 21569 属 `__ADSP21569_FAMILY__`，走非 21568 分支，**没有 ÷2**；这正是 bench F7 G6 读回 1e9 用的同一函数。四锚交叉验证 [L1 工具链]：`adi_pwr_21569_family_{1GHz,800MHz,600MHz,400MHz}_config.h`（CLKIN 均 25 MHz）MSEL/CSEL = 80/2、64/2、72/3、48/3 → 1000、800、600、400 MHz 逐一相等。**解出的值还要过数据手册合理性门**（ADSP-2156x 数据手册 Rev.C 2022-11 [L1 文件]）：`SYS_CLKIN0` 20–30 MHz（**Table 33** Clock and Reset Timing）、`fPLLCLK` 1.20–2.00 GHz（**Table 20** PLL Operating Conditions, p.45）、`fCCLK` 400–1000 MHz（**Table 19** Clock Operating Conditions, p.44）；任一越界 → 判抄写/读错，**不按 [L1] 用**，条件 0 未满足。**`[CLK]` 未回填或缺项 → 条件 0 未满足 → B1 挂起**（PLL 旁路与字段 0 照常解码，另打 MAJOR/info）；实测与 bench `g_s7_cclk_hz` 不一致 → BLOCKER，先按时钟比折算（排查表 #15）。旧参考值 1,333,333 / 888,889 由 bench 读回的 1e9 [L1] 得出，**只作对照**。
 > **口径**：墙钟（DEC-S7-RULINGS-01 D1）。三口径互不可比纪律不变。**差距分类用稳态读数（`beam_cyc_min`，`S7_B63 §6` 的定义；要求 `last` 与 `min` 一致 ±t，否则稳态不可判；min≈last≪max 时 max 是离群/冷帧）；B1 余量用 WCET（`beam_cyc_max`）**——两者在报告里分开写。
 > **回灌规则（FG2）**：任何一节（build/臂/bench）指纹不符、板门不绿、FG 不绿 → 该节无效，其读数不参与差距分类、三段归因、B1 门；同一份读数不会既"作废"又"PASS"。
 > **谁判**：脚本只做初筛；结论进 decisions_log 前须独立 critic + CTO 常识审。
@@ -15,6 +15,7 @@
 | 批 | 内容 | 回填来源 runbook | INI 节 |
 |---|---|---|---|
 | 1 | S-B 四个 build：B0 基线 / B1 +SELFTEST+SEG_CYC / B2 +NEGCTRL / B3 无宏 | `sprint7/docs/S7_TESTER_RUNBOOK_SB.md` §2–§5 | `[SB.B0]` `[SB.B1]` `[SB.B2]` `[SB.B3]` |
+| 1 附 | **M2 实测核心时钟**：B0 上读三个 CGU 寄存器 + CLKIN（只读一次，零改码） | 同上 第 6b 步 + 表 D | `[CLK]` |
 | 2 | B6.3 对照臂：A'（Debug + -O）、As（+SEG_CYC，可选）、A''（只取消 Debug 系统库，可选）、B（Release，可选）；臂 0 = SB.B0 | `sprint7/docs/S7_B63_WALLCLOCK_GAP.md` §1.3/§1.6/§5 | `[B63.A1]` `[B63.As]` `[B63.A2]` `[B63.B]` |
 | 3 | bench 探针 bench-P（无副本；内拆分副本按 DEC-S7-RULINGS-02 不做） | `sprint7/dsp/probe/README.md` §2/§3 | `[BENCH.P]` |
 | 4 | 自家 16 元阵列极性 QA（Step A 电池逐只 + Step B 375 Hz 成对） | `sprint7/docs/S7_POLARITY_QA_RUNBOOK.md` §4 | `[POLQA]` |
@@ -46,6 +47,9 @@
 | bench `frames_total / frames / reads_per_frame / cclk_hz / cclk_rc` | [README §3 / 源码]：1024 / 1020 / 25 / 1e9 / 0（cclk ≠ 1e9 → 帧预算前提动摇，MAJOR） |
 | bench `ccnt_read_cyc / f7_cyc_8ch_fira / fa_block1 / syn_fg_*` | [记录]（`syn_fg_all=1` 才算合成侧对照过；-2 未评估；0 记录上报） |
 | `POLQA.*` | 无数值；状态与列表（§2.5）；`mapping` 八路逗号分隔 |
+| `CLK.cgu0_ctl / cgu0_stat / cgu0_div` | **[记录]**：无期望值，原样抄；脚本解码出 MSEL/DF/CSEL 与 PLL 状态 |
+| `CLK.clkin_hz` | **[L1 文件：原理图]** AD-EXKIT V2.1 核心板原理图 25 MHz 振荡器直连 `SYS_CLKIN0`；与 `m1_main.c:44` 实参、ADI 21569 家族配置头 `CFG0_BIT_CGU0_CLKIN=25000000` 三方一致；须落在数据手册 `fCKIN` 20–30 MHz 内。板上实物不同则以实物为准并写出处 |
+| `CLK.read_build / read_method / evidence` | [凭证]：在哪个 build 读、Register 还是 Memory 视图、截图名 |
 
 ```ini
 ; S7 板测回填文件（INI）。空位 = 未回填 = 不可判。数字抄原值；十六进制带 0x；yes/no 小写。
@@ -55,6 +59,17 @@ date =
 tester =
 commit =                        ; git log -1 --oneline
 git_status_clean =              ; yes / no（sprint6/dsp/audio/m1_cces_project/src 干净?）
+
+; ===== 批 1 附：M2 工程实测核心时钟（CGU 寄存器；CTO 2026-09-03 裁定，条件 0 的唯一依据）=====
+[CLK]
+cgu0_ctl =                      ; 0x........ 原样抄（地址 0x3108D000）
+cgu0_stat =                     ; 0x........ 原样抄（地址 0x3108D008）
+cgu0_div =                      ; 0x........ 原样抄（地址 0x3108D00C）
+clkin_hz =                      ; 25000000（核心板原理图 V2.1：25 MHz 振荡器接 SYS_CLKIN0）；实物不同则抄实际值并在 note 写出处
+read_build =                    ; 在哪个 build 上读的（B0 / B1 / B2 / B3）
+read_method =                   ; register_view / memory_view / other（other 写清楚）
+evidence =                      ; 寄存器窗口截图文件名
+note =                          ; 异常或偏差说明（无则 none）
 
 ; ===== 批 1：S-B 四个 build（sprint7/docs/S7_TESTER_RUNBOOK_SB.md）=====
 [SB.B0]  ; Debug 现状：M2_FIRA_INLOOP=1 FIRA_USE_REAL_ADI_FIR_HEADER；无 SELFTEST 无 SEG_CYC（= B63 臂 0）
@@ -502,6 +517,19 @@ record_file =                   ; deliverables/algorithm_validation/POLQA_OWNARR
 
 极性 QA 未闭合 → **一切声学测试停**；它不阻塞 B1 固件侧实施（B1 门见 §3），报告分开写。
 
+### 2.6 实测核心时钟解码（批 1 附；条件 0 的唯一依据）
+| 观察 | 结论 | 下一步 |
+|---|---|---|
+| 三个寄存器齐全、`PLLEN=1` 且 `PLLBP=0`、解出值三门全过 | 解出 CCLK **[L1/EZKIT 寄存器解码]** → 帧预算与 1.5× 线按它重算，报告后续全用重算值 | 条件 0 满足；解出值 ≠ 1e9 时历史帧预算/线作废（cycle 数不变，余量与 1.5× 判定全部重算） |
+| `[CLK]` 未回填或缺项 | 条件 0 **未满足**（CTO 2026-09-03） | **B1 挂起**；差距分类仍可做（cycle 比值与时钟无关），余量只能标"参考" |
+| `PLLEN = 0` 或 `PLLBP = 1` | PLL 未使能/旁路 → CCLK = CLKIN，**低于 Table 19 `fCCLK` 下限 400 MHz**，芯片没跑在规格频率上 | MAJOR + **条件 0 未满足**（CTO 定义：未实测则不满足；**PM 处置**：实测显示超规运行同样不放行，理由 = 余量判定无意义）：先查启动配置与 `adi_pwr_Init` 返回码 |
+| MSEL = 0 或 CSEL = 0 | 按 ADI 源码语义取最大值（128 / 32，`adi_pwr_def_2156x.h:129/136`） | info：解码照常，报告写明代入值 |
+| `DF = 1` | CLKIN 先二分频再乘 MSEL（非 21568 家族分支） | info：解码照常 [L1 源码] |
+| `CLKIN` 不在 20–30 MHz | 抄写或出处存疑（数据手册 Table 33 `fCKIN`） | **不可判**：不按 [L1] 用 → 条件 0 未满足 |
+| `fPLL` 不在 1.20–2.00 GHz | 寄存器读错位/抄错（数据手册 Table 20 `fPLLCLK`） | **不可判**：重读三个寄存器并附截图 → 条件 0 未满足 |
+| 解出 `CCLK` 不在 400–1000 MHz | **CSEL 或 MSEL 抄错一位就会这样**（数据手册 Table 19 `fCCLK`） | **不可判**：重读并附截图 → 条件 0 未满足（防单点抄写错放行） |
+| 解码值 ≠ bench `g_s7_cclk_hz` | 两工程不同频，或读法有误 | **BLOCKER**：忙等段与全部差距先按时钟比折算（排查表 #15），再谈 -O |
+
 ---
 
 ## 3. 每种结果对 B1 启动条件的影响（D4：B1 算本轮实施，但卡 B6.3 结论；口径 = 墙钟 WCET）
@@ -510,7 +538,7 @@ B1 可以启动，当且仅当下面五条**同时**成立；任一不成立 →
 
 | # | 条件 | 依据 |
 |---|---|---|
-| 0 | CTO 接受"M2 CCLK = 1e9"推断 [L3] 或 #15 对照已做（脚本旗 `--cclk-inference-accepted`；未指定 → headline 带「待 CTO」）；**bench-P 实测 `cclk_hz ≠ 1e9`（`cclk_rc=0`）→ 前提被 [L1] 否定 → 挂起，bench FG 无效不豁免此门，`--cclk-inference-accepted` 也压不过** | C4：L3 撑强约束须挂待验 |
+| 0 | **`[CLK]` 已回填且解出 M2 实测 CCLK**（§2.6）；帧预算与 1.5× 线按实测重算。未回填或缺项 → 条件 0 未满足 → 挂起；PLL 未使能/旁路、或解出值越三门之一 → 同样不放行（§2.6）；字段 0 照常按 128/32 解码；解码值与 bench 读回不一致 → BLOCKER 挂起。**不设旗位放行**（CTO 2026-09-03，DEC-S7-RULINGS-03） | C4：L3 撑强约束须挂待验；实测后升 [L1] |
 | 1 | §2.3 有结论：未复现 / 消失 / 部分缩小 / 不变 四者之一（**反常、臂无效、未回填都不算结论**） | D4"不得在 B6.3 出结论之前启动" |
 | 2 | 数值门建立：B1 自检 8/8 PASS **且** B2 负控制 rc=7，且两 build 均过 §2.0 | 验证计划 §1.1 D3 |
 | 3 | B0/B1/B2 三个 build 无 BLOCKER | 读数归属与 FG |
@@ -525,12 +553,12 @@ B1 可以启动，当且仅当下面五条**同时**成立；任一不成立 →
 
 ---
 
-## 4. 宿主判读脚本 `sprint7/tools/s7_intake.py`（v2.2）
+## 4. 宿主判读脚本 `sprint7/tools/s7_intake.py`（v3）
 
 - 用法：`/usr/bin/python3 sprint7/tools/s7_intake.py --schema > filled.ini`（生成空白模板）→ 测试员/PM 填 → `/usr/bin/python3 sprint7/tools/s7_intake.py filled.ini`。
 - 输出：Markdown 报告（每条带 PASS/BLOCKER/MAJOR/不可判/info + L 标 + 下一步），末尾汇总无效节、B1 门与极性 QA 状态。退出码 0 = 无 BLOCKER 且全可判；1 = 有 BLOCKER；2 = 有不可判项。
 - 期望值来源：八锚与 F4 锚**运行时解析** `sprint4/dsp/fira/dolph_f5_goldens.h`（不复写）；帧预算/1.5× 线由 CCLK 派生（带 [L1 bench / L3 M2 推断] 双标）；历史对照量与 B1 估算带 L 标写在 `REFS` 表里，只作对照。
-- 容差参数：`--tol`、`--rxpoll-tol`、`--overrun-tol`、`--full-scale-near`、`--ovh-tol-frac`、`--ovh-tol-cyc`；均为工作假设 [L4]，改了要在报告里注明。裁定旗：`--use-optimized-baseline`、`--cclk-inference-accepted`，只在 CTO 明示后使用。
+- 容差参数：`--tol`、`--rxpoll-tol`、`--overrun-tol`、`--full-scale-near`、`--ovh-tol-frac`、`--ovh-tol-cyc`；均为工作假设 [L4]，改了要在报告里注明。裁定旗：`--use-optimized-baseline`，只在 CTO 明示后使用（`--cclk-inference-accepted` 已按 DEC-S7-RULINGS-03 删除）。
 - **假数据纪律**：脚本逻辑用 scratchpad 里的假回填文件验过（见 §5），假文件**不入库、不出现在任何文档正文**；本文与脚本里没有任何板上数字。
 - 脚本不替代人的判断：报告里的每个"结论"都要过独立 critic + CTO 常识审。
 
@@ -547,6 +575,9 @@ B1 可以启动，当且仅当下面五条**同时**成立；任一不成立 →
 | 极性 OPPOSITE 未改线 | BLOCKER 声学测试停；不影响 B1 门 |
 | 指纹残留（B0 里 `seg_w_cyc_last` 可见） | BLOCKER 该 build 作废；差距不可判；B1 挂起 |
 | 空模板 | 全部不可判，退出码 2，无任何 PASS |
+| `[CLK]` 未填 / PLL 未使能或旁路 / 解码值与 bench 不符 | 条件 0 未满足或 BLOCKER → B1 挂起；差距分类不受影响 |
+| 真 1 GHz 配置（MSEL 80 / DF 0 / CSEL 2） | 解出 1e9 → 帧预算 1,333,333、线 888,889，与历史参考一致 |
+| CSEL 抄错一位 / 字段 0 代入后超规 / CLKIN 越界 / PLL 旁路 | 三道数据手册门拦下 → 不可判或 MAJOR，条件 0 未满足，不会出「可启动」 |
 | critic-F 边界集（20 + 15 个：bench cclk≠1e9 / last 与 min 不一致 / B0 误填 negctrl 指纹 / A' 指纹残留 / A' 板门不绿 / bench FG 不绿 / CHIRP 不在 L2 / frames 不满 / 差距未复现 / 反常 / B2 漏 NEGCTRL 宏 / rc=8 / rc=3 / 缺 -O 凭证 / 部分缩小 / 恰在线上 / ovh 为负 / rx≉poll / 改线未复测 等） | 无效节的读数不再进入差距/归因/B1；每支落到 §2 对应行 |
 
 ---
@@ -558,4 +589,4 @@ B1 可以启动，当且仅当下面五条**同时**成立；任一不成立 →
 - 本方案落库后 PM **停止**，不启动其他候选（DEC-S7-RULINGS-02）。
 
 ---
-*PM lead @ claude-fable-5-1，2026-09-03（v2.2，critic-F delta-2 后 MINOR 修订）。*
+*PM lead @ claude-fable-5-1，2026-09-03（v3.3：CTO DEC-S7-RULINGS-03 落库；公式按 critic-F delta-3 改正为 21569 家族分支无 ÷2；delta-4 加数据手册三道合理性门；delta-5 修表号、条件 0 措辞与退出码一致性）。*

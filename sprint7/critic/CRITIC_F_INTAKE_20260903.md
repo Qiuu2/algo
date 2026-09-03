@@ -1,4 +1,6 @@
 reviewer: critic @ claude-fable-5-1 / 2026-09-03
+*↑注 2026-09-03：本裁定 D2-F1 中的 `--cclk-inference-accepted` 旗已按 **DEC-S7-RULINGS-03** 删除——CTO 裁定条件 0 不设旗位放行，改由测试员实测 CGU 寄存器、脚本解码重算帧预算（`s7_intake.py` v3、runbook 第 6b 步）。本文其余部分为 v2.2 当时的复审记录，保留原貌。*
+
 
 # CRITIC-F 裁定（落库版）：DEC-S7-RULINGS-02 落库 + S7 板测判读方案（`S7_BOARD_RESULTS_INTAKE.md` / `s7_intake.py`）
 
@@ -133,3 +135,70 @@ CTO 原话 10 项（D6 补 / D8 / D10 补 / D13 / D14 / B1 / M2_SEG_CYC 追认 /
 ## 3. 声明
 
 完整裁定（含每个假回填场景的具体数值、脚本运行日志、逐条 diff）仅存本会话 scratchpad（`critic_F_verdict.md`、`critic_F/`、`critic_F_v2/`、`intake_fake/`、`reg_*.md`），**未入库**；本文为去数值的落库版。三轮 reviewer 标：critic @ claude-fable-5-1 / 2026-09-03。
+
+---
+
+## Delta-3 / Delta-4 / Delta-5 复审（DEC-S7-RULINGS-03 落库 + B1 条件 0 实测 CCLK 读法 + `s7_intake.py` v3 → v3.1 → v3.2）
+
+reviewer: critic @ claude-fable-5-1 / 2026-09-03（delta-3 → delta-5）
+
+> 只读审计；仓库零改动、零 spawn。本段不含任何板上实测数字，也不含脚本验证所用的假回填值；出现的数值全部是 CCES 2.12.1 头文件/电源服务源码、ADI 配置头、HRM、数据手册、核心板原理图的原值。
+
+### 轨迹
+
+| 轮 | 对象 | 裁定 | 要点 |
+|---|---|---|---|
+| delta-3 | RULINGS-03 落库 + runbook 第 6b 步/表 D + 脚本 v3 | **FAIL**（1 BLOCKER / 0 MAJOR / 3 MINOR / 4 INFO） | 落库、传播、零改码读法、寄存器地址与位域、回灌门全对；**解码公式的 ÷2 不属于 ADSP-21569**（C2/C5） |
+| delta-4 | 脚本 v3.1 + 文档/runbook/log 同步 | **CONDITIONAL**（0 BLOCKER / 1 MAJOR / 1 MINOR / 3 INFO） | BLOCKER 与三条 MINOR 全部确认修复；剩一个 MAJOR：解码值无物理合理性门（CSEL 抄错一位即放行 B1） |
+| delta-5 | 脚本 v3.2（三道数据手册门）+ 文档/log 同步 | **PASS_WITH_MINOR**（0 BLOCKER / 0 MAJOR / 2 MINOR / 2 INFO） | 三门值全对、边界含等号、合法配置无假阴；MINOR = 两处数据手册表号引错 + 一句残留措辞，同一提交顺手修，可落库 |
+
+### 出处核（PM 点名的六项，终态）
+
+| # | 项 | 核到的出处 | 结论 |
+|---|---|---|---|
+| 1 | 寄存器地址 | `CCES 2.12.1 SHARC/include/sys/ADSP_2156x_HPC.h:13186/13188/13189`：`REG_CGU0_CTL 0x3108D000`、`REG_CGU0_STAT 0x3108D008`、`REG_CGU0_DIV 0x3108D00C`；`SHARC/include/def21569.h:26` `#include <sys/ADSP_2156x_HPC.h>`（def21565.h 才是 LPC）；LPC 头三地址相同 | ✓（delta-3 指出路径应为 `include/def21569.h:26`，delta-4 已改） |
+| 2 | 位域 | 同头文件 `:13213/:13223` MSEL bit8..14（0x7F00）、`:13214/:13224` DF bit0、`:13293/:13311` CSEL bit0..4（0x1F）、`:13257/:13258` PLLBP bit1 / PLLEN bit0（另有 `:13278` PLOCK bit2） | ✓ |
+| 3 | 公式 | **HRM**（`knowledge_base/ezkit/bsp/hw_reference/ADSP-21569 … Hardware Reference.pdf`，CGU_CTL.MSEL / CGU_DIV.CSEL 描述）：`PLLCLK = (SYS_CLKIN/(DF+1)) × MSEL`；`CCLK = PLLCLK / CSEL`；MSEL 字段 0 = 128；CSEL 字段 0 = 32；DF=1 = CLKIN/2 进 PLL。**ADI 电源服务源码** `CCES 2.12.1 SHARC/lib/src/services/Source/pwr/adi_pwr_2156x.c:741-800`（`adi_pwr_GetCoreClkFreq`，即 bench F7 读回 1e9 的函数）：PLLEN=0 或 PLLBP=1 → CCLK = CLKIN；msel 0→128、csel 0→32；**`#if defined(__ADSP21568_FAMILY__)` 才 `clkin*msel/2`，`#else`（含 `__ADSP21569_FAMILY__`）`(clkin/(df+1))*msel`，再 `/csel`**。`adi_pwr_v2.c:375-378` 同，无 ÷2。**ADSP-21569 家族四份 ADI 配置头**（`SHARC/ldr/init_code/2156x_Init/21569_init/src/adi_pwr_21569_family_1GHz_config.h` 等）：SYS_CLKIN0 25 MHz；1 GHz = MSEL 80 / DF 0 / CSEL 2；800 MHz = 64 / 2；600 MHz = 72 / 3；400 MHz = 48 / 3，与无 ÷2 公式逐一精确相等。PM delta-3 初稿交叉验证所用 `adi_pwr_2156x_800MHz/933MHz_config_BGA.h` 文件头写明 "BGA **ADSP-21568** family parts"（24.576 MHz），只对 21568 分支成立；初稿"第三组 MSEL 80、CSEL 1"不是任何 ADI 配置 | delta-3 ✗ → delta-4 ✓：v3.1 起采用 `fPLL = (CLKIN/(DF+1)) × MSEL`、`CCLK = fPLL / CSEL`，整数除法次序与源码同；字段 0 取 128/32；DF 项按源码解码 |
+| 4 | CLKIN 出处 | `m1_main.c:44 adi_pwr_Init(0, 25*1000000)` 是软件实参，单独不够 L1（PM 的疑虑成立）。KB 内**核心板原理图** `knowledge_base/ezkit/vendor_docs/schematics/V2.1/ADSP21569核心板原理图.pdf`（V1.0/V1.2 同）：25 MHz 振荡器直连 SYS_CLKIN0；21569 家族 ADI 配置头 SYS_CLKIN0 = 25 MHz；bench F7 读回值与之自洽 | delta-4 ✓：REFS、doc §1、runbook 表 D、INI 注释均改标「[L1 文件：核心板原理图 V2.1]」并给 KB 路径 |
+| 5 | 零改码 | runbook 第 6b 步：Suspend 下 Register/Memory 视图只读，"只读不写；不要改任何寄存器值"，不加代码、不 build；§6 红线不变；表 D 只抄原值 | ✓ |
+| 6 | 回灌与门 | `[CLK]` 缺项/格式错 → 不可判 → B1 挂起（退出码 2）；PLLEN=0 或 PLLBP=1 → MAJOR 且条件 0 不放行；字段 0 → info 代入最大值；CLKIN / fPLL / CCLK 任一越出数据手册范围 → 不可判、不标 [L1]；解码值 ≠ bench 读回 → BLOCKER 挂起；bench 时钟读数不受 FG 有效性豁免；条件 0 未满足时无任何路径输出"可启动" | delta-5 ✓ |
+
+### 三道合理性门（delta-5 核）
+
+| 门 | 值 | 数据手册出处（`ADSP-2156x-Datasheet-EN.pdf` Rev.C 2022-11） | 边界核（数据自洽的合法配置） |
+|---|---|---|---|
+| fCCLK | 400–1000 MHz | **Table 19** Clock Operating Conditions（1000 MHz 为 1 GHz 档上限） | 400 MHz 配置（MSEL 48 / CSEL 3，恰在下限）通过；1 GHz 配置（恰在上限）通过；CSEL 抄成 1（解出 2 GHz）与 CSEL 8（250 MHz）均拦 |
+| fPLLCLK | 1.20–2.00 GHz | **Table 20** Phase-Locked Loop (PLL) Operating Conditions（p.45）——PM 引为 Table 19，表号错（MINOR） | 1 GHz 配置 fPLL 恰 2.0 GHz 通过；400 MHz 配置与 DF=1/MSEL 96 配置 fPLL 恰 1.2 GHz 通过；DF=1 且 MSEL 0→128、CSEL 2（fPLL 1.6 GHz、CCLK 800 MHz）通过；DF=1/MSEL 80/CSEL 1（fPLL 1.0 GHz）拦——该配置本身不合规 |
+| fCKIN（SYS_CLKIN0） | 20–30 MHz | **Table 33** Clock and Reset Timing（晶振/外部）——PM 引为 Table 19，表号错（MINOR） | 恰 20 MHz、恰 30 MHz 通过；低于 20 MHz 一赫兹即拦；DF=1 时门查分频前的 CLKIN（正确） |
+
+结论：边界含等号，合法但少见的配置（DF=1 大 MSEL）不被误拦；无假阴。
+
+### Findings（三轮合并；状态为终态）
+
+| # | 严重度 | file:line | 问题（场景只用文字） | 修法 | 状态 |
+|---|---|---|---|---|---|
+| D4-F1 | **BLOCKER**（C5 交叉核对象是另一家族；C2 把只对 21568 成立的公式写成"[L1 工具链] 两组交叉验证"；条件 0 唯一依据错） | `s7_intake.py` 公式注释与解码行；doc 头注、§2.6；log RULINGS-03 PM 注；runbook 表 D 注 | 以 21569 1 GHz 配置头的真实寄存器值（MSEL 80、DF 0、CSEL 2）代入 v3 公式解出真值的一半：有 bench → 假告警「两工程不同频」；无 bench → 按减半预算假告警「触发冻结令解冻条件」 | 去 ÷2；字段 0 → 128/32；PLLEN=0 视同旁路；DF 按源码；出处改 HRM + `adi_pwr_2156x.c` 家族条件编译原文 + 21569 四份配置头；log/doc/runbook/脚本按铁律五同步 | ✓ delta-4 已修：四锚代入逐一相等；真 1 GHz 寄存器值有/无 bench 均解出 1e9、条件 0 满足、B1 按 1,333,333 / 888,889 判；21568 两份头按新公式不吻合（证明没再混锚）；log 内嵌「PM 注更正」（声明 + 反扫 + 删旧公式三步齐，铁律五满足）；sprint7 与 log 内 ÷2/21568 锚 grep 清零 |
+| D4-F2 | MINOR | `decode_cclk` | PLLEN 只打印不判；ADI 源码把 PLLEN=0 与旁路同等处理 | 与 PLLBP 同支 | ✓ delta-4 已修（MAJOR 正确） |
+| D4-F3 | MINOR（L 标） | REFS CLKIN；runbook 表 D；doc §1 | CLKIN 标「[L1 源码] 实参」；原理图在 KB 却未引 | 改标原理图 | ✓ delta-4 已修 |
+| D4-F4 | MINOR（出处路径） | log PM 注；doc 头注 | `sys/def21569.h:26` 应为 `include/def21569.h:26` | 改路径 | ✓ delta-4 已修 |
+| D5-F1 | **MAJOR**（由 delta-3 INFO 升级；§12 FG 升级义务：存在性绿、率不在带） | `decode_cclk`；doc §2.6 | 公式改正后，CSEL 抄错一位即解出真值两倍，脚本仍标 [L1] 并放行条件 0；无 bench 时帧预算翻倍、B1「可启动」——错误方向宽松 | 按数据手册 fCKIN / fPLLCLK / fCCLK 三道门：越界 → 不可判、不标 [L1]、条件 0 未满足 | ✓ delta-5 已修（边界核见上表） |
+| D5-F2 | MINOR | doc §2.6 第 1 行 | 与同表 PLLEN 行、字段 0 行矛盾 | 改「PLLEN=1 且 PLLBP=0、三门全过」 | ✓ delta-5 已修 |
+| D6-F1 | MINOR（C5 出处表号） | `s7_intake.py` REFS `FPLL_*`/`CLKIN_*`；doc 头注/§2.6；log PM 注 | fPLLCLK 门引为 Table 19，实为 Table 20；fCKIN 门引为 Table 19，实为 Table 33；值全对 | 三处改表号 | 待修（同一提交顺手） |
+| D6-F2 | MINOR（残留措辞） | doc §3 条件 0 行 | 「PLL 旁路与字段 0 照常解码」与 §2.6（旁路 → MAJOR 且不放行）矛盾 | 改「字段 0 照常解码；PLL 未使能/旁路 → MAJOR 且不放行」 | 待修（同一提交顺手） |
+| D4-I1 / D5-I2 | INFO | `decode_cclk` / `check_bench` / `b1_gate` | 解码 ≠ bench 一个根因打三条 | 旁路提前返回后已自然合并 | ✓ |
+| D4-I2 | INFO | `b1_gate` | 无 bench 时条件 0 由解码单独满足（CTO 原话允许）；加三道门后可接受 | — | — |
+| D6-I1 | INFO | log PM 注；doc §2.6 | "PLL 旁路 → 条件 0 未满足"是 PM 操作化（CTO 原话只说未实测），已标 PM 注并给理由，方向保守，不越权 | 措辞区分「CTO：未实测 → 未满足」与「PM 处置：实测显示超规 → 亦不放行」 | — |
+| D5-I1 / D5-I3 / D6-I2 | INFO | INI 注释；`sprint7/critic/CRITIC_F_INTAKE_20260903.md` ↑注；scratchpad 归档 | INI 注释已改引原理图（D5-I1 ✓）；↑注"v2.2/v3"用词；旧场景归档未随 v3.2 重跑 | 顺手统一；重跑归档（仅 scratchpad） | — |
+
+### 其余核对（三轮全过）
+- DEC-S7-RULINGS-03 三条 CTO 原话逐字落库；PM 注全部带标签；对 IMPL-01 PM 注 2、RULINGS-02 SEG_CYC 行与悬置项的三处 ↑注有日期、有依据、原文保留。
+- 铁律五：sprint7 内旧的待裁措辞与旗位名清零；B63 §2.5/§7/排查表 #15、probe README §1/§6c 已按"裁定不必做 + 重开条件（合成段占比不可归因分歧）"改写；delta-3 错公式的更正声明 + 反扫 + 删旧三步齐。
+- `--schema` 与文档 §1 逐字同源（含 `[CLK]` 节；v3.2 因 INI 注释改引原理图 md5 变一次，两边仍同）；lead 的时钟场景（delta-3 七个、delta-4 六个、delta-5 五个）我逐轮重跑与存档逐字同（v3.2 下早期归档为旧版输出，行为正确但需重跑归档）；既有 45 个回归场景在 v3/v3.1/v3.2 下一律"条件 0 未满足 → B1 挂起"，是 CTO 裁定的预期后果而非回归；我另造 15 个条件 0 边界（delta-3）+ 10 个门限边界（delta-5）各落对应支。
+- 硬约束：冻结件零触碰；脚本只读；正文/脚本无假数据；工作树 7 改（含落库版裁定文件的 ↑注）。
+
+### C1–C10 / §12（delta-5 终态）
+C1 PASS；C2 PASS（delta-3 FAIL → 出处主张改为源码 + 21569 四锚，属实）；C3 PASS；C4 PASS（条件 0 改实测，L3 推断退出）；C5 PASS_WITH_MINOR（delta-3 FAIL → 交叉核对象正确；三门值对，两处表号错）；C6/C8/C9/C10 N/A；C7 PASS（更正三步齐）；§12 FG1 PASS、FG2 PASS（缺失/作废读数零 PASS 泄漏）、FG 率在带 PASS（delta-4 MAJOR → delta-5 三门已修）；IO1/IO2/ST1 N/A。
+
+完整裁定（含每个场景的具体数值与运行日志）仅存会话 scratchpad，未入库。
+
+*PM 注 2026-09-03（delta-5 后）：delta-5 的两条 MINOR 已在同一提交修完 —— ① 三个门限的表号改正为 Table 19（fCCLK）/ Table 20（fPLLCLK）/ Table 33（fCKIN）；② §3 条件 0 措辞与 §2.6 对齐（PLL 未使能/旁路、解出值越门 → 同样不放行）。另修一处退出码一致性：旁路分支原先只打 MAJOR，报告说“条件 0 未满足、B1 挂起”而退出码为 0，现已计入“不可判”（脚本 v3.3）。*

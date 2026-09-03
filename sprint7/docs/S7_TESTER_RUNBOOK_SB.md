@@ -73,6 +73,8 @@
    - Suspend 后若 `g_m1_valid = 0` 且 `g_m2_selftest_rc = -99` 且 `g_m2_selftest_frames` 在涨 → 自检还没跑完，**Resume 再等 15 s 再 Suspend**（计数器可信，只有听感不可信）。
    - PC 停在 fira 自旋里属正常，判死活只看计数器涨不涨（BOARD_TEST_INSTRUCTIONS 红线）。
 6. **读表 A（指纹）→ 表 B（既有 M2 门）→ 表 C（新增）**，全部**原值照抄**（Expressions 视图；数组变量输入名字会展开 8 个元素；**右键 → Number Format → Hex** 抄十六进制，抄不到 hex 就抄十进制并注明）。
+6b. **读核心时钟寄存器（只在 B0 这一个 build 做一次；CTO 2026-09-03 裁定）**：仍在 Suspend 状态，打开 **Register 视图**（`Window → Show View → Registers`，展开 `CGU0`，读 `CGU0_CTL` / `CGU0_STAT` / `CGU0_DIV` 三个），**或**用 **Memory 视图**（`Window → Show View → Memory`，`New Renderings…` 选 Hex，地址逐个输入下表三个地址，宽度 4 字节）。三个值**原样抄十六进制**进表 D 并**截图**（命名 `cgu_SB_B0.png`）。只读不写；这三个是只读观察，**不要改任何寄存器值**。若 Register 视图里没有 CGU0 分组，就用 Memory 视图按地址读，并在表 D 的 `读法` 里写 `memory_view`。
+
 7. **当场只判两件事**：① 表 A 指纹与该 build 的期望列不符 → **停**，回第 1 步（build 不对，其它读数作废）；② `g_m2_fg_beam_live ≠ 1` 或 `g_m2_overrun_count` 在明显增长 → 隔离，标 `FG-不绿`，照抄发回。其它一律不判。
 8. **跑两遍口径**（STAGE4 runbook 红线）：重新 Load → Run → Suspend 再读一遍。快照值（`rc`、指纹、`selftest_*`、`crc`、`pass`）两次要一致；`*_block_count` / `poll_count` / `out_nonzero` / `selftest_frames` 是计数器只看在涨；`*_cyc_last` 每帧变、`*_cyc_max`/`_min` 只看量级。两次都抄进模板（第二遍可只抄快照值 + max/min）。
 9. **听感一行话**：功放上电、音量最小 → **重新 Load → 一次不间断 Run → 听** → 写 正常 / 刺耳 / 无声 / 循环卡顿。B1/B2 也要听：自检跑完后活流应与 B0 一样。
@@ -113,6 +115,17 @@
 | `g_m1_nonzero_samples` / `g_m1_max_abs_sample` | > 0 | > 0 | 原值 |
 | `g_m2_beam_cyc_last` / `g_m2_beam_cyc_max` | **留空回填**（max 远小于 1,333,333 即可） | 符号不可见 | 两遍原值 |
 | **`g_m2_beam_cyc_min`**（新增） | **留空回填**（应 ≤ `_last` ≤ `_max`；仍是 `0xFFFFFFFF` = 一帧波束都没算过） | 符号不可见 | 两遍原值 |
+
+### 表 D —— 核心时钟（**只做一次**，在 B0；PM 判，你只抄）
+
+| 读什么 | 地址 | 抄成什么 | 期望值/判据 |
+|---|---|---|---|
+| `CGU0_CTL` | `0x3108D000` | `0x________` | 无期望值，只记录（PM 解码出 MSEL/DF） |
+| `CGU0_STAT` | `0x3108D008` | `0x________` | 无期望值，只记录（PM 看 PLL 是否旁路） |
+| `CGU0_DIV` | `0x3108D00C` | `0x________` | 无期望值，只记录（PM 解码出 CSEL） |
+| CLKIN | 不用读寄存器 | 抄 `25000000` | **核心板原理图 V2.1**：25 MHz 振荡器直连 `SYS_CLKIN0`（`knowledge_base/ezkit/vendor_docs/schematics/V2.1/ADSP21569核心板原理图.pdf`）；与工程启动实参 `m1_main.c:44` 一致。**若板上实物晶振不是 25 MHz，抄实际值并写明从哪看到的** |
+
+三个地址出处：CCES 2.12.1 头文件 `SHARC/include/sys/ADSP_2156x_HPC.h`（`REG_CGU0_CTL/STAT/DIV`；`SHARC/include/def21569.h:26` 引的就是这份）。PM 侧用 ADI 电源服务源码 `adi_pwr_2156x.c` 的同款算法解码成 CCLK。这一步**不改二进制、不加代码、不写任何寄存器**，所以不影响任何 build 的读数。
 
 ### 表 C —— 本轮新增（B1 / B2）
 
@@ -170,6 +183,8 @@ MAP: CHIRP_INPUT=0x________  s_m1_rx_buf=0x________  s_m1_tx_buf=0x________  s_m
      selftest_cyc=__________  cyc_ch=[________ x8]
 表C-2(B1, 第1遍/第2遍): seg_w last/max=______/______ | ______/______   seg_ana=______/______ | ______/______
      seg_syn=______/______ | ______/______   seg_tx=______/______ | ______/______
+表D(只在 B0 填一次): CGU0_CTL=0x________  CGU0_STAT=0x________  CGU0_DIV=0x________
+     CLKIN=__________ Hz（默认 25000000；不同则写出处：______）  读法: register_view / memory_view  截图: cgu_SB_B0.png
 听感（重新 Load 后一次不间断 Run）：正常 / 刺耳 / 无声 / 循环卡顿 ：______
 异常/卡住/报错（原样贴）：______
 ```
@@ -197,6 +212,7 @@ MAP: CHIRP_INPUT=0x________  s_m1_rx_buf=0x________  s_m1_tx_buf=0x________  s_m
 - [ ] 4 个 build 各：`sym_SB_B<n>.png`、`console_SB_B<n>.png`、`map_SB_B<n>.map`
 - [ ] 4 份 §5 回填（B1/B2 含表 C）
 - [ ] 若出现过 `#error`：那条 Console 截图 + 当时的 Defined symbols 截图（守卫证据）
+- [ ] 表 D（三个 CGU 原值 + CLKIN）与 `cgu_SB_B0.png`
 - [ ] 听感 4 行
 - [ ] 若同会话做了 `S7_B63_WALLCLOCK_GAP.md` 的对照 build：那边的回填单一起发，并注明它用的 Defined symbols（应与 B1 相同）
 

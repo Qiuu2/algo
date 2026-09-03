@@ -7,7 +7,7 @@ s7_intake.py -- S7 板测结果回填 -> 判读结论（宿主脚本，/usr/bin/
   s7_intake.py --schema                       # 打印空白回填模板（INI），与 S7_BOARD_RESULTS_INTAKE.md §1 逐字同源
   s7_intake.py <filled.ini> [选项]            # 读回填文件，按 S7_BOARD_RESULTS_INTAKE.md §2/§3 决策树给结论
 选项: --tol 0.05  --rxpoll-tol 0.01  --overrun-tol 0.001  --full-scale-near 0x7F000000
-      --ovh-tol-frac 0.05  --ovh-tol-cyc 2000  --use-optimized-baseline  --cclk-inference-accepted
+      --ovh-tol-frac 0.05  --ovh-tol-cyc 2000  --use-optimized-baseline
 退出码: 0 = 无 BLOCKER 且全部可判；1 = 有 BLOCKER；2 = 有不可判项（缺项/格式错/前置门未过）
 
 纪律（FG2）:
@@ -18,11 +18,12 @@ s7_intake.py -- S7 板测结果回填 -> 判读结论（宿主脚本，/usr/bin/
     差距分类、三段归因、B1 门；报告里同一份读数不会既"作废"又"PASS"。
   * 容差全部是工作假设 [L4]，可改；结论行带 L 标；最终裁定权在 CTO。
   * 口径：差距分类用稳态读数（beam_cyc_min，S7_B63 §6 定义；要求 last 与 min 一致 ±tol，否则稳态不可判）；B1 余量用 beam_cyc_max（WCET）。
-    CCLK 1e9 是 bench F7 读回的 [L1]；M2 工程同频为推断 [L3]（S7_B63 排查表 #15，待 g_m2_cclk_hz 对照）。
+    帧预算与 1.5x 线由 [CLK] 节回填的 CGU 寄存器实测值解码后重算（CTO 2026-09-03 D-CCLK）；
+    未回填 -> 条件 0 未满足 -> B1 挂起。1e9 只作对照（bench F7 读回 [L1]）。
 """
 import sys, os, re, argparse, configparser
 
-VERSION = "v2.2 2026-09-03"
+VERSION = "v3.3 2026-09-03"
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 GOLDEN_H = os.path.join(ROOT, "sprint4", "dsp", "fira", "dolph_f5_goldens.h")
@@ -48,9 +49,35 @@ REFS = {
     "BLOCK1_HI":      (0x002EBFFF,    "[L1 文件] m1_app.ldf mem_block1_bw 止"),
     "L1_LO":          (0x00240000,    "[L1 文件] m1_app.ldf L1 Block0 起（FIRA DMA scratch s_seg_* 须在 L1，非 L2）"),
     "L1_HI":          (0x0039BFFF,    "[L1 文件] m1_app.ldf L1 Block3 止"),
+    "CGU0_CTL":       (0x3108D000,    "[L1 头文件] CCES 2.12.1 sys/ADSP_2156x_HPC.h:13186 REG_CGU0_CTL"),
+    "CGU0_STAT":      (0x3108D008,    "[L1 头文件] 同上 :13188 REG_CGU0_STAT"),
+    "CGU0_DIV":       (0x3108D00C,    "[L1 头文件] 同上 :13189 REG_CGU0_DIV"),
+    "CLKIN_HZ":       (25_000_000,    "[L1 文件] AD-EXKIT V2.1 核心板原理图：25 MHz 振荡器直连 SYS_CLKIN0（knowledge_base/ezkit/vendor_docs/schematics/V2.1/ADSP21569核心板原理图.pdf）；与 m1_main.c:44 adi_pwr_Init(0,25MHz) 实参、ADI 21569 家族配置头 CFG0_BIT_CGU0_CLKIN=25000000 三方一致"),
+    "CCLK_MIN":       (400_000_000,   "[L1 文件] ADSP-2156x 数据手册 Rev.C(2022-11) **Table 19 Clock Operating Conditions** p.44：fCCLK 400–1000 MHz"),
+    "CCLK_MAX":       (1_000_000_000, "[L1 文件] 同上"),
+    "FPLL_MIN":       (1_200_000_000, "[L1 文件] 同一手册 **Table 20 Phase-Locked Loop (PLL) Operating Conditions** p.45：fPLLCLK 1.20–2.00 GHz"),
+    "FPLL_MAX":       (2_000_000_000, "[L1 文件] 同上 Table 20"),
+    "CLKIN_MIN":      (20_000_000,    "[L1 文件] 同一手册 **Table 33 Clock and Reset Timing**：fCKIN SYS_CLKIN0 20–30 MHz（晶振或外部时钟）"),
+    "CLKIN_MAX":      (30_000_000,    "[L1 文件] 同上 Table 33"),
 }
-FRAME_BUDGET = round(REFS["CCLK_HZ"][0] * REFS["FRAME"][0] / REFS["FS"][0])   # 1,333,333 [派生，前提 CCLK 推断]
-T2_LINE = round(FRAME_BUDGET / REFS["T2_RATIO"][0])                            #   888,889 [派生]
+# CGU 位域（[L1 头文件] ADSP_2156x_HPC.h:13213/13214/13293/13257/13258）
+CGU_MSEL_POS, CGU_MSEL_MSK = 8, 0x7F
+CGU_DF_POS,   CGU_DF_MSK   = 0, 0x1
+CGU_CSEL_POS, CGU_CSEL_MSK = 0, 0x1F
+CGU_PLLEN_MSK, CGU_PLLBP_MSK = 0x1, 0x2
+MAX_MSEL, MAX_CSEL = 128, 32   # [L1 源码] adi_pwr_def_2156x.h:129/136 ADI_PWR_MAX_MSEL / ADI_PWR_MAX_CSEL
+# 解码公式（**21569 = __ADSP21569_FAMILY__，走非 21568 分支，没有 /2**）：
+#   PLLEN=0 或 PLLBP=1        -> CCLK = CLKIN
+#   否则 fPLL = (CLKIN/(DF+1)) * MSEL ; CCLK = fPLL / CSEL ; MSEL=0 视为 128、CSEL=0 视为 32
+# 出处 [L1 源码]：CCES 2.12.1 lib/src/services/Source/pwr/adi_pwr_2156x.c adi_pwr_GetCoreClkFreq()
+#   —— `#if defined(__ADSP21568_FAMILY__) fpllclk = clkin*msel/2u; #else fpllclk = (clkin/(df+1u))*msel; #endif`
+#      这正是 bench F7 G6 读回 1e9 用的同一函数。
+# 四锚交叉验证 [L1 工具链]（ldr/init_code/2156x_Init/src/adi_pwr_21569_family_*_config.h，CLKIN 均 25 MHz）：
+#   MSEL 80 / DF 0 / CSEL 2 -> 1000 MHz ; 64/0/2 -> 800 ; 72/0/3 -> 600 ; 48/0/3 -> 400
+# （critic-F delta-3 BLOCKER：v3 初稿误用 21568 家族的 /2，已按上述源码与四锚改正。）
+# 参考值（仅对照；判据一律用 [CLK] 实测解码值）
+FRAME_BUDGET_REF = round(REFS["CCLK_HZ"][0] * REFS["FRAME"][0] / REFS["FS"][0])   # 1,333,333
+T2_LINE_REF = round(FRAME_BUDGET_REF / REFS["T2_RATIO"][0])                       #   888,889
 
 # ---- 期望值：冻结 golden（运行时解析，不复写数字） ----------------------------------------------
 def load_anchors():
@@ -124,6 +151,17 @@ date =
 tester =
 commit =                        ; git log -1 --oneline
 git_status_clean =              ; yes / no（sprint6/dsp/audio/m1_cces_project/src 干净?）
+
+; ===== 批 1 附：M2 工程实测核心时钟（CGU 寄存器；CTO 2026-09-03 裁定，条件 0 的唯一依据）=====
+[CLK]
+cgu0_ctl =                      ; 0x........ 原样抄（地址 0x3108D000）
+cgu0_stat =                     ; 0x........ 原样抄（地址 0x3108D008）
+cgu0_div =                      ; 0x........ 原样抄（地址 0x3108D00C）
+clkin_hz =                      ; 25000000（核心板原理图 V2.1：25 MHz 振荡器接 SYS_CLKIN0）；实物不同则抄实际值并在 note 写出处
+read_build =                    ; 在哪个 build 上读的（B0 / B1 / B2 / B3）
+read_method =                   ; register_view / memory_view / other（other 写清楚）
+evidence =                      ; 寄存器窗口截图文件名
+note =                          ; 异常或偏差说明（无则 none）
 
 ; ===== 批 1：S-B 四个 build（sprint7/docs/S7_TESTER_RUNBOOK_SB.md）=====
 [SB.B0]  ; Debug 现状：M2_FIRA_INLOOP=1 FIRA_USE_REAL_ADI_FIR_HEADER；无 SELFTEST 无 SEG_CYC（= B63 臂 0）
@@ -241,6 +279,60 @@ class Report:
     def info(self, t): self.lines.append("- info  " + t)
     def unj(self, t): self.unjudged += 1; self.lines.append("- 不可判 " + t)
     def text(self): return "\n".join(self.lines)
+
+# ---- 批 1 附：实测 CCLK 解码（CTO 2026-09-03：条件 0 只认实测，不用旗位放行） ------------------
+def decode_cclk(cfg, rep, args):
+    """返回 dict(cclk, budget, line, ok, clkin, msel, df, csel) ；ok=False 表示条件 0 未满足"""
+    out = {"ok": False, "cclk": None, "budget": None, "line": None}
+    rep.h("批 1 附：M2 实测核心时钟（CGU 寄存器解码；帧预算与 1.5× 线的唯一依据）")
+    if not has(cfg, "CLK"):
+        rep.unj("[CLK] 未回填 → **条件 0 未满足**（CTO 2026-09-03：实测 CCLK 回来前条件 0 视为未满足）→ B1 挂起；帧预算/1.5× 线只能按 1e9 参考推算，不作判据")
+        return out
+    try:
+        ctl = get(cfg, "CLK", "cgu0_ctl", "hex"); stat = get(cfg, "CLK", "cgu0_stat", "hex")
+        div = get(cfg, "CLK", "cgu0_div", "hex"); clkin = get(cfg, "CLK", "clkin_hz", "int")
+        rb = get(cfg, "CLK", "read_build"); rm = get(cfg, "CLK", "read_method"); ev = get(cfg, "CLK", "evidence")
+    except Missing as m:
+        rep.unj("[CLK] 缺回填：%s → 条件 0 未满足 → B1 挂起" % m); return out
+    msel = (ctl >> CGU_MSEL_POS) & CGU_MSEL_MSK
+    df   = (ctl >> CGU_DF_POS) & CGU_DF_MSK
+    csel = (div >> CGU_CSEL_POS) & CGU_CSEL_MSK
+    pllen = stat & CGU_PLLEN_MSK; pllbp = (stat & CGU_PLLBP_MSK) >> 1
+    rep.info("原值：CGU0_CTL=0x%08X CGU0_STAT=0x%08X CGU0_DIV=0x%08X；CLKIN=%d Hz（%s）；在 build %s 用 %s 读，凭证 %s"
+             % (ctl, stat, div, clkin, REFS["CLKIN_HZ"][1], rb, rm, ev))
+    rep.info("解码：MSEL=%d DF=%d CSEL=%d PLLEN=%d PLLBP=%d（位域 [L1 头文件] ADSP_2156x_HPC.h）" % (msel, df, csel, pllen, pllbp))
+    if not (REFS["CLKIN_MIN"][0] <= clkin <= REFS["CLKIN_MAX"][0]):
+        rep.unj("CLKIN=%d Hz 超出数据手册 SYS_CLKIN0 范围 %d–%d Hz（%s）→ 抄写或出处存疑，**不按 [L1] 用** → 条件 0 未满足"
+                % (clkin, REFS["CLKIN_MIN"][0], REFS["CLKIN_MAX"][0], REFS["CLKIN_MIN"][1])); return out
+    if (not pllen) or pllbp:
+        rep.major("CGU0_STAT：PLLEN=%d / PLLBP=%d → PLL 未使能或旁路，按 ADI 源码 CCLK = CLKIN = %d Hz，**低于数据手册 Table 19 fCCLK 下限 %d Hz**：芯片没跑在规格频率上，任何余量判定都无意义 → 先查启动配置与 `adi_pwr_Init` 返回码"
+                  % (pllen, pllbp, clkin, REFS["CCLK_MIN"][0]))
+        rep.unj("条件 0 未满足（CTO 定义：未实测则不满足；**PM 处置**：实测显示芯片超规运行同样不放行）→ B1 挂起"); return out
+    else:
+        msel_e = msel if msel else MAX_MSEL
+        csel_e = csel if csel else MAX_CSEL
+        if msel == 0 or csel == 0:
+            rep.info("字段 0 按 ADI 源码语义取最大值：MSEL %d→%d、CSEL %d→%d（adi_pwr_def_2156x.h:129/136）" % (msel, msel_e, csel, csel_e))
+        if df:
+            rep.info("DF=1 → 先把 CLKIN 二分频（%d → %d Hz），再乘 MSEL（adi_pwr_2156x.c 非 21568 家族分支）" % (clkin, clkin // 2))
+        fpll = (clkin // (df + 1)) * msel_e
+        cclk = fpll // csel_e
+        rep.info("fPLL = (CLKIN/(DF+1))×MSEL = %d Hz；CCLK = fPLL/CSEL = %d Hz（21569 走非 21568 家族分支，**无 /2**）" % (fpll, cclk))
+        if fpll % csel_e: rep.info("fPLL/CSEL 有余数 %d，已向下取整" % (fpll % csel_e))
+        # 物理合理性门（单点抄错即放行的防线；数据手册 [L1]）
+        if not (REFS["FPLL_MIN"][0] <= fpll <= REFS["FPLL_MAX"][0]):
+            rep.unj("fPLL=%d Hz 超出数据手册 PLL 范围 %d–%d Hz（%s）→ 寄存器读错位或抄写有误，**不按 [L1] 用** → 条件 0 未满足；请重读三个寄存器并附截图"
+                    % (fpll, REFS["FPLL_MIN"][0], REFS["FPLL_MAX"][0], REFS["FPLL_MIN"][1])); return out
+        if not (REFS["CCLK_MIN"][0] <= cclk <= REFS["CCLK_MAX"][0]):
+            rep.unj("解出 CCLK=%d Hz 超出数据手册 fCCLK 范围 %d–%d Hz（%s）→ CSEL/MSEL 抄错一位即会这样，**不按 [L1] 用** → 条件 0 未满足；请重读并附截图"
+                    % (cclk, REFS["CCLK_MIN"][0], REFS["CCLK_MAX"][0], REFS["CCLK_MIN"][1])); return out
+    budget = round(cclk * REFS["FRAME"][0] / REFS["FS"][0]); line = round(budget / REFS["T2_RATIO"][0])
+    out.update(ok=True, cclk=cclk, budget=budget, line=line, clkin=clkin, msel=msel, df=df, csel=csel)
+    rep.ok("实测 CCLK = %d Hz [L1/EZKIT 寄存器解码] → 帧预算 = %d cyc、1.5× 线 = %d cyc（本报告后续一律用这两个值）" % (cclk, budget, line))
+    if cclk != REFS["CCLK_HZ"][0]:
+        rep.major("实测 CCLK ≠ 1e9（bench F7 G6 读回 [L1]）→ 历史帧预算 %d / 1.5× 线 %d 作废，需按实测重算；所有已登记的 cycle 数不变，但余量与 1.5× 判定全部重算，并核 bench 与 M2 是否同频"
+                  % (FRAME_BUDGET_REF, T2_LINE_REF))
+    return out
 
 # ---- 批 1：指纹与板门（表 A / 板门 / .map） ---------------------------------------------------
 NA = "na"
@@ -361,7 +453,7 @@ def check_selftest(cfg, sec, rep, anchors, f4, negctrl):
     return False
 
 # ---- 批 3：bench 探针有效性 -------------------------------------------------------------------
-def check_bench(cfg, rep, anchors):
+def check_bench(cfg, rep, anchors, clk):
     sec = "BENCH.P"
     try:
         done = get(cfg, sec, "done", "int"); valid = get(cfg, sec, "valid", "int"); src = get(cfg, sec, "setup_rc", "int")
@@ -381,8 +473,12 @@ def check_bench(cfg, rep, anchors):
     if (f4, f5) != (1, 1): bad.append("同 build F4/F5 旗=%d/%d（布局 canary 失效，IO2）" % (f4, f5))
     if bad:
         rep.blocker("bench-P 无效：%s → bench 三段作废、不作差距参考（回退历史 F7）" % "；".join(bad), sec); return False
-    if crc_rc != 0 or cclk != REFS["CCLK_HZ"][0]:
-        rep.major("bench-P cclk_hz/rc=%d/%d ≠ 1e9/0 → 与 F7 G6 读回不符，帧预算前提动摇；先解释再用 bench 参考（排查表 #15）" % (cclk, crc_rc))
+    ref_cclk = clk["cclk"] if clk["ok"] else REFS["CCLK_HZ"][0]
+    ref_src = "M2 实测解码值" if clk["ok"] else "历史 F7 G6 读回 1e9 [L1]"
+    if crc_rc != 0:
+        rep.major("bench-P cclk_rc=%d ≠ 0 → 时钟查询本身失败，cclk_hz 不可信（排查表 #15）" % crc_rc)
+    elif cclk != ref_cclk:
+        rep.major("bench-P cclk_hz=%d 与 %s（%d）不符 → 两工程同板却不同频，或读法有误；三段与差距须先按时钟比折算（排查表 #15）" % (cclk, ref_src, ref_cclk))
     if sfb == 1:
         rep.info("bench-P SYN_FG 旗：syn_fg_all=%d（1=合成侧对照过；-2=FG-A 未过未评估；0=记录上报，不默认作废 w/ana）" % sfa)
     rep.ok("bench-P 有效：FG 全绿、八锚 8/8（analyze 段真链）、frames %d/%d、reads %d；syn 段无锚（置信低一档，README §6c）" % (ft, fr, rpf))
@@ -402,7 +498,7 @@ def steady(cfg, sec, rep, args):
         rep.info("%s：min≈last≈max（%d/%d/%d）→ 系统性，稳态 ≈ WCET" % (sec, mn, last, mx))
     return mn, mx, mn
 
-def classify_gap(cfg, rep, args, valid, bench_ok):
+def classify_gap(cfg, rep, args, valid, bench_ok, clk):
     """返回 dict(base_max, base_steady, bench_ref, opt_max, opt_steady, gap_class, anomalous)"""
     out = {"gap_class": None, "anomalous": False}
     if not valid.get("SB.B0"):
@@ -412,8 +508,10 @@ def classify_gap(cfg, rep, args, valid, bench_ok):
         rep.unj("臂 0 稳态不可判 → B6.3 不可判"); return out
     b0s, b0m, _ = st0
     out["base_max"] = b0m; out["base_steady"] = b0s
-    rep.info("臂 0 Debug 基线：稳态 %d / WCET %d；WCET 墙钟余量 %.3f×，到 1.5× 线 %+d cyc（对照 06-16 历史 %d %s）"
-             % (b0s, b0m, FRAME_BUDGET / b0m, T2_LINE - b0m, REFS["BEAM_HIST_MAX"][0], REFS["BEAM_HIST_MAX"][1]))
+    bud = clk["budget"] or FRAME_BUDGET_REF; ln = clk["line"] or T2_LINE_REF
+    tag = "实测 CCLK" if clk["ok"] else "**参考 1e9，未实测，条件 0 未满足**"
+    rep.info("臂 0 Debug 基线：稳态 %d / WCET %d；WCET 墙钟余量 %.3f×，到 1.5× 线 %+d cyc（帧预算 %d / 线 %d，来源 %s；对照 06-16 历史 %d %s）"
+             % (b0s, b0m, bud / b0m, ln - b0m, bud, ln, tag, REFS["BEAM_HIST_MAX"][0], REFS["BEAM_HIST_MAX"][1]))
     if abs(b0m - REFS["BEAM_HIST_MAX"][0]) > args.tol * REFS["BEAM_HIST_MAX"][0]:
         out["hist_mismatch"] = True
         rep.major("臂 0 WCET 与 06-16 历史值相差超 %.0f%% → 先解释（build/宏/音源/首帧冷?）再用作基线" % (args.tol * 100))
@@ -438,7 +536,7 @@ def classify_gap(cfg, rep, args, valid, bench_ok):
     a1s, a1m, _ = stA
     out["opt_max"] = a1m; out["opt_steady"] = a1s
     rA0 = a1s / b0s; rAb = a1s / bench_ref
-    rep.info("臂 A'（Debug + -O，凭证 %s）：稳态 %d / WCET %d；A'/臂0 = %.3f；A'/bench = %.3f；WCET 余量 %.3f×，到 1.5× 线 %+d cyc" % (ev, a1s, a1m, rA0, rAb, FRAME_BUDGET / a1m, T2_LINE - a1m))
+    rep.info("臂 A'（Debug + -O，凭证 %s）：稳态 %d / WCET %d；A'/臂0 = %.3f；A'/bench = %.3f；WCET 余量 %.3f×，到 1.5× 线 %+d cyc" % (ev, a1s, a1m, rA0, rAb, bud / a1m, ln - a1m))
     # 完备划分：rA0 > 1+t 反常 | |rA0-1| ≤ t 不变 | rA0 < 1-t → (rAb ≤ 1+t 消失 / 否则 部分缩小)
     if rA0 > 1 + t:
         out["anomalous"] = True
@@ -509,16 +607,16 @@ def attribute_segments(cfg, rep, args, valid, bench_ok):
         rep.info("放大不等比且无单段独大（比值最大 %s %.2f×，占比增最多 %s %+.1f 点）→ 全局成因与 FIRA 路径成因叠加；先按 §2.3 排除优化等级，再用臂 A''/B 与 #15 拆" % (top, ratios[top], top_share, dshare[top_share]))
 
 # ---- B1 启动条件 -------------------------------------------------------------------------------
-def b1_gate(cfg, rep, gap, st_ok, ng_ok, valid, args, bench_cclk=None):
+def b1_gate(cfg, rep, gap, st_ok, ng_ok, valid, args, clk, bench_cclk=None):
     rep.h("B1 启动条件（D4：B1 算本轮实施但卡 B6.3 结论；口径 = 墙钟 WCET；§3）")
-    rep.info("条件 0：帧预算 %d / 1.5× 线 %d 建立在 CCLK=1e9 上——%s" % (FRAME_BUDGET, T2_LINE, REFS["CCLK_HZ"][1]))
-    if bench_cclk is not None and bench_cclk != REFS["CCLK_HZ"][0]:
-        alt_budget = round(bench_cclk * REFS["FRAME"][0] / REFS["FS"][0]); alt_line = round(alt_budget / REFS["T2_RATIO"][0])
-        rep.blocker("条件 0 被 [L1] 读数否定：bench-P cclk_hz=%d ≠ 1e9 → 帧预算/1.5× 线前提不成立；按 bench cclk 参考重算：帧预算 %d / 1.5× 线 %d（仅参考，M2 时钟仍待 g_m2_cclk_hz）→ B1 挂起，先做排查表 #15" % (bench_cclk, alt_budget, alt_line))
+    if not clk["ok"]:
+        rep.info("条件 0 未满足：M2 实测 CCLK 未回填/未解出 → 帧预算与 1.5× 线无 [L1] 依据（CTO 2026-09-03 裁定：不设旗位放行）→ **B1 挂起**")
+        return "挂起"
+    rep.info("条件 0 满足：帧预算 %d / 1.5× 线 %d，由实测 CCLK %d Hz 重算 [L1/EZKIT 寄存器解码]" % (clk["budget"], clk["line"], clk["cclk"]))
+    if bench_cclk is not None and bench_cclk != clk["cclk"]:
+        rep.blocker("bench-P 读回 CCLK=%d 与 M2 实测解码 %d **不一致** → 两工程不同频或读法有误；忙等段与全部差距须先按时钟比折算（排查表 #15）→ B1 挂起" % (bench_cclk, clk["cclk"]))
         return "挂起"
     pending = []
-    if not args.cclk_inference_accepted:
-        pending.append("CTO 接受 M2 CCLK=1e9 推断 [L3] 或先做 #15 对照（--cclk-inference-accepted）")
     if gap.get("gap_class") == "未复现":
         pending.append("未复现：CTO 裁本次臂 0 稳态是否为新基线")
     if gap.get("hist_mismatch"):
@@ -537,14 +635,15 @@ def b1_gate(cfg, rep, gap, st_ok, ng_ok, valid, args, bench_cclk=None):
     base = gap["opt_max"] if use_opt else gap["base_max"]
     which = "臂 A'（Debug + -O；须 CTO 明示采纳 -O 产品配置，且改二进制后 M2 板门 + 八锚重跑）" if use_opt else "臂 0（Debug 现状）"
     lo, hi = REFS["B1_LO"][0], REFS["B1_HI"][0]
-    to_line = T2_LINE - base
-    rep.info("基线 = %s WCET beam_cyc_max=%d [L1]；余量 %.3f×；到 1.5× 线 %+d cyc；B1 估算 %d [L3] .. %d [L4]；gap=%s" % (which, base, FRAME_BUDGET / base, to_line, lo, hi, gap["gap_class"]))
+    bud, ln = clk["budget"], clk["line"]
+    to_line = ln - base
+    rep.info("基线 = %s WCET beam_cyc_max=%d [L1]；余量 %.3f×；到 1.5× 线 %+d cyc；B1 估算 %d [L3] .. %d [L4]；gap=%s" % (which, base, bud / base, to_line, lo, hi, gap["gap_class"]))
     suffix = ("（待 CTO：" + "；".join(pending) + "）") if pending else ""
-    if FRAME_BUDGET / (base + hi) >= REFS["T2_RATIO"][0]:
-        rep.ok("B1 可启动%s：高端估计 %d 也在 1.5× 线内（启动后余量 %.3f×）。口径 = 墙钟 WCET；实施后用 EQ-on/off 的 beam_cyc 差替代估算 [L1]；仍须 CTO 批 D2/D3/D4 与本报告。" % (suffix, hi, FRAME_BUDGET / (base + hi))); return "可启动" + suffix
-    if FRAME_BUDGET / (base + lo) >= REFS["T2_RATIO"][0]:
-        rep.major("B1 刀刃%s：低端 %d 在线内、高端 %d 越线（启动后余量 %.3f×..%.3f×）→ 只能以「实测后若越线即回退」为条件启动，须 CTO 明示；若 §2.3 为消失/部分缩小且 CTO 采纳 -O 基线，用 --use-optimized-baseline 重算" % (suffix, lo, hi, FRAME_BUDGET / (base + hi), FRAME_BUDGET / (base + lo))); return "刀刃" + suffix
-    rep.blocker("B1 挂起：连低端估计 %d 都越 1.5× 线（余量 %.3f×）→ 触发冻结令解冻条件；B1 不启动，先按 §2.3/§2.4 归因回收" % (lo, FRAME_BUDGET / (base + lo))); return "挂起"
+    if bud / (base + hi) >= REFS["T2_RATIO"][0]:
+        rep.ok("B1 可启动%s：高端估计 %d 也在 1.5× 线内（启动后余量 %.3f×）。口径 = 墙钟 WCET；实施后用 EQ-on/off 的 beam_cyc 差替代估算 [L1]；仍须 CTO 批 D2/D3/D4 与本报告。" % (suffix, hi, bud / (base + hi))); return "可启动" + suffix
+    if bud / (base + lo) >= REFS["T2_RATIO"][0]:
+        rep.major("B1 刀刃%s：低端 %d 在线内、高端 %d 越线（启动后余量 %.3f×..%.3f×）→ 只能以「实测后若越线即回退」为条件启动，须 CTO 明示；若 §2.3 为消失/部分缩小且 CTO 采纳 -O 基线，用 --use-optimized-baseline 重算" % (suffix, lo, hi, bud / (base + hi), bud / (base + lo))); return "刀刃" + suffix
+    rep.blocker("B1 挂起：连低端估计 %d 都越 1.5× 线（余量 %.3f×）→ 触发冻结令解冻条件；B1 不启动，先按 §2.3/§2.4 归因回收" % (lo, bud / (base + lo))); return "挂起"
 
 # ---- 批 4：极性 QA -----------------------------------------------------------------------------
 def polqa(cfg, rep):
@@ -596,7 +695,6 @@ def main():
     ap.add_argument("--ovh-tol-frac", type=float, default=0.05, help="三段恒等式 ovh 容差（比例 [L4]，默认 0.05）")
     ap.add_argument("--ovh-tol-cyc", type=int, default=2000, help="三段恒等式 ovh 容差下限（cyc [L4]，默认 2000）")
     ap.add_argument("--use-optimized-baseline", action="store_true", help="B1 门用臂 A'（-O）基线（须 CTO 明示采纳 -O 产品配置；仅 §2.3 为消失/部分缩小时生效）")
-    ap.add_argument("--cclk-inference-accepted", action="store_true", help="CTO 已接受「M2 CCLK=1e9」推断或 #15 对照已做（否则 B1 headline 带「待 CTO」）")
     args = ap.parse_args()
     if args.schema:
         print(schema_text()); return 0
@@ -609,12 +707,13 @@ def main():
     anchors, f4 = load_anchors()
     rep = Report()
     rep.lines.append("# S7 板测结果判读（自动初筛，非裁定；脚本 %s；容差 tol=%.2f [L4]）" % (VERSION, args.tol))
-    rep.lines.append("帧预算 %d cyc / 1.5× 线 %d cyc（派生自 CCLK=1e9 %s）；八锚运行时解析 %s；口径：差距=稳态 min（B63 §6，last 须一致），B1 余量=WCET max" % (FRAME_BUDGET, T2_LINE, REFS["CCLK_HZ"][1], os.path.relpath(GOLDEN_H, ROOT)))
+    rep.lines.append("帧预算与 1.5× 线由 [CLK] 实测 CGU 寄存器解码重算（未回填 → 条件 0 未满足 → B1 挂起）；参考值 %d / %d 由 1e9 %s 得出，只作对照；八锚运行时解析 %s；口径：差距=稳态 min（B63 §6，last 须一致），B1 余量=WCET max" % (FRAME_BUDGET_REF, T2_LINE_REF, REFS["CCLK_HZ"][1], os.path.relpath(GOLDEN_H, ROOT)))
     try:
         rep.info("meta：日期 %s，测试员 %s，commit %s，源码干净=%s" % (get(cfg, "meta", "date"), get(cfg, "meta", "tester"), get(cfg, "meta", "commit"), get(cfg, "meta", "git_status_clean")))
     except Missing as m:
         rep.unj("meta 缺 %s" % m)
     valid = {}
+    clk = decode_cclk(cfg, rep, args)
     rep.h("批 1：S-B 四个 build（指纹 → 板门/.map → 自检）")
     for sec in ("SB.B0", "SB.B1", "SB.B2", "SB.B3"):
         if not has(cfg, sec):
@@ -645,23 +744,24 @@ def main():
         valid[sec] = bool(gate and extra)
     rep.h("批 3：bench 探针（BENCH.P）")
     if has(cfg, "BENCH.P"):
-        bench_ok = check_bench(cfg, rep, anchors)
+        bench_ok = check_bench(cfg, rep, anchors, clk)
     else:
         rep.unj("bench 探针未回填 → 三段归因不可做，差距只能用历史 F7 参考"); bench_ok = False
     rep.h("批 2：墙钟差距分类（§2.3；稳态 min；参照划分：A'/臂0 > 1+t 反常｜|A'/臂0−1| ≤ t 不变｜A'/臂0 < 1−t → A'/bench ≤ 1+t 消失，否则部分缩小）")
-    gap = classify_gap(cfg, rep, args, valid, bench_ok)
+    gap = classify_gap(cfg, rep, args, valid, bench_ok, clk)
     attribute_segments(cfg, rep, args, valid, bench_ok)
     bench_cclk = None   # 条件 0 的 [L1] 否定不受 bench FG 有效性豁免：g_s7_cclk_hz 是时钟查询，与探针 FG 无关
     if has(cfg, "BENCH.P") and get(cfg, "BENCH.P", "cclk_rc", "int", required=False) == 0:
         bench_cclk = get(cfg, "BENCH.P", "cclk_hz", "int", required=False)
-    b1 = b1_gate(cfg, rep, gap, bool(st_ok), bool(ng_ok), valid, args, bench_cclk)
+    b1 = b1_gate(cfg, rep, gap, bool(st_ok), bool(ng_ok), valid, args, clk, bench_cclk)
     if has(cfg, "POLQA"):
         pq = polqa(cfg, rep)
     else:
         rep.unj("POLQA 节未回填 → 声学测试不得开始"); pq = None
     rep.h("汇总")
-    rep.lines.append("- BLOCKER %d / MAJOR %d / 不可判 %d；无效节：%s；B1 = %s；极性 QA = %s" % (
-        rep.blockers, rep.majors, rep.unjudged, sorted(rep.bad_secs) or "无", b1,
+    rep.lines.append("- BLOCKER %d / MAJOR %d / 不可判 %d；无效节：%s；实测 CCLK = %s；B1 = %s；极性 QA = %s" % (
+        rep.blockers, rep.majors, rep.unjudged, sorted(rep.bad_secs) or "无",
+        ("%d Hz（帧预算 %d / 线 %d）" % (clk["cclk"], clk["budget"], clk["line"])) if clk["ok"] else "**未回填/未解出 → 条件 0 未满足**", b1,
         {True: "PASS 可入库", False: "未闭合（一切声学测试停；不影响 B1 固件侧实施）", None: "不可判"}.get(pq)))
     rep.lines.append("- 本报告是初筛：任何「结论」须经独立 critic + CTO 常识审后才进 decisions_log；数字全部为测试员回填原值 [L1/EZKIT]，本脚本不生成任何板上数字。")
     print(rep.text())
