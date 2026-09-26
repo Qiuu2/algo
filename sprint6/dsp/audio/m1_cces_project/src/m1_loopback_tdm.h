@@ -68,6 +68,14 @@ extern volatile int      g_m2_static_txtest_built;    /* M2_STATIC_TXTEST    (#i
 extern volatile int      g_m2_stxt_localize_built;    /* M2_STXT_LOCALIZE    (#if value) */
 extern volatile int      g_m2_selftest_built;         /* M2_SELFTEST         (#if value) */
 extern volatile int      g_m1_u6_addr_override_built; /* M1_U6_TWI_ADDR_OVERRIDE (#ifdef, m1_softconfig.c) */
+#ifdef M2_WTBL_SEL
+/* S7-SIDE30 runtime weight-table select (DEC-S7-SIDE30-01). Exists ONLY in -DM2_WTBL_SEL builds: symbol
+ * visibility in the .map is this macro's fingerprint (precedent M2_SEG_CYC). Runbook: S7_TESTER_RUNBOOK_WTBL.md */
+extern volatile int32_t  g_m2_wtbl_sel;              /* JTAG write: 0=D20(frozen) 1=D25 2=D30 3=D35 */
+extern volatile int32_t  g_m2_wtbl_sel_applied;      /* read: table applied in the last frame (-1 = none yet) */
+extern volatile uint32_t g_m2_wtbl_oob_count;        /* read: out-of-range sel frames (fell back to 0) */
+extern volatile int32_t  g_m2_wtbl_applied_sum;      /* read: sum of the 8 weights actually multiplied last frame */
+#endif
 
 /* ---- WO-S6-M2FIX (2026-06-11): beam moved OUT of the SPORT ISR (fira_tree.c:481 spin starved the FIR
  *      DONE interrupt -> first-frame deadlock, [L1 board]). The ISR now only publishes the completed RX

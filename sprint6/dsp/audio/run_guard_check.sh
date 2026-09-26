@@ -84,6 +84,10 @@ run_one "M2-FIRA+selftest+seg-cyc (M2_SEG_CYC=1)" "-DM2_FIRA_INLOOP=1 -DM2_SELFT
 run_one "M2-FIRA+selftest+negctrl (M2_SELFTEST_NEGCTRL=1)" "-DM2_FIRA_INLOOP=1 -DM2_SELFTEST=1 -DM2_SELFTEST_NEGCTRL=1" "${INC_M2[@]}"
 # (J) all diagnostics together with chmap: proves the self-test's "no chmap" weight path coexists with M2_CHMAP_FIX.
 run_one "M2-FIRA+chmap+selftest+seg-cyc (all)" "-DM2_FIRA_INLOOP=1 -DM2_CHMAP_FIX -DM2_SELFTEST=1 -DM2_SEG_CYC=1" "${INC_M2[@]}"
+# S7-SIDE30 (DEC-S7-SIDE30-01, 2026-09-26): runtime weight-table select M2_WTBL_SEL (#ifdef-style)
+run_one "M2-FIRA+wtbl-sel (M2_WTBL_SEL)" "-DM2_FIRA_INLOOP=1 -DM2_WTBL_SEL" "${INC_M2[@]}"
+run_one "M2-FIRA+wtbl-sel+chmap (M2_WTBL_SEL+M2_CHMAP_FIX)" "-DM2_FIRA_INLOOP=1 -DM2_WTBL_SEL -DM2_CHMAP_FIX" "${INC_M2[@]}"
+run_one "M2-FIRA+wtbl+chmap+selftest+seg-cyc (all)" "-DM2_FIRA_INLOOP=1 -DM2_WTBL_SEL -DM2_CHMAP_FIX -DM2_SELFTEST=1 -DM2_SEG_CYC=1" "${INC_M2[@]}"
 
 # ---- FALSIFIERS (X1..X5): macro combinations that MUST FAIL to compile via the WO-S7-B6 #error guards
 #     (fw audit 9.C: -DM2_STATIC_TXTEST=1 alone used to compile clean and silently broke the static-TX premise).
@@ -118,6 +122,8 @@ run_must_fail "X2 M2_SELFTEST=1 alone (no INLOOP)"             "-DM2_SELFTEST=1"
 run_must_fail "X3 M2_STXT_LOCALIZE=1 without STATIC_TXTEST"    "-DM2_FIRA_INLOOP=1 -DM2_STXT_LOCALIZE=1"       "${INC_M2[@]}"
 run_must_fail "X4 M2_SELFTEST_NEGCTRL=1 without SELFTEST"      "-DM2_FIRA_INLOOP=1 -DM2_SELFTEST_NEGCTRL=1"    "${INC_M2[@]}"
 run_must_fail "X5 M2_SEG_CYC=1 alone (no INLOOP)"              "-DM2_SEG_CYC=1"                                "${INC_M2[@]}"
+run_must_fail "X6 M2_WTBL_SEL alone (no INLOOP)"               "-DM2_WTBL_SEL"                                 "${INC_M2[@]}"
+run_must_fail "X7 M2_WTBL_SEL with M2_STATIC_TXTEST=1"         "-DM2_FIRA_INLOOP=1 -DM2_WTBL_SEL -DM2_STATIC_TXTEST=1" "${INC_M2[@]}"
 
-if [ $overall -eq 0 ]; then echo "[guard-check] OVERALL PASS (10 compile configs + 5 falsifiers)."; else echo "[guard-check] OVERALL FAIL."; fi
+if [ $overall -eq 0 ]; then echo "[guard-check] OVERALL PASS (13 compile configs + 7 falsifiers)."; else echo "[guard-check] OVERALL FAIL."; fi
 exit $overall

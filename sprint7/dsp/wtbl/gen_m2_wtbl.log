@@ -1,0 +1,5 @@
+wrote /home/it1234/algorithm_speaker/Kimi_Agent_多Agent协作方案/itc-enterprise-workflow/sprint6/dsp/audio/m1_cces_project/src/m2_wtbl_q15.h
+anchor: generator D20 == frozen [28404, 16525, 20371, 24031, 27287, 29934, 31802, 32768]
+D25  Q15 [16080, 13167, 17479, 21793, 25778, 29113, 31512, 32768]  BW1k=32.184  SLL=-25.000  att30_500=4.779  att30_1k=37.806  att90b_1k=26.994  att90b_2k=28.131  att90b_4k=27.952  onaxis_vs_d20_dB=-1.022  WNGn=-0.367
+D30  Q15 [9535, 10397, 14932, 19718, 24327, 28300, 31221, 32768]  BW1k=34.873  SLL=-30.000  att30_500=4.058  att30_1k=21.781  att90b_1k=31.650  att90b_2k=32.988  att90b_4k=32.872  onaxis_vs_d20_dB=-1.821  WNGn=-0.647
+D35  Q15 [5868, 8179, 12739, 17834, 22954, 27510, 30932, 32768]  BW1k=37.358  SLL=-34.999  att30_500=3.542  att30_1k=17.107  att90b_1k=36.918  att90b_2k=37.812  att90b_4k=37.781  onaxis_vs_d20_dB=-2.475  WNGn=-0.921
