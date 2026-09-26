@@ -1118,3 +1118,21 @@ Re 层级关系（critic R22 裁 CLEAN，防口径错挂）：**Re 7.600Ω = 单
 - **验证计划**：必须逐通道比对，并且必须有会 FAIL 的占位对照（不能用 Σ2h=δ 核系数，因为它恒成立）。
 - **关键结论**：配对是最大的杠杆。FIR 的优势在于误差鲁棒性，以及能做随频率的复数校准。
 - **门**：critic R3b 共 4 轮，FAIL → CONDITIONAL → CONDITIONAL → PASS_WITH_MINOR，剩余 MINOR 已随入库修掉。全文 `sprint7/critic/CRITIC_J_SIDE30_R3B_20260926.md`。reviewer: critic @ claude-opus-5-5 / 2026-09-26。*
+
+*2026-09-26 **S7 侧面 30 dB：测试执行单与配对工具落库（非决策，留痕；DEC-S7-SIDE30-01 计划第 2–4 步的执行件）**：
+- **`sprint7/docs/S7_DRIVER_MATCHING_RUNBOOK.md`**：逐只测喇叭的复数响应（1–4 kHz，放在治具上测）。
+  - 器材有 A/B/C 三种方案，其中 C 只测幅度，看不见极性和延时；
+  - 按 C10 规定，治具上每换一次喇叭都要先断功放；
+  - 设有拓扑停止门；
+  - 带 CTO 清单 Q1–Q12。
+- **`sprint7/docs/S7_SIDE30_FARFIELD_TEST.md`**：按 DEC ① 口径做远场分频段测试（7 带、r ≥ 8 m、3 次取中值、本底门）。
+  - 驱动上限 `V_FF_MAX` 是空栏，CTO 填写前不得开工；
+  - 距离不变性检查覆盖 7 带、两侧；
+  - warble 标为"不可判"；
+  - ±90° / ±60° 固定挂"地面反射未隔离"标签；
+  - 带 CTO 清单 Q1–Q13。
+- **`sprint7/tools/s7_driver_pairing.py`**：配对工具，selftest 42/42。
+  - 功能：以复数域偏差为基础做配对，并按位置分配；输出修整值（归一到 ≤1.0）；预测现装配和随机装配的结果；
+  - 离群与"疑似接反"的判定已修 wrap 问题；
+  - 在 Windows、没装 scipy 时也能跑。
+- **门**：critic R3c 第 1 轮 CONDITIONAL（7 MAJOR）→ 全修 → delta PASS_WITH_MINOR → 剩余 MINOR 已修，PM 复核后入库。全文 `sprint7/critic/CRITIC_K_SIDE30_R3C_20260926.md`。reviewer: critic @ claude-opus-5-5 / 2026-09-26。*
