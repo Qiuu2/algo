@@ -171,7 +171,7 @@
 
 **Critic REV-S3-P0 裁决**：PASS_WITH_MINOR/HIGH。三项产出 Critic 亲自编译 `tree_verify`（得 182.4dB）、独立重算 MCPS（88.7/45.7）、从零写 MVDR 验证 d=55，全部吻合；诚实边界（近似/host/定性）标注到位。
 - **MAJOR F-1（已处理）**：P0-2 纠正后算力数字未传播——已同步进 decisions_log（DEC-S3-P0-01/R1/基线一览）、sprint3_status、dsp_8ch_report、prd_update。
-- **MINOR F-2**：树形子带倍频程边界 12k/6k/3k/1.5k ≠ 规格标称 8k/4k/2k/1k（已诚实披露）；1kHz 落 SB0/SB1 交叠区，后续须做声学规格对齐（桌面可做）。
+- **MINOR F-2**：树形子带倍频程边界 12k/6k/3k/1.5k ≠ 规格标称 8k/4k/2k/1k（已诚实披露）；1kHz 落 SB0/SB1 交叠区，后续须做声学规格对齐（桌面可做）。 ⚠勘误 2026-09-26：[L2 host 复算] 分界 3k/6k/12k，1 kHz 在 SB0 内（DEC-S7-RETRACT-SUBBAND-01）。
 - **MINOR F-3**：cosine 障板近似对 SLL 偏乐观，真实障板效应须 COMSOL 复核。
 
 **P0 后仍待做**：EZKIT cycle MCPS 实测（⑤/R1 真关闭）｜SHARC 定点 SNR 逐bit（④，**桌面已 [L2] 关闭，[L1] 待 PF-5/EZKIT**，见下 PF-4 更新）｜COMSOL 障板衍射（B/E 真实物理）｜T/S→SPL 重做（C）｜子带倍频程边界 vs 规格声学对齐（F-2，桌面可做）｜垂直面 balloon/温漂/互耦真值（E/F）｜超指向最终去留（D，卡消声室）。

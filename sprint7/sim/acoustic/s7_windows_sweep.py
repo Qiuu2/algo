@@ -17,6 +17,8 @@ PART 1  window sweep: uniform / Dolph-20 (frozen baseline) / Dolph-25 / Dolph-30
         / Kaiser b=3 / Kaiser b=5 / Hann (edge-nonzero) / Hann (scipy sym, edge pair = 0)
         x  f = 500/750/1k/1.5k/2k/3k/4k/5k/6k Hz.
         -> s7_windows_sweep.csv
+!! RETRACTED 2026-09-26 (DEC-S7-RETRACT-SUBBAND-01): PART 2 uses a WRONG sub-band split (real tree: 3k/6k/12k,
+!! detail bands are comb residuals) -> PART 2 results are void; PART 1 (full-band single windows) unaffected.
 PART 2  per-sub-band constant-beam-width study on the IMPLEMENTED sub-band split
         (tree_filterbank.h:19-27: SB0 <1.5k, SB1 1.5-3k, SB2 3-6k, SB3 >6k; ideal brick-wall assumed).
         SB0 is held at the frozen Dolph-20 (the 1 kHz spec anchor is not touched). For SB1/SB2 one scalar

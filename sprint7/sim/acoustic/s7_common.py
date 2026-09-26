@@ -63,6 +63,10 @@ ANG = np.arange(-90.0, 90.0 + 1e-9, 0.01)    # deg, 18001 points, index 9000 == 
 I0 = int(np.argmin(np.abs(ANG)))
 assert abs(ANG[I0]) < 1e-9
 
+# !! RETRACTED 2026-09-26 (DEC-S7-RETRACT-SUBBAND-01): the dict below copies a WRONG header comment. The frozen
+# !! tree really splits at 3k/6k/12k (SB0 ~0-3k) and its detail bands are non-aligned comb residuals, so per-subband
+# !! weights are not implementable. Values kept ONLY so the retracted S7 numbers stay reproducible. Do not reuse.
+# !! See sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md
 # Implemented sub-band edges (tree_filterbank.h:19-27; NOT the spec's 8k/4k/2k/1k)
 SUBBANDS = {"SB0": (0.0, 1500.0), "SB1": (1500.0, 3000.0), "SB2": (3000.0, 6000.0), "SB3": (6000.0, 12000.0)}
 

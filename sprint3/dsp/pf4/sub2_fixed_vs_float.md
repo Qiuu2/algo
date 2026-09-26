@@ -82,6 +82,8 @@
 | SB2 detail @fs/2 | ~3–6k | **77.1 dB** | 1.90e-4 | 4.1e5 |
 | SB3 detail @fs   | ~6–12k(含4-8k指向核心) | **78.7 dB** | 1.37e-4 | 2.9e5 |
 
+> ⚠【勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01】[L2 host 复算] 分界 3k/6k/12k（SB0≈0–3k，1 kHz 在 SB0 内），detail 带是未对齐梳状残差；见 `sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md`（上表"标称频段"一列标签错，实为 SB0≈0–3k / SB1≈3–6k / SB2≈6–12k / SB3≈12–24k；SNR 数值不受影响）
+
 > max|err| ~3e-4（相对满幅）即 Q31 下 ~3e5–6e5 LSB；看似大，但相对子带 RMS 仍是 ~75 dB SNR，
 > 来源是 Q15 系数误差经 3 级级联放大，**不是** Q31 状态/累加截断。
 

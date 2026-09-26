@@ -65,6 +65,8 @@
 按 `tree_filterbank.c` 结构（coarse=dec2(LP(·))，detail=本级−interp2(下级coarse)）逐级级联，
 单频正弦逐点探测各子带捕获能量。真实倍频程带边 12k/6k/3k/1.5k（≠规格标称 8k/4k/2k/1k，audit MINOR F-2）。
 
+> ⚠【勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01】[L2 host 复算] 分界 3k/6k/12k（SB0≈0–3k，1 kHz 在 SB0 内），detail 带是未对齐梳状残差；见 `sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md`（下表"带外抑制"各数值按错误带边计算，**作废**；"detail 带≈0 dB、非隔离带通"的定性结论，以及 §2.3 SB0 抗混叠 77.7 dB、重建 SNR **不受影响**；SB0 真实通带约 0–2.5k，3k 处 −6 dB）
+
 | 子带 | 抽取 M | 通带(倍频程) | 带外抑制 浮点 [L2] | 带外抑制 Q15 [L2] | 劣化 |
 |---|---|---|---|---|---|
 | SB0 (coarse) | 8 | 50–1500Hz | 11.4 dB | 11.4 dB | −0.0 dB |

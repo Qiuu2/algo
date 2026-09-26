@@ -170,7 +170,7 @@
 | P1 | 定点 vs 浮点逐 bit 对比 | DSP | PF-4，上板前先桌面 |
 | P1 | Q46 累加器最坏溢出分析 | DSP | 未做 |
 | P1 | Dolph-Chebyshev C 移植 vs scipy.chebwin 逐值对比 | DSP | C 仍是 TODO/占位 |
-| P1 | 子带倍频程边界(12k/6k/3k/1.5k) vs 规格(8k/4k/2k/1k) 声学对齐 | 声学 | MINOR F-2，1kHz 落 SB0/SB1 交叠区 |
+| P1 | 子带倍频程边界(12k/6k/3k/1.5k) vs 规格(8k/4k/2k/1k) 声学对齐 | 声学 | MINOR F-2，1kHz 落 SB0/SB1 交叠区 ⚠勘误 2026-09-26：[L2 host 复算] 分界 3k/6k/12k，1 kHz 在 SB0 内（DEC-S7-RETRACT-SUBBAND-01） |
 | P1 | 高频(2-4kHz) cosine 近似阵元指向性重算 | 声学 | PF-6 |
 
 ### 6.2 🔴 卡数据 / 卡硬件（PCB 后或数据到位再做）

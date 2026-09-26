@@ -1,0 +1,9 @@
+band-avg front/side ratio at distance r (dB); far-field = large r
+D0 Dolph-20
+   1000 Hz: r=   1m  18.7  r=   2m  21.7  r=   4m  22.5  r=   8m  22.7  r=  16m  22.7  r=1000m  22.7
+   2000 Hz: r=   1m  16.0  r=   2m  21.4  r=   4m  22.8  r=   8m  23.1  r=  16m  23.2  r=1000m  23.2
+   4000 Hz: r=   1m  13.5  r=   2m  17.5  r=   4m  21.6  r=   8m  22.7  r=  16m  22.9  r=1000m  23.0
+D2 per-band D30/D35/D35
+   1000 Hz: r=   1m  27.9  r=   2m  30.7  r=   4m  31.4  r=   8m  31.6  r=  16m  31.6  r=1000m  31.6
+   2000 Hz: r=   1m  32.8  r=   2m  36.5  r=   4m  37.5  r=   8m  37.7  r=  16m  37.8  r=1000m  37.8
+   4000 Hz: r=   1m  30.0  r=   2m  34.7  r=   4m  36.9  r=   8m  37.6  r=  16m  37.7  r=1000m  37.8
