@@ -1,0 +1,6 @@
+item,taps,mac_per_frame_direct,mult_per_frame_folded,group_delay_samples,core_cyc_direct_30,core_cyc_direct_50,core_cyc_folded_30_50,L
+tree_c_code_count,63,169344,,,,,,L3 (C code count; M2 runs the tree on FIRA)
+tree_polyphase_zero_skip,63,44352,,,,,,L3
+fir_64,64,32768,16384,31,983040,1638400,491520-819200,L3 MAC; cycles = L3 x 30-50 cyc/MAC board factor (50 end L4)
+fir_128,128,65536,32768,63,1966080,3276800,983040-1638400,L3 MAC; cycles = L3 x 30-50 cyc/MAC board factor (50 end L4)
+fir_256,256,131072,65536,127,3932160,6553600,1966080-3276800,L3 MAC; cycles = L3 x 30-50 cyc/MAC board factor (50 end L4)
