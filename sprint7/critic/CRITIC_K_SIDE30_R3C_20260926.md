@@ -16,6 +16,7 @@
    - warble 信号对带平均有 +2.5 dB 的偏差。
 5. **工具 bug**：相位先缠绕再插值、再算术平均。结果是接反的喇叭 20 次里只有 6 次被判成"疑似接反"。
 6. **工具不能评估现装配**：没有 T0 输入。
+   （↑**2026-09-27 PM 补注**，据 critic R3c 第 1 轮原报告 F6 及其"Missing CTO questions"一节补全，critic R3d mini-delta 要求加此标记：C10-8"原样恢复还是重新配对"的决定没法建模，模型也没法和拆前的 L1 基线对照（原文 "no way to be checked against a pre-disassembly L1 baseline"）；原报告还把"拆前是否先做现装配基线 + T0 预测"列为缺失的 CTO 问题。）
 7. **非专家做不了的地方**：
    - 现场门依赖的"重复性"数据在那个时点还不存在；
    - 现场自检默认用 Linux 的 python。

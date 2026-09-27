@@ -4,7 +4,7 @@
 > **依据**：`S7_VERIFICATION_PLAN.md §8.1`（P0 基线正规化，**本文引用不复制**）、DEC-S6-TEST3-METHOD-01（稳健测法）、DEC-S7-SIDE30-01 ①（30 dB 口径）、`S7_SIDE30_ANALYSIS.md`、`.claude/skills/testing/SKILL.md` A1–A5；距离与反射按侧抑线 critic R2 + 本文作者独立复算（§3.2）；critic R3c 意见已并入。
 > **性质**：测试员执行手册，**零代码**；build/宏/上板 gate 沿用 §8.1，不新增。测试员**照做、抄原值、不判对错**；异常原样发回。
 > **判据纪律**：本文**不写任何柱体期望读数**。通过线 = **DEC-S7-SIDE30-01 ① 口径**（CTO 同意正式化，参数待 CTO 过目），本文不另立；本文只加同会话自参照的有效性门（SNR、动态范围、距离不变性、地面反射、重复性）和不确定度标注。**必须由 CTO 定的上限写成命名空栏**（如 `V_FF_MAX = ____`），全部集中在 §15。
-> **状态**：R3c + delta 修订稿（testing teammate，2026-09-26；delta MINOR-2 地面反射标注、MINOR-3 `V_FF_MAX` 测量路已处理）。待 delta critic + CTO 常识审（三道关）。
+> **状态**：R3c + delta 修订稿（testing teammate，2026-09-26；delta MINOR-2 地面反射标注、MINOR-3 `V_FF_MAX` 测量路已处理）。待 delta critic + CTO 常识审（三道关）。**（↑状态更新 2026-09-27，PM）**：critic R3c delta 判 PASS_WITH_MINOR，剩余 MINOR 已修，已入库（commit `db301ef`，`sprint7/critic/CRITIC_K_SIDE30_R3C_20260926.md`）；**CTO 常识审待**，开工前请 CTO 过目，并填好 `V_FF_MAX`。
 
 ---
 

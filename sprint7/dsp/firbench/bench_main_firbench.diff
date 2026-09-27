@@ -1,0 +1,32 @@
+--- a/sprint4/dsp/core_only/bench/bench_main.c
++++ b/sprint4/dsp/core_only/bench/bench_main.c
+@@ -29,6 +29,11 @@
+ #ifdef FIRA_USE_REAL_ADI_FIR_HEADER
+ #include "fira_tree.h"                       /* F2 FIRA smoke (only when FIRA wired) */
+ #include "fir_coeffs_q31.h"                  /* F3 real coeffs g_hb63_fira32 */
++/* S7 FIR compute bench (DEC-S7-SIDE30-01 (3)): per-channel FIR cycles/frame, FIRA vs core, 63/127/255 taps
++ *   (defined in sprint7/dsp/firbench/s7_firbench.c; readouts g_fb_* declared in sprint7/dsp/firbench/s7_firbench.h
++ *   -> add that dir to the include path; the TU also needs fb_coeffs.h / fb_goldens.h from the same dir). */
++#include "s7_firbench.h"
++volatile int g_fb_done = -99;                   /* FIR bench ran: 1=on-board w/ FIRA / 0=desktop / -99 not-run */
+ #if defined(TARGET_SHARC)
+ #include <services/pwr/adi_pwr.h>            /* F7-FIX: adi_pwr_Init at startup (BSP-supplied; G6 evidence in fira_regression.c) */
+ #endif
+@@ -256,6 +261,17 @@
+      *   g_h2_inc_dma / g_h2_inc_isr / g_h2_cyc_frame_both_max / g_h2_cyc_frame_base / g_h2_isr_count(_off==0)
+      *   off-board: io MCPS = inc_dma*750/1e6 ; irq MCPS = inc_isr*750/1e6 ; WCET mult = both_max/base ; sec-8 paired. */
+ 
++    /* ---- S7 FIR compute bench (DEC-S7-SIDE30-01 (3), sprint7/docs/S7_FIRBENCH_RUNBOOK.md): 8-channel FIR,
++     *   63/127/255 taps, 5 paths (FIRA 8-task / FIRA 1-task / FIRA persistent / core C / core folded), every
++     *   path over the full frozen chirp with per-channel golden CRCs. Runs LAST, after H2 has stopped its ISR and
++     *   bus load; own FIRA Open/Close, own buffers -> does NOT perturb F4/F5/F7/H1/H2 (or the S7 probe).
++     *   RAW counters only (C9). FREE-RUN: read g_fb_* at idle only (no breakpoint inside the frame loops). ---- */
++    g_fb_done = s7_firbench_run();
++    /* breakpoint at idle: g_fb_done(==1) / g_fb_valid(==1) / g_fb_chirp_ok / g_fb_coef_ok[0..2] / g_fb_open_rc /
++     *   g_fb_neg_fail_all(==1) / g_fb_usable[5][3] / g_fb_pass_all[5][3] / g_fb_pass[5][3][8] / g_fb_rc[5][3] /
++     *   g_fb_io1[5][3] / g_fb_cyc_last|max|min[5][3] / g_fb_frames[5][3] / g_fb_cclk_hz / g_fb_ccnt_read_cyc
++     *   (path index 0..4 = FIRA_T8, FIRA_T1, FIRA_P1, CORE_C, CORE_SYM; tap-set index 0..2 = 63, 127, 255). */
++
+ #endif
+ 
+     /* ---- breakpoint here, emulator read g_bench_result:

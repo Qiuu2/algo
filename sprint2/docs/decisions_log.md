@@ -1136,3 +1136,18 @@ Re 层级关系（critic R22 裁 CLEAN，防口径错挂）：**Re 7.600Ω = 单
   - 离群与"疑似接反"的判定已修 wrap 问题；
   - 在 Windows、没装 scipy 时也能跑。
 - **门**：critic R3c 第 1 轮 CONDITIONAL（7 MAJOR）→ 全修 → delta PASS_WITH_MINOR → 剩余 MINOR 已修，PM 复核后入库。全文 `sprint7/critic/CRITIC_K_SIDE30_R3C_20260926.md`。reviewer: critic @ claude-opus-5-5 / 2026-09-26。*
+
+*2026-09-27 **S7 侧面 30 dB：FIR 算力 bench 测试包 + 测试员总览页落库（非决策，留痕）**：
+- **`sprint7/dsp/firbench/` 与 `S7_FIRBENCH_RUNBOOK.md`**：板上实测 8 路 FIR（63/127/255 抽头）每 64 样本帧所需的周期数。
+  - 共 5 条路径：FIRA 三种任务组织方式（T8 为已上板验证过的 fira_tree.c 模式 [L1 同构]；T1、P1 为 [L4]），以及核上两种可移植 C 实现。
+  - 逐通道 golden 不过的，周期数一律作废；占位系数必须 FAIL（桌面 48/48）。
+  - 必须回传 `.map` 和关键符号地址；数据落在 L2 的读数要单独标注。
+  - 与 M2 分段周期相加，必须满足四个条件（同一优化配置、S-B 已解释 1.79× 差距、分段读数确已回收、同一 CCLK），否则只能对照 CCLK/750。
+  - 局限：看不出抽头顺序、看不出低位累加误差、没有测到饱和。
+  - 不改任何现有文件，冻结件 md5 不变。
+  - **交给测试员之前须 CTO_OK**（该执行单 §1.1）。
+- **`S7_TESTER_INDEX_SIDE30.md`**：测试员总览页，列出 6 个会话的顺序、前提、过门状态和发回清单。
+- **连带改动**：
+  - ANALYSIS §6 把拆前的现装配远场基线提到第 3 步（带日期变更注），相关的 3 处步骤号引用已同步；
+  - 四份执行单的页头补了带日期的状态更新（原文保留）。
+- **门**：critic R3d 共三轮，CONDITIONAL → delta（A PASS / B CONDITIONAL）→ mini-delta（A PASS / B PASS_WITH_MINOR，剩余 MINOR 已修）。全文 `sprint7/critic/CRITIC_L_SIDE30_R3D_20260927.md`。reviewer: critic @ claude-opus-5-5 / 2026-09-27。*
