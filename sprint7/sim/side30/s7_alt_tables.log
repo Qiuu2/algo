@@ -1,0 +1,127 @@
+S7 side-30: fixed tables beyond Dolph [L2; yields L2 on L4]  anchors A5_max_abs_diff_csv_vs_chebwin=0, A1_bw6_1k_deg=29.269, A2_bw6_2k_deg=14.5147, A3_sll_1k_db=-20, A3_sll_2k_db=-20, A4_uniform_sll_1k_db=-13.1468, A6_q15_bw_shift_deg=6.62399e-05, A6_q15_sll_shift_db=3.78301e-05, A7_di_closed_1k_db=7.15529, A7_di_numeric_1k_db=7.15529, A8_bw3_1k_deg=21.2219
+header sprint6/dsp/audio/m1_cces_project/src/m2_wtbl_q15.h: NEXTRA=5 rows ['D25', 'D30', 'D35', 'RS-A', 'RS-B'] == fresh generation (bit-exact)
+  D20q      w8 edge->centre [0.8668 0.5043 0.6217 0.7334 0.8327 0.9135 0.9705 1.0000]  sum(max-norm) 6.44293
+  D25q      w8 edge->centre [0.4907 0.4018 0.5334 0.6651 0.7867 0.8885 0.9617 1.0000]  sum(max-norm) 5.72784
+  D30q      w8 edge->centre [0.2910 0.3173 0.4557 0.6017 0.7424 0.8636 0.9528 1.0000]  sum(max-norm) 5.22455
+  D35q      w8 edge->centre [0.1791 0.2496 0.3888 0.5443 0.7005 0.8395 0.9440 1.0000]  sum(max-norm) 4.84570
+  RS-Aq     w8 edge->centre [0.1059 0.2120 0.3539 0.5176 0.6857 0.8337 0.9423 1.0000]  sum(max-norm) 4.65109
+  RS-Bq     w8 edge->centre [0.1613 0.2682 0.4134 0.5706 0.7252 0.8566 0.9504 1.0000]  sum(max-norm) 4.94556
+  Taylor35  w8 edge->centre [0.1744 0.2531 0.3861 0.5428 0.6995 0.8388 0.9437 1.0000]  sum(max-norm) 4.83832
+
+=== IDEAL metrics [L2]: R90 = 1/3-oct band power avg at +-90 deg (worse side = either, model symmetric), 31 pts/band
+    sec = worst point of the 60-90 deg sector (band power);  floor = mean random-error side floor sigma^2||w||^2/|sum w|^2
+  D20q      R90 min7 22.25 [22.7 22.2 23.1 23.2 24.1 22.7 23.0]  sec60 min7 21.18  floor min7 33.16  BW1k 29.27  BW2k 14.51  on-axis +0.00 dB  WNGn -0.17  SLL@1k -20.00
+  D25q      R90 min7 27.01 [27.0 27.6 28.2 28.1 29.1 27.8 28.0]  sec60 min7 26.36  floor min7 32.96  BW1k 32.18  BW2k 15.93  on-axis -1.02 dB  WNGn -0.37  SLL@1k -25.00
+  D30q      R90 min7 31.67 [31.7 33.1 33.2 33.0 34.1 32.8 32.9]  sec60 min7 31.59  floor min7 32.68  BW1k 34.87  BW2k 17.23  on-axis -1.82 dB  WNGn -0.65  SLL@1k -30.00
+  D35q      R90 min7 36.94 [36.9 38.5 38.1 37.8 39.0 37.8 37.8]  sec60 min7 36.94  floor min7 32.41  BW1k 37.36  BW2k 18.43  on-axis -2.47 dB  WNGn -0.92  SLL@1k -35.00
+  RS-Aq     R90 min7 42.22 [42.2 43.3 43.3 44.4 46.8 46.2 45.0]  sec60 min7 36.23  floor min7 32.21  BW1k 39.26  BW2k 19.34  on-axis -2.83 dB  WNGn -1.12  SLL@1k -33.10
+  RS-Bq     R90 min7 37.60 [37.6 39.4 39.4 40.0 41.9 41.0 40.3]  sec60 min7 35.52  floor min7 32.43  BW1k 37.15  BW2k 18.33  on-axis -2.30 dB  WNGn -0.90  SLL@1k -29.75
+  Taylor35  R90 min7 36.71 [36.7 38.4 38.0 38.0 39.7 38.9 38.2]  sec60 min7 36.71  floor min7 32.40  BW1k 37.41  BW2k 18.45  on-axis -2.49 dB  WNGn -0.93  SLL@1k -35.06
+
+  JY/T 8 evaluable points, single frequency [in-band minimum]  (grade-2 threshold)
+                               500/30           500/90          1000/30          1000/90          2000/30          2000/90          4000/30          4000/90
+  grade-2 line                      3                8               15               17               17               22               19                8
+  D20q                  5.86 [  4.52]   23.10 [ 20.04]   23.10 [ 20.04]   22.40 [ 20.00]   22.40 [ 20.00]   23.01 [ 20.01]   23.01 [ 20.01]   26.03 [ 20.00]
+    grade-2 margin              +2.86           +15.10            +8.10            +5.40            +5.40            +1.01            +4.01           +18.03
+  D25q                  4.78 [  3.73]   37.81 [ 20.57]   37.81 [ 20.57]   25.94 [ 25.00]   25.94 [ 25.00]   28.78 [ 25.00]   28.78 [ 25.00]   30.17 [ 25.00]
+    grade-2 margin              +1.78           +29.81           +22.81            +8.94            +8.94            +6.78            +9.78           +22.17
+  D30q                  4.06 [  3.18]   21.78 [ 15.43]   21.78 [ 15.43]   30.10 [ 30.00]   30.10 [ 30.00]   34.86 [ 30.01]   34.86 [ 30.01]   34.30 [ 30.03]
+    grade-2 margin              +1.06           +13.78            +6.78           +13.10           +13.10           +12.86           +15.86           +26.30
+  D35q                  3.54 [  2.78]   17.11 [ 12.73]   17.11 [ 12.73]   35.22 [ 35.00]   35.22 [ 35.00]   41.43 [ 35.01]   41.43 [ 35.01]   38.43 [ 35.00]
+    grade-2 margin              +0.54            +9.11            +2.11           +18.22           +18.22           +19.43           +22.43           +30.43
+  RS-Aq                 3.21 [  2.52]   15.06 [ 11.33]   15.06 [ 11.33]   45.84 [ 38.97]   45.84 [ 38.97]   68.54 [ 41.43]   68.54 [ 41.43]   44.02 [ 41.47]
+    grade-2 margin              +0.21            +7.06            +0.06           +28.84           +28.84           +46.54           +49.54           +36.02
+  RS-Bq                 3.57 [  2.80]   17.80 [ 13.05]   17.80 [ 13.05]   36.52 [ 35.02]   36.52 [ 35.02]   49.72 [ 36.97]   49.72 [ 36.97]   39.97 [ 36.97]
+    grade-2 margin              +0.57            +9.80            +2.80           +19.52           +19.52           +27.72           +30.72           +31.97
+  Taylor35              3.53 [  2.78]   17.05 [ 12.69]   17.05 [ 12.69]   35.02 [ 34.78]   35.02 [ 34.78]   43.14 [ 35.21]   43.14 [ 35.21]   38.17 [ 35.00]
+    grade-2 margin              +0.53            +9.05            +2.05           +18.02           +18.02           +21.14           +24.14           +30.17
+  single-frequency JY/T >= D35q at all 8 points: D20q no, D25q no, D30q no, D35q YES, RS-Aq no, RS-Bq YES, Taylor35 no
+
+=== RS-B selection rule (coarse grid eta, ths=60, thm=30; Q15 tables)
+  eta 0.1  Q15 [4080, 7830, 12670, 18039, 23371, 27893, 31097, 32768]  all 8 >= D35: False   worst (point - D35) -0.762 dB at 500/90
+  eta 0.3  Q15 [4607, 8345, 13182, 18474, 23682, 28067, 31156, 32768]  all 8 >= D35: False   worst (point - D35) -0.070 dB at 500/30
+  eta 1.0  Q15 [5285, 8787, 13546, 18697, 23762, 28068, 31143, 32768]  all 8 >= D35: True   worst (point - D35) +0.029 dB at 500/30
+  eta 3.0  Q15 [5814, 9018, 13748, 18788, 23742, 28013, 31112, 32768]  all 8 >= D35: False   worst (point - D35) -0.498 dB at 1000/90
+  -> smallest passing eta = 1.0 == RS_SPECS RS-B  (PASS)
+
+=== EXPLORATION RECORD (critic R3e F4): space scanned by the PM before the RS-B rule was fixed [L2 ideal]
+    columns: thinnest JY/T grade-2 margin (point) | all 8 JY/T >= D35 | R90 min7 | BW1k | on-axis vs D20 | monotone edge->centre | every weight <= D20 same channel
+  thm   30 eta 0.1  nu 0     mu 0     | g2  +0.37 (500/30) | >=D35 False | R90  40.6 | BW1k  38.2 | ax -2.53 | mono True  | <=D20 True
+  thm   30 eta 0.1  nu 0.03  mu 0     | g2  +2.04 (500/30) | >=D35 False | R90  31.7 | BW1k  31.3 | ax +0.05 | mono False | <=D20 False
+  thm   30 eta 0.1  nu 0.1   mu 0     | g2  +2.66 (500/30) | >=D35 False | R90  29.3 | BW1k  29.7 | ax +0.20 | mono False | <=D20 False
+  thm   30 eta 0.1  nu 0.3   mu 0     | g2  +1.63 (1000/30) | >=D35 False | R90  26.1 | BW1k  28.9 | ax +0.56 | mono False | <=D20 False
+  thm   30 eta 0.1  nu 1     mu 0     | g2  +2.07 (1000/90) | >=D35 False | R90  19.8 | BW1k  27.9 | ax +0.91 | mono False | <=D20 False
+  thm   30 eta 0.3  nu 0     mu 0     | g2  +0.47 (500/30) | >=D35 False | R90  39.5 | BW1k  37.7 | ax -2.39 | mono True  | <=D20 True
+  thm   30 eta 0.3  nu 0.03  mu 0     | g2  +1.64 (500/30) | >=D35 False | R90  31.6 | BW1k  32.6 | ax -0.39 | mono True  | <=D20 False
+  thm   30 eta 0.3  nu 0.1   mu 0     | g2  +2.41 (500/30) | >=D35 False | R90  28.4 | BW1k  30.3 | ax +0.38 | mono False | <=D20 False
+  thm   30 eta 0.3  nu 0.3   mu 0     | g2  +2.52 (1000/30) | >=D35 False | R90  25.5 | BW1k  29.1 | ax +0.70 | mono False | <=D20 False
+  thm   30 eta 0.3  nu 1     mu 0     | g2  +2.22 (1000/30) | >=D35 False | R90  20.6 | BW1k  28.1 | ax +1.02 | mono False | <=D20 False
+  thm   30 eta 1    nu 0     mu 0     | g2  +0.57 (500/30) | >=D35 True  | R90  37.6 | BW1k  37.2 | ax -2.30 | mono True  | <=D20 True
+  thm   30 eta 1    nu 0.03  mu 0     | g2  +1.19 (500/30) | >=D35 False | R90  32.2 | BW1k  34.3 | ax -1.36 | mono True  | <=D20 True
+  thm   30 eta 1    nu 0.1   mu 0     | g2  +1.92 (500/30) | >=D35 False | R90  28.3 | BW1k  31.7 | ax -0.24 | mono True  | <=D20 False
+  thm   30 eta 1    nu 0.3   mu 0     | g2  +2.64 (500/30) | >=D35 False | R90  25.3 | BW1k  29.8 | ax +0.63 | mono False | <=D20 False
+  thm   30 eta 1    nu 1     mu 0     | g2  +2.64 (1000/30) | >=D35 False | R90  22.0 | BW1k  28.5 | ax +1.06 | mono False | <=D20 False
+  thm   30 eta 3    nu 0     mu 0     | g2  +0.64 (500/30) | >=D35 False | R90  36.2 | BW1k  36.8 | ax -2.25 | mono True  | <=D20 True
+  thm   30 eta 3    nu 0.03  mu 0     | g2  +0.91 (500/30) | >=D35 False | R90  33.4 | BW1k  35.5 | ax -1.86 | mono True  | <=D20 True
+  thm   30 eta 3    nu 0.1   mu 0     | g2  +1.38 (500/30) | >=D35 False | R90  30.1 | BW1k  33.5 | ax -1.20 | mono True  | <=D20 True
+  thm   30 eta 3    nu 0.3   mu 0     | g2  +2.09 (500/30) | >=D35 False | R90  26.6 | BW1k  31.2 | ax -0.20 | mono True  | <=D20 False
+  thm   30 eta 3    nu 1     mu 0     | g2  +2.87 (500/30) | >=D35 False | R90  23.5 | BW1k  29.2 | ax +0.73 | mono False | <=D20 False
+  thm   35 eta 0.1  nu 0     mu 0     | g2  +0.06 (1000/30) | >=D35 False | R90  42.2 | BW1k  39.3 | ax -2.83 | mono True  | <=D20 True
+  thm   35 eta 0.1  nu 0.03  mu 0     | g2  +2.11 (500/30) | >=D35 False | R90  31.5 | BW1k  31.1 | ax +0.10 | mono False | <=D20 False
+  thm   35 eta 0.1  nu 0.1   mu 0     | g2  +2.54 (1000/30) | >=D35 False | R90  29.3 | BW1k  29.6 | ax +0.17 | mono False | <=D20 False
+  thm   35 eta 0.1  nu 0.3   mu 0     | g2  +1.50 (1000/30) | >=D35 False | R90  26.2 | BW1k  28.9 | ax +0.54 | mono False | <=D20 False
+  thm   35 eta 0.1  nu 1     mu 0     | g2  +2.10 (2000/30) | >=D35 False | R90  19.9 | BW1k  27.9 | ax +0.93 | mono False | <=D20 False
+  thm   35 eta 0.3  nu 0     mu 0     | g2  +0.26 (500/30) | >=D35 False | R90  41.6 | BW1k  39.0 | ax -2.76 | mono True  | <=D20 True
+  thm   35 eta 0.3  nu 0.03  mu 0     | g2  +1.72 (500/30) | >=D35 False | R90  31.5 | BW1k  32.3 | ax -0.23 | mono False | <=D20 False
+  thm   35 eta 0.3  nu 0.1   mu 0     | g2  +2.49 (500/30) | >=D35 False | R90  28.4 | BW1k  30.1 | ax +0.39 | mono False | <=D20 False
+  thm   35 eta 0.3  nu 0.3   mu 0     | g2  +2.19 (1000/30) | >=D35 False | R90  25.7 | BW1k  29.0 | ax +0.65 | mono False | <=D20 False
+  thm   35 eta 0.3  nu 1     mu 0     | g2  +2.11 (1000/30) | >=D35 False | R90  20.7 | BW1k  28.1 | ax +1.07 | mono False | <=D20 False
+  thm   35 eta 1    nu 0     mu 0     | g2  +0.31 (500/30) | >=D35 False | R90  40.5 | BW1k  38.6 | ax -2.71 | mono True  | <=D20 True
+  thm   35 eta 1    nu 0.03  mu 0     | g2  +1.17 (500/30) | >=D35 False | R90  32.4 | BW1k  34.3 | ax -1.37 | mono True  | <=D20 True
+  thm   35 eta 1    nu 0.1   mu 0     | g2  +2.02 (500/30) | >=D35 False | R90  28.1 | BW1k  31.4 | ax -0.03 | mono True  | <=D20 False
+  thm   35 eta 1    nu 0.3   mu 0     | g2  +2.72 (500/30) | >=D35 False | R90  25.3 | BW1k  29.6 | ax +0.69 | mono False | <=D20 False
+  thm   35 eta 1    nu 1     mu 0     | g2  +2.32 (1000/30) | >=D35 False | R90  22.2 | BW1k  28.4 | ax +1.13 | mono False | <=D20 False
+  thm   35 eta 3    nu 0     mu 0     | g2  +0.35 (500/30) | >=D35 False | R90  39.5 | BW1k  38.4 | ax -2.67 | mono True  | <=D20 True
+  thm   35 eta 3    nu 0.03  mu 0     | g2  +0.76 (500/30) | >=D35 False | R90  34.6 | BW1k  36.2 | ax -2.08 | mono True  | <=D20 True
+  thm   35 eta 3    nu 0.1   mu 0     | g2  +1.39 (500/30) | >=D35 False | R90  30.1 | BW1k  33.5 | ax -1.15 | mono True  | <=D20 True
+  thm   35 eta 3    nu 0.3   mu 0     | g2  +2.20 (500/30) | >=D35 False | R90  26.4 | BW1k  30.9 | ax +0.04 | mono True  | <=D20 False
+  thm   35 eta 3    nu 1     mu 0     | g2  +2.94 (500/30) | >=D35 False | R90  23.5 | BW1k  29.1 | ax +0.89 | mono False | <=D20 False
+  thm   35 eta 0.1  nu 0     mu 0.01  | g2  +1.44 (500/30) | >=D35 False | R90  34.0 | BW1k  33.3 | ax -0.54 | mono True  | <=D20 False
+  thm   35 eta 0.1  nu 0     mu 0.03  | g2  +2.40 (500/30) | >=D35 False | R90  30.5 | BW1k  30.3 | ax +0.13 | mono False | <=D20 False
+  thm   35 eta 0.1  nu 0     mu 0.1   | g2  -0.44 (1000/30) | >=D35 False | R90  26.9 | BW1k  28.3 | ax +0.31 | mono False | <=D20 False
+  thm   35 eta 0.1  nu 0     mu 0.3   | g2  -1.54 (1000/30) | >=D35 False | R90  21.8 | BW1k  27.1 | ax +1.15 | mono False | <=D20 False
+  thm   35 eta 0.1  nu 0     mu 1     | g2  -3.09 (2000/30) | >=D35 False | R90  13.9 | BW1k  25.2 | ax -3.09 | mono False | <=D20 False
+  thm   30 eta 0.5  nu 0     mu 0     | g2  +0.52 (500/30) | >=D35 False | R90  38.7 | BW1k  37.4 | ax -2.35 | mono True  | <=D20 True
+  thm   30 eta 0.6  nu 0     mu 0     | g2  +0.53 (500/30) | >=D35 False | R90  38.4 | BW1k  37.4 | ax -2.33 | mono True  | <=D20 True
+  thm   30 eta 0.7  nu 0     mu 0     | g2  +0.54 (500/30) | >=D35 True  | R90  38.2 | BW1k  37.3 | ax -2.32 | mono True  | <=D20 True
+  thm   30 eta 0.8  nu 0     mu 0     | g2  +0.55 (500/30) | >=D35 True  | R90  38.0 | BW1k  37.2 | ax -2.31 | mono True  | <=D20 True
+  thm   30 eta 2    nu 0     mu 0     | g2  +0.62 (500/30) | >=D35 True  | R90  36.6 | BW1k  36.9 | ax -2.26 | mono True  | <=D20 True
+  exploratory RS-A (as proposed) [0.1074 0.2135 0.3565 0.5193 0.6866 0.8347 0.9426 1.    ] vs formal RS-A Q15 [0.1059 0.212  0.3539 0.5176 0.6857 0.8337 0.9423 1.    ]: max |dw| = 0.0025
+  NOTE (critic R3e D1): before the RS-B rule was fixed the PM also VIEWED exploratory Monte-Carlo yields
+  (scratch rs_explore.py / rs_explore3.py, 2026-09-28 00:03-00:07, same F.mc_cell seeds): D35 plus ~8 RS
+  candidates (thm 35: eta 0.1/0.3/1, the mu family; thm 30: eta 0.1/0.3/1/3; and two nu = 0.03 variants).
+  The coarse eta grid {0.1, 0.3, 1, 3} was chosen after eta 0.5-0.8 had been seen; on the finer rows above the
+  'all 8 JY/T >= D35' rule holds for a window of eta (about 0.7-2), whose tables are nearly identical.
+
+=== MONTE CARLO [L2 on L4 spread]: 1000 arrays/cell, common random numbers, seeds = s7_fir_robust_design (SEED 20260926 + 1000*(model+1) + strategy); JOINT7 = all 7 DEC-S7-SIDE30-01 bands >= 30 dB (headline)
+  [U-flat|asbuilt ] seed 20261926 ( 2.8s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/20.7  Dolph-35   6.0%/27.7  D20q   0.0%/20.7  D25q   0.0%/24.0  D30q   0.1%/26.4  D35q   6.0%/27.7  RS-Aq  13.6%/28.1  RS-Bq  10.4%/28.1  Taylor35   6.8%/27.7
+  [U-flat|amp     ] seed 20261927 ( 3.3s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/21.3  Dolph-35  23.0%/29.0  D20q   0.0%/21.3  D25q   0.0%/25.0  D30q   0.7%/27.6  D35q  23.0%/29.0  RS-Aq  39.0%/29.5  RS-Bq  32.8%/29.4  Taylor35  23.3%/29.1
+  [U-flat|pair    ] seed 20261928 ( 3.6s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/21.9  Dolph-35  82.8%/31.8  D20q   0.0%/21.9  D25q   0.0%/26.2  D30q  33.9%/29.7  D35q  82.8%/31.8  RS-Aq  87.9%/32.6  RS-Bq  85.4%/32.1  Taylor35  82.8%/31.8
+  [U-flat|cplx    ] seed 20261929 ( 3.2s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/21.4  Dolph-35  56.1%/30.2  D20q   0.0%/21.4  D25q   0.0%/25.3  D30q   4.9%/28.3  D35q  56.1%/30.2  RS-Aq  72.7%/31.3  RS-Bq  66.6%/30.8  Taylor35  57.2%/30.3
+  [U-flat|paircplx] seed 20261930 ( 4.1s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/22.0  Dolph-35 100.0%/35.2  D20q   0.0%/22.0  D25q   0.0%/26.6  D30q  89.7%/30.8  D35q 100.0%/35.2  RS-Aq 100.0%/39.2  RS-Bq 100.0%/36.1  Taylor35 100.0%/35.2
+  [G-p0.5|asbuilt ] seed 20262926 ( 6.5s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/20.8  Dolph-35   8.1%/27.8  D20q   0.0%/20.8  D25q   0.0%/24.1  D30q   0.0%/26.6  D35q   8.1%/27.8  RS-Aq  17.2%/28.3  RS-Bq  12.3%/28.2  Taylor35   8.0%/27.8
+  [G-p0.5|amp     ] seed 20262927 ( 7.5s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/21.1  Dolph-35  18.8%/28.6  D20q   0.0%/21.1  D25q   0.0%/24.7  D30q   0.7%/27.2  D35q  18.8%/28.6  RS-Aq  34.2%/29.2  RS-Bq  27.8%/28.9  Taylor35  20.1%/28.6
+  [G-p0.5|pair    ] seed 20262928 ( 7.8s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/21.3  Dolph-35  56.8%/30.3  D20q   0.0%/21.3  D25q   0.0%/25.2  D30q   3.4%/28.3  D35q  56.8%/30.3  RS-Aq  75.6%/31.2  RS-Bq  67.4%/30.7  Taylor35  58.1%/30.3
+  [G-p0.5|cplx    ] seed 20262929 ( 7.5s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/21.2  Dolph-35  36.8%/29.4  D20q   0.0%/21.2  D25q   0.0%/25.0  D30q   1.3%/27.8  D35q  36.8%/29.4  RS-Aq  54.8%/30.2  RS-Bq  47.2%/29.9  Taylor35  37.7%/29.5
+  [G-p0.5|paircplx] seed 20262930 ( 8.1s)  joint7 / median(worst of 7 bands):  Dolph-20   0.0%/21.5  Dolph-35  90.6%/31.7  D20q   0.0%/21.5  D25q   0.0%/25.6  D30q  15.6%/29.1  D35q  90.6%/31.7  RS-Aq  98.7%/33.3  RS-Bq  95.0%/32.4  Taylor35  90.8%/31.8
+  MC ANCHOR: 140 anchor rows (2 designs x 7 bands x 10 cells) reproduce s7_fir_mc.csv exactly -> PASS
+
+=== SUMMARY (joint7 %, U-flat | G-p0.5+jig) [L2 on L4 spread]
+  D20q      asbuilt   0.0 |   0.0   amp   0.0 |   0.0   pair   0.0 |   0.0   cplx   0.0 |   0.0   paircplx   0.0 |   0.0
+  D30q      asbuilt   0.1 |   0.0   amp   0.7 |   0.7   pair  33.9 |   3.4   cplx   4.9 |   1.3   paircplx  89.7 |  15.6
+  D35q      asbuilt   6.0 |   8.1   amp  23.0 |  18.8   pair  82.8 |  56.8   cplx  56.1 |  36.8   paircplx 100.0 |  90.6
+  RS-Aq     asbuilt  13.6 |  17.2   amp  39.0 |  34.2   pair  87.9 |  75.6   cplx  72.7 |  54.8   paircplx 100.0 |  98.7
+  RS-Bq     asbuilt  10.4 |  12.3   amp  32.8 |  27.8   pair  85.4 |  67.4   cplx  66.6 |  47.2   paircplx 100.0 |  95.0
+  Taylor35  asbuilt   6.8 |   8.0   amp  23.3 |  20.1   pair  82.8 |  58.1   cplx  57.2 |  37.7   paircplx 100.0 |  90.8
+
+runtime 69s ; outputs s7_alt_tables.log / s7_alt_tables_ideal.csv / s7_alt_tables_mc.csv

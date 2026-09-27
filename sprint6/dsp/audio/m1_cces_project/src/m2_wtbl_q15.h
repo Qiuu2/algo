@@ -7,12 +7,17 @@
  * Basis: DEC-S7-SIDE30-01 (2)(4) (CTO 2026-09-26 agreed to reopen D6 and to firmware changes; that THIS
  *        package falls under it is a PM reading pending CTO review, DEC (4)) and
  *        sprint7/docs/S7_SIDE30_ANALYSIS.md sec 3. Used ONLY under #ifdef M2_WTBL_SEL.
+ *        Row sel 4 (robust-sector RS-A): approved by the CTO 2026-09-27 (reply quoted verbatim in
+ *        sprint2/docs/decisions_log.md, S7 entry 2026-09-28). Row sel 5 (RS-B): ADDED BY THE PM, pending
+ *        CTO review; its selection rule was set after an exploratory scan. ANALYSIS sec 3.1.
  *
  * sel 0 = the FROZEN g_dolph_w8_q15 (Dolph -20, sprint4/dsp/fira/dolph_w8_q15.h) -- NOT duplicated here.
  * sel k (k=1..M2_WTBL_NEXTRA) = g_m2_wtbl_q15[k-1]. Index c = channel = pair {c,15-c}, edge(0)->centre(7),
- * exactly like the frozen table. Q15 scale 1.0 = 32768 (== DOLPH_W8_ONE); all values <= 32768 (GAP-SAT ok).
- * Dual track (iron rule 7): scipy chebwin vs Barbiere closed form -> bit-identical Q15; generator anchor:
- * reproduces the frozen D20 table bit-exactly. [L2/dual-track desktop]
+ * exactly like the frozen table. Q15 scale 1.0 = 32768 (== DOLPH_W8_ONE); all values <= 32768 (GAP-SAT ok)
+ * and every value <= the frozen D20 value of the same channel (no channel driven harder than sel 0).
+ * Dual track (iron rule 7), bit-identical Q15: Dolph rows = scipy chebwin vs Barbiere closed form;
+ * robust-sector rows = Gauss-Legendre quadrature + LU vs Jacobi-Anger Bessel series + Cholesky.
+ * Generator anchor: reproduces the frozen D20 table bit-exactly. [L2/dual-track desktop]
  *
  * Ideal far-field metrics [L2, isotropic point-source model s7_common.py; NOT board/acoustic readings]:
  *   table  BW(-6)@1k  SLL    att30@500  att30@1k  att90 band-avg 1k/2k/4k   on-axis vs D20  WNGn
@@ -20,7 +25,13 @@
  *   D25     32.18 deg -25.00    4.78    37.81    27.0/ 28.1/ 28.0    -1.02 dB  -0.37
  *   D30     34.87 deg -30.00    4.06    21.78    31.6/ 33.0/ 32.9    -1.82 dB  -0.65
  *   D35     37.36 deg -35.00    3.54    17.11    36.9/ 37.8/ 37.8    -2.47 dB  -0.92
+ *   RS-A    39.26 deg -33.10    3.21    15.06    42.3/ 44.4/ 45.0    -2.83 dB  -1.12
+ *   RS-B    37.15 deg -29.75    3.57    17.80    37.6/ 40.0/ 40.3    -2.30 dB  -0.90
  *   (* D20 = frozen sel 0, listed for reference only)
+ * JY/T grade-2 (locked PRD floor) is 3 dB at 500/30 deg and 15 dB at 1k/30 deg; RS-A clears them by only +0.21 /
+ * +0.06 dB [L2 ideal] -> RS-A is a MEASUREMENT row (how far a side-first fixed table goes on the real
+ * array), not a product candidate. RS-B: each of the 8 evaluable JY/T points >= Dolph-35 [L2 ideal,
+ * single frequency, asserted by the generator; thinnest +0.03 dB at 500/30 deg, i.e. on par with D35].
  * GATING (critic R2 MAJOR-3b): on-board A/B only AFTER polarity QA has measured the channel->position
  * map and the CTO D8 ruling; a deeper table on a mis-mapped array tells you nothing. Table choice waits
  * for the per-driver spread measurement (critic R2 MAJOR-3c).
@@ -30,12 +41,14 @@
 
 #include <stdint.h>
 
-#define M2_WTBL_NEXTRA  3   /* extra tables beyond the frozen sel-0 table */
+#define M2_WTBL_NEXTRA  5   /* extra tables beyond the frozen sel-0 table */
 
 static const int32_t g_m2_wtbl_q15[M2_WTBL_NEXTRA][8] = {
     { 16080, 13167, 17479, 21793, 25778, 29113, 31512, 32768 },   /* sel 1: Dolph-Chebyshev -25 dB */
     {  9535, 10397, 14932, 19718, 24327, 28300, 31221, 32768 },   /* sel 2: Dolph-Chebyshev -30 dB */
     {  5868,  8179, 12739, 17834, 22954, 27510, 30932, 32768 },   /* sel 3: Dolph-Chebyshev -35 dB */
+    {  3470,  6948, 11598, 16960, 22469, 27318, 30876, 32768 },   /* sel 4: robust-sector RS-A: 60-90 deg + 0.1 x 35-60 deg, 1-4 kHz, error-loaded; side-first; = the robust-sector table proposed to the CTO, formal exact-integral form */
+    {  5285,  8787, 13546, 18697, 23762, 28068, 31143, 32768 },   /* sel 5: robust-sector RS-B: 60-90 deg + 1 x 30-60 deg, 1-4 kHz, error-loaded; PM addition pending CTO review; 8 JY/T points >= Dolph-35 [L2 ideal], i.e. on par */
 };
 
 #endif /* ITC_M2_WTBL_Q15_H */

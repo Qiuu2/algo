@@ -1,0 +1,14 @@
+s7_alt_tables_xcheck.m  MATLAB 26.1.0.3251617 (R2026a) Update 2  [L2 cross-check]
+parsed frozen D20 [28404 16525 20371 24031 27287 29934 31802 32768] and 5 header rows
+sigma_g^2 (MATLAB integral) = 0.006981895547
+RS-A: MATLAB Q15 [3470 6948 11598 16960 22469 27318 30876 32768] vs header [3470 6948 11598 16960 22469 27318 30876 32768] -> PASS ; min distance to a rounding tie 0.1222 LSB
+RS-B: MATLAB Q15 [5285 8787 13546 18697 23762 28068 31143 32768] vs header [5285 8787 13546 18697 23762 28068 31143 32768] -> PASS ; min distance to a rounding tie 0.0077 LSB
+  D20q   BW1k 29.269 deg  on-axis +0.000 dB  1k/30 23.098  500/30 5.857 dB
+  D25q   BW1k 32.184 deg  on-axis -1.022 dB  1k/30 37.806  500/30 4.779 dB
+  D30q   BW1k 34.873 deg  on-axis -1.821 dB  1k/30 21.781  500/30 4.058 dB
+  D35q   BW1k 37.358 deg  on-axis -2.475 dB  1k/30 17.107  500/30 3.542 dB
+  RS-Aq  BW1k 39.261 deg  on-axis -2.831 dB  1k/30 15.058  500/30 3.207 dB
+  RS-Bq  BW1k 37.154 deg  on-axis -2.297 dB  1k/30 17.796  500/30 3.571 dB
+metrics: 102 values (8 JY/T + 7 R90 + BW1k + on-axis per table, 6 tables) max|MATLAB - numpy CSV| = 4.98e-04 dB; BW1k max diff 4.46e-04 deg -> PASS
+(tolerances 1.5e-3 dB / 2e-3 deg = CSV 3-decimal rounding + numpy BW grid interpolation)
+OVERALL PASS

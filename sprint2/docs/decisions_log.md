@@ -1151,3 +1151,47 @@ Re 层级关系（critic R22 裁 CLEAN，防口径错挂）：**Re 7.600Ω = 单
   - ANALYSIS §6 把拆前的现装配远场基线提到第 3 步（带日期变更注），相关的 3 处步骤号引用已同步；
   - 四份执行单的页头补了带日期的状态更新（原文保留）。
 - **门**：critic R3d 共三轮，CONDITIONAL → delta（A PASS / B CONDITIONAL）→ mini-delta（A PASS / B PASS_WITH_MINOR，剩余 MINOR 已修）。全文 `sprint7/critic/CRITIC_L_SIDE30_R3D_20260927.md`。reviewer: critic @ claude-opus-5-5 / 2026-09-27。*
+
+*2026-09-28 **S7 侧面 30 dB：稳健扇区表 RS-A / RS-B 加入 `M2_WTBL_SEL`（sel 4 / 5）（非决策，留痕；执行 CTO 2026-09-27 的同意）**：
+- **授权**：PM 提议「把"稳健扇区优化表"做成第 5 张表（照样走 critic 门），并在桌面评估 IIR 和延时 CBT 这两个变体」，CTO 回复「我同意，你依次干吧」（2026-09-27）。本包即其中的第一项；IIR / 延时 CBT 的桌面评估是下一包。
+- **PM 拟，待 CTO 过目**：CTO 同意的是**一张**表，即 RS-A；**RS-B 是 PM 在执行中加的第二张**。理由有两条：
+  - RS-A 的 JY/T 二级裕量太薄，当不了产品候选；
+  - RS-B 用同一方法，并守住"8 个 JY/T 点都不低于 D35"，同一场外场多测一张可以省掉一次外场。
+  CTO 若不要 RS-B：删掉 `gen_m2_wtbl.py` 中 `RS_SPECS` 的 RS-B 一行并重新生成，sel 5 消失，sel 0–4 不变；同时改切表执行单的 §0 表、第 c 步（不再写 5）、第 d 步（越界值改写 5）、权重和那一行、A/B 序列与回填表。`run_wtbl_checks.sh` 第 4 步会强制核对权重和与表名两行。
+- **内容**：
+  - 表由 `sprint7/dsp/wtbl/gen_m2_wtbl.py` 生成，**只追加行**，sel 1–3 的数值不变；
+  - 两条独立计算轨道 Q15 逐位相同，MATLAB 第三法同样复现；
+  - 每一路权重 ≤ 现表 D20 同一路（生成器断言）；
+  - 固件逻辑不变，只改注释（`m1_loopback_tdm.c` 3 处、`.h` 1 处）；
+  - 默认 build 经 gcc -E 与 HEAD 相同；
+  - `run_wtbl_checks.sh` 改为 5 步：
+    - 第 1 步的退出码改由 PIPESTATUS 取。原来被 `| grep -v` 吞掉、永远不会 FAIL，这是 critic R3e F1 抓到的，该行自 7686c05 起就有这个问题；
+    - 新增 1b 内置反证：把一行里两个权重对调、行和不变的副本必须被拒；
+    - 第 4 步核对权重和与表名两行；
+    - 第 5 步检查 CCES 目标文件只含 ASCII。
+    - 反证记录：`run_wtbl_falsifiers.sh`（输出 `wtbl_falsifiers.log`）用 7 种伪造输入（首/末行对调权重、非 ASCII、头文件缺失、对调表名、错写 sel 0 表名、对调权重和）整跑一键门，全部得到 OVERALL FAIL，原样输入得到 OVERALL PASS。
+  - 连带改动：
+    - 切表执行单：sel 4/5、NEXTRA=5 确认步、越界测试改为 6、A/B 序列 0 → 3 → 4 → 5 → 0 → 2 → 0；
+    - 测试员总览页：④ 行，新增 §5"待 CTO 定"；
+    - 分析 §3.1（含探索记录与精度说明）；
+    - `m1_loopback_tdm.c` 的 UTF-8 引文改为 ASCII 引用。
+- **数字** [L2 理想；良率 L2 on L4 spread，与 FIR 原型同一批抽样，D20/D35 的 140 行逐字复现 `s7_fir_mc.csv`]：
+  - 7 频段装好直接用的良率（U-flat / G）：D35 为 6.0 / 8.1%，RS-B 为 10.4 / 12.3%，RS-A 为 13.6 / 17.2%；
+  - 配对 + 微调：D35 为 82.8 / 56.8%，RS-B 为 85.4 / 67.4%，RS-A 为 87.9 / 75.6%；
+  - Taylor −35 与 D35 几乎相同，不进固件。
+  - 精度：每格绝对值约 ±1.5 个百分点（1σ）；表与表之间是配对比较，critic R3e 用新种子和独立 MC 复算，RS-A、RS-B 相对 D35 的提升在每个未饱和格为正（U-flat"配对 + 复数校准"一格都是 100%）。
+  - 出处：`sprint7/sim/side30/s7_alt_tables.{py,log}`、`s7_alt_tables_{ideal,mc}.csv`、`s7_alt_tables_xcheck.{m,log}`；分析见 `S7_SIDE30_ANALYSIS.md` §3.1。
+- **风险声明**：
+  - 其一，全部数字为 [L2] / [L2 on L4 spread]，没有 L1。
+  - 其二，RS-A 的 JY/T 二级裕量在 500/30° 为 +0.21 dB、在 1k/30° 为 +0.06 dB [L2 理想]，**只作测量用**。
+  - 其三，RS-B 相对 D35 [L2 理想]：
+    - 8 个 JY/T 点只是持平，最薄处只高 0.03 dB；
+    - 60–90° 扇区最差点低 1.4 dB；
+    - 1 kHz 峰值旁瓣高 5.2 dB（仍满足 ≤ −18 dB）；
+    - 它的选取规则是 PM 看过探索扫描后定的，探索记录见 `s7_alt_tables.log`：
+      - 粗网格是在看过 η 0.5–0.8 之后选的，细看 η 约 0.7–2 都满足"不低于 D35"；
+      - 定规则之前还看过约 8 个候选的探索性 MC 良率。
+  - 其四，**30° 还没有执行单**：切表执行单只测 0° / ±60° / ±90°，而 `S7_VERIFICATION_PLAN.md` §5.3 把 30° 定为这项实验的主判角（§5.3 未被取代）。选表前必须补做 30°（含 JY/T 口径的 30° 点）；由谁出单待 CTO 定（总览页 §5）。另外，RS 表恰是按 ±90° 优化的，而那正是模型最不可信的掠射方向（分析 §7）。
+  - 其五，本包不是选表：选表仍等逐只喇叭离散度实测（critic R2 MAJOR-3c）。
+- **不可逆性**：无。表只在 `#ifdef M2_WTBL_SEL` 下编入；默认 build 经 gcc -E 预处理等同（注释改动只移动 Debug 行号表）。
+- **门**：critic R3e 第 1 轮 CONDITIONAL（2 MAJOR：F1 检查脚本第 1 步不会 FAIL；F2 RS-B 的授权范围写大了）→ 全修 → delta PASS_WITH_MINOR → 剩余 D1/D2 已修。全文 `sprint7/critic/CRITIC_M_SIDE30_R3E_20260928.md`。reviewer: critic @ claude-opus-5-5 / 2026-09-28。*

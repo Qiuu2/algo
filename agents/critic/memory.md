@@ -784,3 +784,9 @@ learning_rules:
 - **harness/产品 build 边界（R34）**：审放置/占用类主张先问「这产物在哪个 build」——把 harness .map 当产品事实 = 前提为假（总工④实例）。
 - **审查型角色变体（R34）**：架构建议审查 = 三态判定（数据支撑/盲点/错误）+ 抓漏耦合 + 不替 CTO 裁；与过门 verdict 并列的第二种产出形态。
 - 轮次记录：R24 hooks 实现 / R25 MDMA 符号修复（板 grep 情报）/ R26 .map 放置判定 / R27 读数异常 / R28 T2 保守闭合 / R29 O1 EQ / R30 H2R 重测包 / R31 M1 survey / R32 M1 事实库 / R33 数据表轻门 / R34 架构审查。
+
+## 2026-09-28 教训（S7 侧面 30 dB，R3e）
+
+- **管道吞退出码的假绿（R3e F1，R3a 漏审）**：`cmd --check 2>&1 | grep -v 噪声 || rc=1` 永远不会 FAIL，因为管道的退出码是 grep 的，而 `grep -v` 只要打印了任何一行（包括 "CHECK FAIL" 本身）就返回 0。该行自 7686c05 起存在，R3a 判"一键门 PASS"时没有核它能不能 FAIL。
+  - 审一键门/CI 脚本时逐行问两件事：这一步的退出码真的来自被测命令吗（管道、`| tee`、`| grep`、`|| true`、`set -e` 缺失）？有没有一个"会 FAIL 的输入"证明过这一步能 FAIL？
+  - 修法：用 `${PIPESTATUS[0]}`，或者在确认不影响 `if a | grep -q` 语义的前提下开 `pipefail`；并在脚本里内置一个必须被拒的反证输入（本例为 `run_wtbl_checks.sh` 1b 步）。

@@ -1,0 +1,10 @@
+run_wtbl_falsifiers.sh  2026-09-27T17:15Z  HEAD 0ef46c4
+[OK] DEFAULT: expected 'OVERALL PASS', got 'OVERALL PASS' |     permuted copy rejected as it must be: CHECK FAIL: perm.h differs from a fresh generation;
+[OK] perm_last_row.h: expected 'OVERALL FAIL', got 'OVERALL FAIL' | CHECK FAIL: perm_last_row.h differs from a fresh generation;[wtbl]   step 1 FAIL;
+[OK] perm_first_row.h: expected 'OVERALL FAIL', got 'OVERALL FAIL' | CHECK FAIL: perm_first_row.h differs from a fresh generation;[wtbl]   step 1 FAIL;
+[OK] utf8.h: expected 'OVERALL FAIL', got 'OVERALL FAIL' | CHECK FAIL: utf8.h differs from a fresh generation;[wtbl]   step 1 FAIL;    non-ASCII in utf8.h:;
+[OK] does_not_exist.h: expected 'OVERALL FAIL', got 'OVERALL FAIL' | [wtbl]   step 1 FAIL;[wtbl]   MISMATCH (or missing) sums -- the tester would check applied_sum against wrong numbers;    missing/unreadable: does_not_exist.h;
+[OK] rb_labels_swapped.md: expected 'OVERALL FAIL', got 'OVERALL FAIL' |     permuted copy rejected as it must be: CHECK FAIL: perm.h differs from a fresh generation;[wtbl]   MISMATCH (or missing) sel/label row -- the tester would read the wrong table name;
+[OK] rb_label_d25.md: expected 'OVERALL FAIL', got 'OVERALL FAIL' |     permuted copy rejected as it must be: CHECK FAIL: perm.h differs from a fresh generation;[wtbl]   MISMATCH (or missing) sel/label row -- the tester would read the wrong table name;
+[OK] rb_sums_swapped.md: expected 'OVERALL FAIL', got 'OVERALL FAIL' |     permuted copy rejected as it must be: CHECK FAIL: perm.h differs from a fresh generation;[wtbl]   MISMATCH (or missing) sums -- the tester would check applied_sum against wrong numbers;
+FALSIFIERS: ALL OK
