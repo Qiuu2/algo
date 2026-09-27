@@ -1,0 +1,2 @@
+mu 1.0: on-axis full drive vs D20 -14.02 dB (script log: -14.05); band-1 weights (c0..c7, sum 2w=1):
+    [ 0.39  -0.018 -0.127 -0.068  0.024  0.088  0.107  0.104]  max|w|/mean|w| = 3.37

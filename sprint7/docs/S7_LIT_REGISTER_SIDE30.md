@@ -24,6 +24,18 @@
 | 14 | C_robust_calibration/Doclo_2003_ICASSP_RobustBroadbandSpeechBeamformersMicErrors.pdf | Doclo & Moonen 2003, ICASSP V-473（会议版） | 期刊版 10.1109/TSP.2003.816885 | 5c045cff94780143b04c229bafdd68d9 | 223608 |
 | 15 | C_robust_calibration/Gilbert_1955_BSTJ_OptimumArraysRandomVariations.pdf | Gilbert & Morgan 1955, BSTJ 34(3):637（archive.org 扫描件） | — | 6d122570379c699ebfb36d10f9833a44 | 12568493 |
 | 16 | C_robust_calibration/Tashev_2005_BeamformerSensitivityMicManufacturingTolerances.pdf | Tashev 2005, Microsoft Research | — | 01f26d1eccb7e40222fea5f9d4c4d007 | 56449 |
+| 17 | D_cbt/Keele_2002_AES5653_StraightLine_CBT_SignalDelays.pdf | Keele 2002, AES 113th Conv. paper 5653（e-lib 11236） | 第三方网站副本，2026-09-28 下载自 https://audioartistry.com/Papers/CBT%20Paper%202%20Implementation%20CBT%20Arrays%20Using%20Signal%20Delays.pdf（"CBT Paper 2" 与作者网站 dbkeele.com 的编号一致）；见下方来源说明 | ea66f70763840215302b7e29320bbefc | 746923 |
+
+**2026-09-28 增补**（与下载同日）：
+- **#17 Keele 2002**：原列于 `README_论文索引.md` 付费墙清单第 6 项，今日取得副本并入库。用于 `sprint7/docs/S7_SIDE30_ALT_ALGOS.md` §4。
+  - **来源说明**（critic R3f F7）：这是第三方网站 audioartistry.com 上的副本，**不是开放获取版本**。PDF 注明 AES 版权所有、未经许可不得复制；作者网站 dbkeele.com 的论文列表里另有作者自存副本，注明未经许可不得转贴。本项目只在内部研读、引用，不转发、不入 git；是否改为向 AES 购买正式版本，由 CTO 决定。
+  - 本项目引用的要点：式 (3)–(7)（Legendre 近似式、弧半径、延时）；覆盖角约为弧角的 64%；延时 CBT 在离轴 60° 以外方向图变宽（对宽覆盖角阵列而言）；Fig. 10 的文字说明——**宽弧时**延时 CBT 的 ±90° 抑制只有约 10 dB，真曲面 CBT 为 25–35 dB（4 kHz、0.69 m 阵）。窄弧（10–30°）时，Fig. 10 的延时 CBT 仍在 −47 至 −51 dB，只比真曲面差 2–4 dB（critic R3f 读图）。
+  - 这些数字是作者的仿真结果（外部证据），不是本项目的 L1/L2。
+- **#12 van Beuningen & Start 2000 复核**：PM 于 2026-09-28 通读原文（第 17–28 页），确认以下几点，与索引页的概括一致：
+  - DDC "far field beam forming" 的目标是有效长度 ∝ λ，即恒定波束宽（§3.1.1，式 3-1）。
+  - 实现上是每通道 Bessel IIR（§3.1.2，第 22 页）。原文理由是过渡带要相位线性（群延时恒定），且执行时间比 FIR 少；另需插值滤波器，把延时缓冲的时间分辨率提高一倍。
+  - 原文第 23 页："calculates eight 4th order IIR filters in real-time … for a sample frequency of 48 kHz"，运行在 TMS320C32/50 浮点 DSP 上。
+  - 另一种方法 "radiation pattern shaping"（§3.2）是按频率最小二乘，再用 64 点 FIR 实现（第 26 页，24 kHz 采样）。
 
 **已在本地库、本次被引用的两份**（2026-05-26 入库）：
 - Van Trees 2002《Optimum Array Processing》§2.6.3，式 (2.205)–(2.211)：误差底噪 = ‖w‖² × 误差方差。

@@ -1,0 +1,155 @@
+S7 side-30: low-order IIR shading / DDC-literal / Keele delay-CBT [L2; yields L2 on L4; MAC L3]  anchors A5_max_abs_diff_csv_vs_chebwin=0, A1_bw6_1k_deg=29.269, A2_bw6_2k_deg=14.5147, A3_sll_1k_db=-20, A3_sll_2k_db=-20, A4_uniform_sll_1k_db=-13.1468, A6_q15_bw_shift_deg=6.62399e-05, A6_q15_sll_shift_db=3.78301e-05, A7_di_closed_1k_db=7.15529, A7_di_numeric_1k_db=7.15529, A8_bw3_1k_deg=21.2219
+LR4 3-band bank 700/1600 Hz on real biquads (scipy butter/sosfreqz, 1 Hz-20 kHz): max inter-band phase 1.6e-11 rad, max ||low|+|mid|+|high|-1| 5.3e-13, max |biquad - closed-form magnitude| 5.1e-13  -> PASS
+
+=== (1) shared in-phase LR bank + per-channel band gains; band 1 = frozen D20; grid (ideal [L2])
+  X2-LR4-600-e0.1m35         nonneg True  JY/T worst grade 2 (g1 margin -1.53)  R90 min7  45.0  BW1k  38.0  on-axis -2.78 dB  500/30  4.88  1k/30 16.47  
+  X2-LR4-600-e1m30           nonneg True  JY/T worst grade 2 (g1 margin -0.01)  R90 min7  37.5  BW1k  36.7  on-axis -2.45 dB  500/30  4.99  1k/30 18.38  
+  X2-LR4-600-e3m30           nonneg True  JY/T worst grade 1 (g1 margin +0.01)  R90 min7  35.7  BW1k  36.4  on-axis -2.41 dB  500/30  5.01  1k/30 18.77  CANDIDATE
+  X2-LR4-700-e0.1m35         nonneg True  JY/T worst grade 2 (g1 margin -0.30)  R90 min7  43.9  BW1k  37.1  on-axis -2.72 dB  500/30  5.22  1k/30 17.70  
+  X2-LR4-700-e1m30           nonneg True  JY/T worst grade 1 (g1 margin +0.27)  R90 min7  36.5  BW1k  36.3  on-axis -2.57 dB  500/30  5.27  1k/30 18.87  CANDIDATE
+  X2-LR4-700-e3m30           nonneg True  JY/T worst grade 1 (g1 margin +0.28)  R90 min7  34.8  BW1k  36.0  on-axis -2.54 dB  500/30  5.28  1k/30 19.20  CANDIDATE
+  X2-LR4-800-e0.1m35         nonneg True  JY/T worst grade 1 (g1 margin +0.44)  R90 min7  40.7  BW1k  35.9  on-axis -2.60 dB  500/30  5.44  1k/30 19.68  CANDIDATE
+  X2-LR4-800-e1m30           nonneg True  JY/T worst grade 1 (g1 margin +0.45)  R90 min7  34.8  BW1k  35.7  on-axis -2.73 dB  500/30  5.45  1k/30 19.66  CANDIDATE
+  X2-LR4-800-e3m30           nonneg True  JY/T worst grade 1 (g1 margin +0.46)  R90 min7  33.4  BW1k  35.6  on-axis -2.72 dB  500/30  5.46  1k/30 19.91  CANDIDATE
+  X3-LR4-700/1400-e0.1m35    nonneg False JY/T worst grade 1 (g1 margin +0.23)  R90 min7  44.6  BW1k  35.7  on-axis -2.13 dB  500/30  5.23  1k/30 19.26  
+  X3-LR4-700/1400-e1m30      nonneg False JY/T worst grade 1 (g1 margin +0.44)  R90 min7  37.7  BW1k  34.4  on-axis -3.05 dB  500/30  5.44  1k/30 22.06  
+  X3-LR4-700/1400-e3m30      nonneg False JY/T worst grade 1 (g1 margin +0.51)  R90 min7  35.9  BW1k  33.9  on-axis -3.45 dB  500/30  5.51  1k/30 23.14  
+  X3-LR4-700/1600-e0.1m35    nonneg True  JY/T worst grade 1 (g1 margin +0.22)  R90 min7  44.4  BW1k  36.1  on-axis -2.16 dB  500/30  5.22  1k/30 18.69  CANDIDATE
+  X3-LR4-700/1600-e1m30      nonneg False JY/T worst grade 1 (g1 margin +0.40)  R90 min7  37.2  BW1k  34.7  on-axis -2.89 dB  500/30  5.40  1k/30 21.50  
+  X3-LR4-700/1600-e3m30      nonneg False JY/T worst grade 1 (g1 margin +0.45)  R90 min7  35.5  BW1k  34.2  on-axis -3.51 dB  500/30  5.45  1k/30 22.52  
+  X3-LR4-700/2000-e0.1m35    nonneg True  JY/T worst grade 2 (g1 margin -0.03)  R90 min7  43.8  BW1k  36.6  on-axis -2.28 dB  500/30  5.22  1k/30 17.97  
+  X3-LR4-700/2000-e1m30      nonneg True  JY/T worst grade 1 (g1 margin +0.35)  R90 min7  36.5  BW1k  35.1  on-axis -2.19 dB  500/30  5.35  1k/30 20.67  CANDIDATE
+  X3-LR4-700/2000-e3m30      nonneg True  JY/T worst grade 1 (g1 margin +0.39)  R90 min7  34.9  BW1k  34.6  on-axis -3.35 dB  500/30  5.39  1k/30 21.57  CANDIDATE
+  X3-LR4-800/1600-e0.1m35    nonneg False JY/T worst grade 1 (g1 margin +0.40)  R90 min7  42.2  BW1k  35.9  on-axis -2.11 dB  500/30  5.40  1k/30 19.11  
+  X3-LR4-800/1600-e1m30      nonneg False JY/T worst grade 1 (g1 margin +0.51)  R90 min7  36.1  BW1k  34.7  on-axis -2.95 dB  500/30  5.51  1k/30 21.51  
+  X3-LR4-800/1600-e3m30      nonneg False JY/T worst grade 1 (g1 margin +0.55)  R90 min7  34.5  BW1k  34.2  on-axis -3.60 dB  500/30  5.55  1k/30 22.49  
+  X2-LR8-600-e0.1m35         nonneg True  JY/T worst grade 2 (g1 margin -2.73)  R90 min7  43.2  BW1k  39.1  on-axis -2.82 dB  500/30  5.29  1k/30 15.27  
+  X2-LR8-600-e1m30           nonneg True  JY/T worst grade 2 (g1 margin -0.11)  R90 min7  37.7  BW1k  37.1  on-axis -2.31 dB  500/30  5.37  1k/30 17.89  
+  X2-LR8-600-e3m30           nonneg True  JY/T worst grade 1 (g1 margin +0.33)  R90 min7  36.1  BW1k  36.7  on-axis -2.27 dB  500/30  5.39  1k/30 18.33  CANDIDATE
+  X2-LR8-700-e0.1m35         nonneg True  JY/T worst grade 2 (g1 margin -2.24)  R90 min7  44.5  BW1k  38.6  on-axis -2.79 dB  500/30  5.66  1k/30 15.76  
+  X2-LR8-700-e1m30           nonneg True  JY/T worst grade 1 (g1 margin +0.01)  R90 min7  37.6  BW1k  36.9  on-axis -2.37 dB  500/30  5.69  1k/30 18.01  CANDIDATE
+  X2-LR8-700-e3m30           nonneg True  JY/T worst grade 1 (g1 margin +0.42)  R90 min7  35.8  BW1k  36.6  on-axis -2.33 dB  500/30  5.69  1k/30 18.42  CANDIDATE
+  X2-LR8-800-e0.1m35         nonneg True  JY/T worst grade 2 (g1 margin -0.89)  R90 min7  43.4  BW1k  37.5  on-axis -2.70 dB  500/30  5.79  1k/30 17.11  
+  X2-LR8-800-e1m30           nonneg True  JY/T worst grade 1 (g1 margin +0.43)  R90 min7  36.0  BW1k  36.6  on-axis -2.51 dB  500/30  5.79  1k/30 18.43  CANDIDATE
+  X2-LR8-800-e3m30           nonneg True  JY/T worst grade 1 (g1 margin +0.79)  R90 min7  34.3  BW1k  36.3  on-axis -2.49 dB  500/30  5.79  1k/30 18.79  CANDIDATE
+  X3-LR8-700/1400-e0.1m35    nonneg True  JY/T worst grade 1 (g1 margin +0.71)  R90 min7  44.1  BW1k  35.5  on-axis -1.99 dB  500/30  5.71  1k/30 19.48  CANDIDATE
+  X3-LR8-700/1400-e1m30      nonneg False JY/T worst grade 1 (g1 margin +0.75)  R90 min7  38.6  BW1k  33.7  on-axis -3.03 dB  500/30  5.75  1k/30 23.30  
+  X3-LR8-700/1400-e3m30      nonneg False JY/T worst grade 1 (g1 margin +0.77)  R90 min7  37.3  BW1k  33.2  on-axis -3.41 dB  500/30  5.77  1k/30 24.62  
+  X3-LR8-700/1600-e0.1m35    nonneg True  JY/T worst grade 1 (g1 margin +0.58)  R90 min7  45.5  BW1k  36.1  on-axis -2.18 dB  500/30  5.70  1k/30 18.58  CANDIDATE
+  X3-LR8-700/1600-e1m30      nonneg False JY/T worst grade 1 (g1 margin +0.74)  R90 min7  38.1  BW1k  34.3  on-axis -2.39 dB  500/30  5.74  1k/30 22.12  
+  X3-LR8-700/1600-e3m30      nonneg False JY/T worst grade 1 (g1 margin +0.75)  R90 min7  36.6  BW1k  33.7  on-axis -3.14 dB  500/30  5.75  1k/30 23.31  
+  X3-LR8-700/2000-e0.1m35    nonneg True  JY/T worst grade 2 (g1 margin -0.67)  R90 min7  44.4  BW1k  37.1  on-axis -2.42 dB  500/30  5.69  1k/30 17.33  
+  X3-LR8-700/2000-e1m30      nonneg True  JY/T worst grade 1 (g1 margin +0.72)  R90 min7  37.4  BW1k  35.1  on-axis -1.89 dB  500/30  5.72  1k/30 20.58  CANDIDATE
+  X3-LR8-700/2000-e3m30      nonneg False JY/T worst grade 1 (g1 margin +0.73)  R90 min7  35.9  BW1k  34.6  on-axis -1.84 dB  500/30  5.73  1k/30 21.58  
+  X3-LR8-800/1600-e0.1m35    nonneg True  JY/T worst grade 1 (g1 margin +0.80)  R90 min7  40.9  BW1k  36.0  on-axis -2.18 dB  500/30  5.80  1k/30 18.89  CANDIDATE
+  X3-LR8-800/1600-e1m30      nonneg False JY/T worst grade 1 (g1 margin +0.81)  R90 min7  35.6  BW1k  34.4  on-axis -2.54 dB  500/30  5.81  1k/30 21.87  
+  X3-LR8-800/1600-e3m30      nonneg False JY/T worst grade 1 (g1 margin +0.81)  R90 min7  34.6  BW1k  33.9  on-axis -3.28 dB  500/30  5.81  1k/30 22.99  
+  -> 18 candidates (non-negative band gains and all 8 JY/T points grade 1)
+
+=== (2) DDC-literal constant beamwidth (ideal filters) and Keele 2002 delay-derived CBT (ideal [L2])
+  DDC-BW30         R90 7 bands [31.7 31.7 31.7 31.9 30.6 30.4  8.5] min  8.5  BW1k  51.4  on-axis -16.2..-16.2 dB  JY/T worst grade 0  500/30  2.37  1k/30  8.19
+  DDC-BW40         R90 7 bands [23.0 23.0 22.9 23.4 21.3 20.3  7.0] min  7.0  BW1k  70.7  on-axis -16.2..-16.2 dB  JY/T worst grade 0  500/30  2.37  1k/30  4.40
+  Legendre-only    R90 7 bands [35.8 35.8 41.0 47.0 52.0 62.0 49.1] min 35.8  BW1k  37.8  on-axis  -2.3.. -2.3 dB  JY/T worst grade 2  500/30  3.43  1k/30 17.56  max delay    0.0 us ( 0.00 samples)
+  CBT-arc20        R90 7 bands [33.3 34.5 39.4 44.4 49.2 52.8 40.1] min 33.3  BW1k  38.4  on-axis  -3.7.. -2.3 dB  JY/T worst grade 2  500/30  3.41  1k/30 15.61  max delay   98.5 us ( 4.73 samples)
+  CBT-arc20-int    R90 7 bands [33.8 35.0 35.1 35.4 27.9 29.9 25.0] min 25.0  BW1k  38.5  on-axis  -4.1.. -2.4 dB  JY/T worst grade 2  500/30  3.40  1k/30 15.12  max delay  104.2 us ( 5.00 samples)
+  CBT-arc30        R90 7 bands [30.9 32.9 37.5 41.9 46.3 47.6 33.0] min 30.9  BW1k  39.2  on-axis  -5.1.. -2.5 dB  JY/T worst grade 3  500/30  3.38  1k/30 13.98  max delay  148.1 us ( 7.11 samples)
+  CBT-arc30-int    R90 7 bands [33.0 34.3 37.7 32.1 36.5 35.6 26.0] min 26.0  BW1k  39.1  on-axis  -5.7.. -2.5 dB  JY/T worst grade 3  500/30  3.39  1k/30 13.65  max delay  145.8 us ( 7.00 samples)
+  CBT-arc45        R90 7 bands [27.2 29.8 33.8 37.1 40.9 40.1 23.1] min 23.1  BW1k  41.1  on-axis  -7.2.. -2.7 dB  JY/T worst grade 0  500/30  3.33  1k/30 11.64  max delay  223.2 us (10.71 samples)
+  CBT-arc45-int    R90 7 bands [25.8 27.0 36.0 34.8 31.4 28.6 19.6] min 19.6  BW1k  41.5  on-axis  -7.7.. -2.8 dB  JY/T worst grade 0  500/30  3.31  1k/30 11.18  max delay  229.2 us (11.00 samples)
+  CBT-arc60        R90 7 bands [23.8 26.3 29.4 31.9 34.8 32.9 16.0] min 16.0  BW1k  44.2  on-axis  -8.2.. -3.1 dB  JY/T worst grade 0  500/30  3.25  1k/30  9.63  max delay  299.3 us (14.37 samples)
+  CBT-arc60-int    R90 7 bands [23.7 28.7 24.3 26.5 34.9 36.5 15.7] min 15.7  BW1k  44.2  on-axis  -8.0.. -3.1 dB  JY/T worst grade 0  500/30  3.25  1k/30  9.60  max delay  291.7 us (14.00 samples)
+  Legendre shading U (edge->centre) = [0.092 0.264 0.436 0.6   0.747 0.868 0.954 0.997]
+
+=== SCOPE (critic R3f F6): outside the 7 DEC bands [L2 ideal]  R90 @5 kHz band (observation band) | BW(-6)@500 Hz | R90 min7 | JY/T worst grade
+  D20q                            22.9 dB |  60.7 deg |  22.2 | 2
+  X3-LR4-700/1600-e0.1m35         21.1 dB |  64.3 deg |  44.4 | 1
+  X3-LR4-700/1600-e0.1m35+5k      37.1 dB |  64.2 deg |  45.3 | 1
+  FIR V1-128 (taps)               35.9 dB |  61.4 deg |  43.1 | 1
+  -> the X3 tie with FIR is a 7-band (1k-4k) statement; X3's 5 kHz band sits at D20 level unless 5 kHz is put
+     into the design objective (+5k variant, which is also Monte-Carlo'd below).
+
+=== EXPLORATORY free-low-band variants (critic R3f F8): all 3 bands free, + mu x '500 Hz outside +/-30 deg'
+  mu 0.1 : on-axis full drive vs D20 -14.89 dB, 500/30 10.47 dB, any negative band gain: True
+  mu 1   : on-axis full drive vs D20 -14.05 dB, 500/30 11.03 dB, any negative band gain: True
+  mu 10  : on-axis full drive vs D20 -13.83 dB, 500/30 11.22 dB, any negative band gain: True
+  (the free low band goes superdirective: large sign-alternating weights, big on-axis loss -> band 1 fixed to D20)
+
+=== MONTE CARLO [L2 on L4 spread]: 1000 arrays/cell, same seeds/draws as s7_fir_mc.csv; JOINT7 = all 7 bands >= 30 dB
+  [U-flat|asbuilt ] seed 20261926 done (  6.6s)
+  [U-flat|amp     ] seed 20261927 done (  9.0s)
+  [U-flat|pair    ] seed 20261928 done (  9.5s)
+  [U-flat|cplx    ] seed 20261929 done (  8.7s)
+  [U-flat|paircplx] seed 20261930 done (  9.7s)
+  [G-p0.5|asbuilt ] seed 20262926 done ( 11.1s)
+  [G-p0.5|amp     ] seed 20262927 done ( 12.8s)
+  [G-p0.5|pair    ] seed 20262928 done ( 13.5s)
+  [G-p0.5|cplx    ] seed 20262929 done ( 13.4s)
+  [G-p0.5|paircplx] seed 20262930 done ( 14.3s)
+  MC ANCHOR: 140 anchor rows reproduce s7_fir_mc.csv exactly -> PASS
+
+=== XO candidates: joint7 % (U-flat | G) as-built / +pair+trim, per family
+  family X2-LR4: 6 candidates, U-flat as-built joint7 6.6..14.6%  -> representative X2-LR4-800-e0.1m35
+     X2-LR4-600-e3m30           U asb   7.7  U pair  84.0  G asb   9.6  G pair  59.2
+     X2-LR4-700-e1m30           U asb  10.0  U pair  86.5  G asb  12.1  G pair  64.4
+     X2-LR4-700-e3m30           U asb   7.5  U pair  83.3  G asb  10.2  G pair  54.0
+     X2-LR4-800-e0.1m35         U asb  14.6  U pair  88.8  G asb  16.9  G pair  74.0
+     X2-LR4-800-e1m30           U asb   8.5  U pair  84.1  G asb  11.0  G pair  55.4
+     X2-LR4-800-e3m30           U asb   6.6  U pair  78.8  G asb   8.4  G pair  45.3
+  family X2-LR8: 5 candidates, U-flat as-built joint7 7.2..10.5%  -> representative X2-LR8-700-e1m30
+     X2-LR8-600-e3m30           U asb   7.8  U pair  83.9  G asb   9.8  G pair  61.3
+     X2-LR8-700-e1m30           U asb  10.5  U pair  85.6  G asb  12.9  G pair  67.6
+     X2-LR8-700-e3m30           U asb   7.6  U pair  83.8  G asb   9.7  G pair  60.3
+     X2-LR8-800-e1m30           U asb  10.0  U pair  86.1  G asb  12.2  G pair  63.2
+     X2-LR8-800-e3m30           U asb   7.2  U pair  81.7  G asb   9.4  G pair  51.0
+  family X3-LR4: 3 candidates, U-flat as-built joint7 3.1..21.3%  -> representative X3-LR4-700/1600-e0.1m35
+     X3-LR4-700/1600-e0.1m35    U asb  21.3  U pair  92.6  G asb  25.1  G pair  80.8
+     X3-LR4-700/2000-e1m30      U asb   7.1  U pair  84.4  G asb   9.2  G pair  58.9
+     X3-LR4-700/2000-e3m30      U asb   3.1  U pair  80.1  G asb   4.5  G pair  44.8
+  family X3-LR8: 4 candidates, U-flat as-built joint7 8.2..22.7%  -> representative X3-LR8-700/1600-e0.1m35
+     X3-LR8-700/1400-e0.1m35    U asb  22.0  U pair  92.7  G asb  25.2  G pair  80.7
+     X3-LR8-700/1600-e0.1m35    U asb  22.7  U pair  92.3  G asb  25.0  G pair  79.5
+     X3-LR8-700/2000-e1m30      U asb   8.2  U pair  86.6  G asb  10.9  G pair  58.9
+     X3-LR8-800/1600-e0.1m35    U asb  20.6  U pair  91.6  G asb  24.3  G pair  78.4
+
+=== SUMMARY table (ideal [L2] | joint7 yield % [L2 on L4], U-flat / G)
+  design                     R90min7  sec60  BW1k  1k/30 500/30 JYTg   axis |    as-built       +trim  +pair+trim       +cplx  +pair+cplx
+  D20q                          22.2   21.2  29.3  23.10   5.86    2  -0.00 |   0.0/  0.0   0.0/  0.0   0.0/  0.0   0.0/  0.0   0.0/  0.0
+  D35q                          36.9   36.9  37.4  17.11   3.54    2  -2.47 |   6.0/  8.1  23.0/ 18.8  82.8/ 56.8  56.1/ 36.8 100.0/ 90.6
+  RS-Aq                         42.2   36.2  39.3  15.06   3.21    2  -2.83 |  13.6/ 17.2  39.0/ 34.2  87.9/ 75.6  72.7/ 54.8 100.0/ 98.7
+  RS-Bq                         37.6   35.5  37.2  17.80   3.57    2  -2.30 |  10.4/ 12.3  32.8/ 27.8  85.4/ 67.4  66.6/ 47.2 100.0/ 95.0
+  X2-LR4-800-e0.1m35            40.7   39.3  35.9  19.68   5.44    1  -2.60 |  14.6/ 16.9  40.3/ 34.2  88.8/ 74.0  72.4/ 55.2 100.0/ 98.2
+  X2-LR8-700-e1m30              37.6   37.6  36.9  18.01   5.69    1  -2.37 |  10.5/ 12.9  32.8/ 28.4  85.6/ 67.6  65.8/ 47.6 100.0/ 93.9
+  X3-LR4-700/1600-e0.1m35       44.4   44.4  36.1  18.69   5.22    1  -2.16 |  21.3/ 25.1  54.2/ 46.2  92.6/ 80.8  87.5/ 70.0 100.0/ 99.7
+  X3-LR8-700/1600-e0.1m35       45.5   44.1  36.1  18.58   5.70    1  -2.18 |  22.7/ 25.0  54.6/ 46.6  92.3/ 79.5  87.8/ 69.7 100.0/ 99.4
+  X3-LR4-700/1600-e0.1m35+5k    45.3   41.7  36.6  18.01   5.25    1  -2.68 |  15.4/ 18.0  42.6/ 36.6  89.0/ 76.8  74.4/ 56.9 100.0/ 98.5
+  DDC-BW30                       8.5    8.5  51.4   8.19   2.37    0 -16.18 |   0.0/  0.0   0.0/  0.0   0.0/  0.0   0.0/  0.0   0.0/  0.0
+  Legendre-only                 35.8   28.7  37.8  17.56   3.43    2  -2.25 |   9.0/ 10.8  29.0/ 25.5  83.6/ 62.0  61.1/ 41.2 100.0/ 91.4
+  CBT-arc20                     33.3   27.1  38.4  15.61   3.41    2  -2.78 |   2.6/  3.2  13.2/  9.6  65.5/ 37.1  30.0/ 19.1 100.0/ 66.9
+  CBT-arc20-int                 25.0   23.5  38.5  15.12   3.40    2  -2.96 |   0.0/  0.0   0.0/  0.0   0.1/  0.0   0.0/  0.0   0.0/  0.0
+  CBT-arc30                     30.9   25.5  39.2  13.98   3.38    3  -3.38 |   0.0/  0.1   1.3/  0.3  22.5/  5.7   2.2/  1.0  81.4/ 12.4
+  V1-128t (s7_fir_mc.csv)                                                   |  20.4/ 22.0  50.8/ 45.4  92.1/ 79.5  82.5/ 66.7 100.0/ 98.9
+  V2-128t (s7_fir_mc.csv)                                                   |  16.9/ 20.9  46.5/ 41.1  90.5/ 76.1  79.0/ 62.5 100.0/ 96.9
+
+=== COMPUTE [L3 MAC; cycles = MAC x 30-50 cyc/MAC board factor, recursive-IIR factor unverified -> L4]
+  X2-LR4:  36 MAC/sample ->  2304 MAC/frame (64 samples) ->     69-   115 k cyc/frame = 0.05-0.09 of the 1.333 M cyc frame (CCLK 1 GHz assumed)
+  X3-LR4:  69 MAC/sample ->  4416 MAC/frame (64 samples) ->    132-   221 k cyc/frame = 0.10-0.17 of the 1.333 M cyc frame (CCLK 1 GHz assumed)
+  X2-LR8:  56 MAC/sample ->  3584 MAC/frame (64 samples) ->    108-   179 k cyc/frame = 0.08-0.13 of the 1.333 M cyc frame (CCLK 1 GHz assumed)
+  X3-LR8: 114 MAC/sample ->  7296 MAC/frame (64 samples) ->    219-   365 k cyc/frame = 0.16-0.27 of the 1.333 M cyc frame (CCLK 1 GHz assumed)
+  reference (s7_fir_compute.csv): FIR-128 x 8 = 65536 MAC/frame direct / 32768 folded -> 0.98-3.28 M cyc/frame; frozen tree (C-code count) 169344 MAC/frame
+
+=== HEADROOM / DRIVE PREMISE (critic R3f F1/F4) [L2 time-domain simulation; real biquads and real FIR taps]
+  drive premise, steady sine (X3): per-channel peak gain vs D20 same channel, c0..c7 (c = 0-based channel =
+  elements {c, 15-c}): all f -2.16 -0.09 +1.17 +0.55 -0.51 -0.76 -0.24 +0.00 dB;  f >= 1.6 kHz -11.80 -0.09 +1.17 +0.55 -0.54 -1.04 -1.02 -1.13 dB
+  -> keeping every channel <= today (sine) needs 1.17 dB extra back-off: on-axis -2.16 -> -3.33 dB vs D20
+  transient: per-channel output PEAK vs today's same channel, full-scale input (peak 1), c0..c7, dB;
+  squares start from silence (the onset is included -- it is the worst case; steady state is lower)
+  signal         |                  X3-LR4 (real biquads)                   |                  FIR V1-128 (real taps)                 
+  square 100 Hz  |  -0.76  +3.59  +4.12  +3.80  +3.10  +2.64  +2.16  +2.04 |  -0.18  +0.00  -0.50  -1.32  -0.77  -0.73  -0.65  -0.69
+  square 1000 Hz |  -2.13  +5.54  +7.38  +6.92  +6.42  +5.76  +5.27  +4.82 |  -1.89  -1.62  -0.49  +0.41  +0.44  +0.02  -0.20  -0.02
+  square 3000 Hz |  -6.69  +5.16  +6.63  +6.05  +4.97  +4.04  +3.18  +2.45 |  -2.86  -0.84  -0.91  -0.91  -0.30  -0.38  -0.00  +0.03
+  pink noise     |  -4.43  -2.04  -1.29  -1.53  -1.89  -2.20  -2.41  -2.59 |  -1.89  -1.17  -1.17  -1.60  -1.95  -2.11  -2.11  -1.72
+  L1 bound       |  +3.58 +10.84 +12.62 +12.18 +11.79 +11.16 +10.74 +10.36 |  +6.23  +3.77  +3.21  +2.07  +1.57  +2.05  +2.60  +1.88
+  on-axis full drive vs D20, L1 convention (as s7_fir_robust_design l1_level): X3 -12.65 dB, FIR V1-128 -6.76 dB (s7_fir_summary.csv: -6.76)
+  X3 on-axis response = common all-pass AP700*AP1600 (magnitude flat, phase not linear): group delay 0.923 / 0.719 / 0.073 ms at 10 Hz / 1 kHz / 4 kHz; FIR V1-128: constant 63 samples = 1.312 ms
+
+runtime 118s ; outputs s7_alt_algos.log / _ideal.csv / _mc.csv / _params.csv

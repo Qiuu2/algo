@@ -1,0 +1,12 @@
+=== DDC-literal checks
+  BW30: clamp (0.6 d) active above  11953 Hz ; on-axis full drive with max taken over 0.9-4.5 kHz only: -16.09 dB ; at 4 kHz pairs with weight > 5% of max: 2 (weights edge->centre [0.    0.    0.    0.    0.    0.    0.079 1.   ])
+  BW40: clamp (0.6 d) active above   8965 Hz ; on-axis full drive with max taken over 0.9-4.5 kHz only: -16.18 dB ; at 4 kHz pairs with weight > 5% of max: 1 (weights edge->centre [0. 0. 0. 0. 0. 0. 0. 1.])
+=== Keele H_T sensitivity (paper text: +1 spacing -> N d ; paper Fig.1/2 13-driver ladder -> (N+1) d)
+  H_T = 16 d  Legendre-only  U_edge 0.092  R90 7-band min  35.8  (per band 35.8 35.8 41.0 47.0 52.0 62.0 49.1)  1k/30 17.56  BW1k  37.8
+  H_T = 16 d  CBT-arc20      U_edge 0.092  R90 7-band min  33.3  (per band 33.3 34.5 39.4 44.4 49.2 52.8 40.1)  1k/30 15.61  BW1k  38.4
+  H_T = 16 d  CBT-arc30      U_edge 0.092  R90 7-band min  30.9  (per band 30.9 32.9 37.5 41.9 46.3 47.6 33.0)  1k/30 13.98  BW1k  39.2
+  H_T = 16 d  CBT-arc60      U_edge 0.092  R90 7-band min  16.0  (per band 23.8 26.3 29.4 31.9 34.8 32.9 16.0)  1k/30  9.63  BW1k  44.2
+  H_T = 17 d  Legendre-only  U_edge 0.167  R90 7-band min  33.7  (per band 33.7 36.2 38.6 41.1 44.3 44.6 42.2)  1k/30 21.18  BW1k  35.8
+  H_T = 17 d  CBT-arc20      U_edge 0.167  R90 7-band min  32.1  (per band 32.1 35.0 37.5 40.0 43.1 43.1 37.6)  1k/30 17.57  BW1k  36.4
+  H_T = 17 d  CBT-arc30      U_edge 0.167  R90 7-band min  30.3  (per band 30.3 33.5 36.2 38.6 41.5 41.1 32.1)  1k/30 15.23  BW1k  37.1
+  H_T = 17 d  CBT-arc60      U_edge 0.167  R90 7-band min  16.4  (per band 23.9 27.0 29.3 31.1 33.5 31.6 16.4)  1k/30 10.05  BW1k  42.2

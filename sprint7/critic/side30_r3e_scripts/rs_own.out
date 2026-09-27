@@ -1,0 +1,11 @@
+E|g-1|^2 = 0.006981895547   Var(g) = 0.006981013773   |Eg|^2 = 1.001878938
+RS-A: X1 simpson Q15 [3470, 6948, 11598, 16960, 22469, 27318, 30876, 32768] == header True   tie 0.1222 LSB
+RS-A: X2 element Q15 [3470, 6948, 11598, 16960, 22469, 27318, 30876, 32768] == header True   max|X1-X2| 2.44e-15
+      all <= frozen D20 same channel: True   sum 152407
+      variant Var(g) instead of E|g-1|^2: Q15 [3470, 6948, 11598, 16960, 22469, 27318, 30876, 32768]  max|dQ15| 0
+      variant FULLY-EXPECTED (mid sector loaded too, (1+eta)x; sin^2 position; |Eg|^2 scaling): Q15 [3547, 7053, 11723, 17084, 22572, 27383, 30901, 32768]  max|dQ15| 125
+RS-B: X1 simpson Q15 [5285, 8787, 13546, 18697, 23762, 28068, 31143, 32768] == header True   tie 0.0077 LSB
+RS-B: X2 element Q15 [5285, 8787, 13546, 18697, 23762, 28068, 31143, 32768] == header True   max|X1-X2| 3.89e-16
+      all <= frozen D20 same channel: True   sum 162056
+      variant Var(g) instead of E|g-1|^2: Q15 [5285, 8787, 13545, 18697, 23762, 28068, 31143, 32768]  max|dQ15| 1
+      variant FULLY-EXPECTED (mid sector loaded too, (1+eta)x; sin^2 position; |Eg|^2 scaling): Q15 [5443, 8938, 13698, 18833, 23867, 28131, 31166, 32768]  max|dQ15| 158

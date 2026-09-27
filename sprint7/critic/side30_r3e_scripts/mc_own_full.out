@@ -1,0 +1,43 @@
+[U|asbuilt] n=12000  joint7 %: D35q   6.0  RS-Aq  13.3  RS-Bq  10.3  D30q   0.1  RS-Afull  13.2  RS-Bfull   9.8
+      per-seed: D35q 6.0/5.8/6.2  RS-Aq 13.2/12.9/13.7  RS-Bq 10.1/10.3/10.7
+      RS-Aq - D35q = +7.27 pts  (paired SE 0.27; only-RS-Aq 978 / only-D35 105)
+      RS-Bq - D35q = +4.36 pts  (paired SE 0.20; only-RS-Bq 564 / only-D35 41)
+      RS-Afull - D35q = +7.25 pts  (paired SE 0.26; only-RS-Afull 971 / only-D35 101)
+      RS-Bfull - D35q = +3.84 pts  (paired SE 0.19; only-RS-Bfull 499 / only-D35 38)
+      RS-Aq - RS-Bq = +2.92 pts (paired SE 0.22)
+[U|amp    ] n=12000  joint7 %: D35q  27.6  RS-Aq  41.6  RS-Bq  36.1  D30q   1.1  RS-Afull  41.7  RS-Bfull  35.1
+      per-seed: D35q 27.7/27.8/27.2  RS-Aq 41.3/42.7/40.8  RS-Bq 36.1/36.7/35.4
+      RS-Aq - D35q = +14.06 pts  (paired SE 0.33; only-RS-Aq 1764 / only-D35 77)
+      RS-Bq - D35q = +8.52 pts  (paired SE 0.26; only-RS-Bq 1058 / only-D35 36)
+      RS-Afull - D35q = +14.11 pts  (paired SE 0.33; only-RS-Afull 1768 / only-D35 75)
+      RS-Bfull - D35q = +7.51 pts  (paired SE 0.25; only-RS-Bfull 936 / only-D35 35)
+      RS-Aq - RS-Bq = +5.54 pts (paired SE 0.25)
+[U|pair   ] n=12000  joint7 %: D35q  82.3  RS-Aq  87.7  RS-Bq  85.6  D30q  33.3  RS-Afull  87.7  RS-Bfull  85.2
+      per-seed: D35q 83.0/80.8/83.2  RS-Aq 88.2/86.5/88.5  RS-Bq 86.2/84.1/86.4
+      RS-Aq - D35q = +5.38 pts  (paired SE 0.21; only-RS-Aq 650 / only-D35 4)
+      RS-Bq - D35q = +3.26 pts  (paired SE 0.16; only-RS-Bq 394 / only-D35 3)
+      RS-Afull - D35q = +5.37 pts  (paired SE 0.21; only-RS-Afull 647 / only-D35 2)
+      RS-Bfull - D35q = +2.83 pts  (paired SE 0.15; only-RS-Bfull 345 / only-D35 5)
+      RS-Aq - RS-Bq = +2.12 pts (paired SE 0.15)
+[G|asbuilt] n=12000  joint7 %: D35q   8.7  RS-Aq  18.1  RS-Bq  14.4  D30q   0.2  RS-Afull  18.2  RS-Bfull  13.7
+      per-seed: D35q 8.3/9.1/8.7  RS-Aq 17.7/18.9/17.8  RS-Bq 13.6/14.8/14.8
+      RS-Aq - D35q = +9.43 pts  (paired SE 0.30; only-RS-Aq 1251 / only-D35 120)
+      RS-Bq - D35q = +5.67 pts  (paired SE 0.22; only-RS-Bq 717 / only-D35 37)
+      RS-Afull - D35q = +9.47 pts  (paired SE 0.30; only-RS-Afull 1253 / only-D35 116)
+      RS-Bfull - D35q = +4.93 pts  (paired SE 0.21; only-RS-Bfull 631 / only-D35 39)
+      RS-Aq - RS-Bq = +3.76 pts (paired SE 0.24)
+[G|amp    ] n=12000  joint7 %: D35q  19.3  RS-Aq  33.3  RS-Bq  27.7  D30q   0.5  RS-Afull  33.3  RS-Bfull  26.7
+      per-seed: D35q 18.6/19.7/19.5  RS-Aq 31.8/33.8/34.3  RS-Bq 26.9/27.9/28.4
+      RS-Aq - D35q = +14.01 pts  (paired SE 0.34; only-RS-Aq 1789 / only-D35 108)
+      RS-Bq - D35q = +8.47 pts  (paired SE 0.26; only-RS-Bq 1052 / only-D35 35)
+      RS-Afull - D35q = +14.03 pts  (paired SE 0.34; only-RS-Afull 1786 / only-D35 102)
+      RS-Bfull - D35q = +7.42 pts  (paired SE 0.25; only-RS-Bfull 924 / only-D35 34)
+      RS-Aq - RS-Bq = +5.53 pts (paired SE 0.27)
+[G|pair   ] n=12000  joint7 %: D35q  55.9  RS-Aq  75.4  RS-Bq  66.4  D30q   4.3  RS-Afull  75.4  RS-Bfull  65.0
+      per-seed: D35q 54.7/56.9/56.0  RS-Aq 74.9/75.8/75.6  RS-Bq 64.9/67.4/66.8
+      RS-Aq - D35q = +19.57 pts  (paired SE 0.38; only-RS-Aq 2470 / only-D35 122)
+      RS-Bq - D35q = +10.49 pts  (paired SE 0.29; only-RS-Bq 1302 / only-D35 43)
+      RS-Afull - D35q = +19.52 pts  (paired SE 0.38; only-RS-Afull 2457 / only-D35 115)
+      RS-Bfull - D35q = +9.18 pts  (paired SE 0.28; only-RS-Bfull 1147 / only-D35 45)
+      RS-Aq - RS-Bq = +9.07 pts (paired SE 0.30)
+exit=0

@@ -1,0 +1,36 @@
+=== Q1 real digital LR bank (scipy.signal.butter fs=48k -> bilinear with prewarp), K=3 [LP1LP2, HP1LP2, AP1HP2]
+ xo (700.0, 1600.0) LR4
+  float64                max|sum|B_k| - 1| = 4.26e-14   max phase(B_k) - phase(sum) = 1.47e-13 rad   max||sum B| - 1| = 4.26e-14   max||B_k| - lr_mags| = 4.27e-14
+  float32 coeffs         max|sum|B_k| - 1| = 1.95e-06   max phase(B_k) - phase(sum) = 1.68e-13 rad   max||sum B| - 1| = 1.95e-06   max||B_k| - lr_mags| = 1.27e-06
+  Q2.30 coeffs (32-bit)  max|sum|B_k| - 1| = 2.85e-07   max phase(B_k) - phase(sum) = 1.70e-13 rad   max||sum B| - 1| = 2.85e-07   max||B_k| - lr_mags| = 2.85e-07
+  Q2.14 coeffs (16-bit)  max|sum|B_k| - 1| = 7.22e-04   max phase(B_k) - phase(sum) = 1.54e-13 rad   max||sum B| - 1| = 7.22e-04   max||B_k| - lr_mags| = 8.01e-04
+  max pole radius over all sections = 0.93726 (stable < 1)
+  AP1 (mirror-numerator) vs LP_LR+HP_LR: max diff 3.28e-14
+ xo (700.0, 1600.0) LR8
+  float64                max|sum|B_k| - 1| = 6.31e-14   max phase(B_k) - phase(sum) = 5.38e-14 rad   max||sum B| - 1| = 6.31e-14   max||B_k| - lr_mags| = 6.28e-14
+  float32 coeffs         max|sum|B_k| - 1| = 5.37e-06   max phase(B_k) - phase(sum) = 4.94e-14 rad   max||sum B| - 1| = 5.37e-06   max||B_k| - lr_mags| = 5.37e-06
+  Q2.30 coeffs (32-bit)  max|sum|B_k| - 1| = 1.18e-04   max phase(B_k) - phase(sum) = 5.11e-14 rad   max||sum B| - 1| = 1.18e-04   max||B_k| - lr_mags| = 1.18e-04
+  Q2.14 coeffs (16-bit)  band 1 is IDENTICALLY ZERO after quantisation (numerator gain underflow)
+  max pole radius over all sections = 0.96558 (stable < 1)
+  AP1 (mirror-numerator) vs LP_LR+HP_LR: max diff 4.81e-14
+ xo (700.0, 1400.0) LR8
+  float64                max|sum|B_k| - 1| = 7.35e-14   max phase(B_k) - phase(sum) = 5.38e-14 rad   max||sum B| - 1| = 7.37e-14   max||B_k| - lr_mags| = 7.36e-14
+  float32 coeffs         max|sum|B_k| - 1| = 1.41e-06   max phase(B_k) - phase(sum) = 4.93e-14 rad   max||sum B| - 1| = 1.41e-06   max||B_k| - lr_mags| = 1.41e-06
+  Q2.30 coeffs (32-bit)  max|sum|B_k| - 1| = 1.24e-04   max phase(B_k) - phase(sum) = 5.11e-14 rad   max||sum B| - 1| = 1.24e-04   max||B_k| - lr_mags| = 1.24e-04
+  Q2.14 coeffs (16-bit)  band 1 is IDENTICALLY ZERO after quantisation (numerator gain underflow)
+  max pole radius over all sections = 0.96558 (stable < 1)
+  AP1 (mirror-numerator) vs LP_LR+HP_LR: max diff 4.81e-14
+
+=== time-domain float32 (sosfilt, float32 coeffs + float32 state/data) vs float64 model, X3-LR4-700/1600-e0.1m35
+  band gains wk (3x8) from params CSV:
+[[0.06727 0.03914 0.04824 0.05691 0.06462 0.07089 0.07532 0.0776 ]
+ [0.02599 0.00157 0.0414  0.0487  0.08031 0.0877  0.10298 0.11134]
+ [0.01697 0.0497  0.07081 0.07778 0.076   0.07419 0.06981 0.06475]]
+  dtypes: float32 run output dtype float32
+  per-channel float32 vs float64 time-domain error: max rel rms = 2.67e-06  (= -111.5 dB)
+  identity check: max|b1+b2+b3 - AP1AP2 x| / rms(x) = 2.14e-14 (any band-gain set with equal gains per channel passes a sum test -> doc's false-green warning is right)
+  closed-form (script)   R90 7 bands 44.873 47.048 47.805 51.437 48.788 48.767 44.422 | JY/T single   5.22  36.83  18.69  50.81  32.20  49.71  39.90  45.54 | 1k/30 in-band min 14.290 | BW1k 36.093
+  real biquads float64   R90 7 bands 44.873 47.048 47.805 51.437 48.788 48.767 44.422 | JY/T single   5.22  36.83  18.69  50.81  32.20  49.71  39.90  45.54 | 1k/30 in-band min 14.290 | BW1k 36.093
+  real biquads Q2.14     R90 7 bands 44.909 47.084 47.845 51.455 48.801 48.778 44.421 | JY/T single   5.22  36.88  18.69  50.85  32.19  49.74  39.90  45.53 | 1k/30 in-band min 14.287 | BW1k 36.095
+  max|Im(W_c/AP)| / max|W| = 9.88e-16 ; max|Re(W_c/AP) - closed-form W_c| = 3.89e-16
+  group delay AP700 @1/100/1k/4k Hz = 0.643 0.655 0.379 0.021 ms (closed 2sqrt2/wc = 0.643);  AP1600 = 0.280 0.281 0.340 0.052 ms (closed 0.281);  total @DC 0.923 ms

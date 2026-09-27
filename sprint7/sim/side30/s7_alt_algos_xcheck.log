@@ -1,0 +1,10 @@
+s7_alt_algos_xcheck.m  MATLAB 26.1.0.3251617 (R2026a) Update 2  [L2 cross-check]
+(1) X3-LR4-700/1600-e0.1m35 band gains: max relative |MATLAB - numpy| = 3.44e-13 -> PASS
+(2) CBT-arc20: U max diff 2.5e-14, tau max diff 4.8e-12 us (max tau 98.55 us) -> PASS
+  X3-LR4-700/1600-e0.1m35    BW1k 36.093 deg (numpy 36.093)
+  CBT-arc20                  BW1k 38.392 deg (numpy 38.392)
+  Legendre-only              BW1k 37.818 deg (numpy 37.818)
+  DDC-BW30                   BW1k 51.436 deg (numpy 51.436)
+(3) 60 values (7 R90 + 8 JY/T per design, 4 designs): max|MATLAB - numpy CSV| = 4.88e-04 dB; BW1k max diff 3.18e-04 deg -> PASS
+(tolerances 1.5e-3 dB / 2e-3 deg = CSV 3-decimal rounding + numpy BW grid interpolation)
+OVERALL PASS

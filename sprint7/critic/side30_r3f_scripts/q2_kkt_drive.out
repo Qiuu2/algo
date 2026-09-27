@@ -1,0 +1,16 @@
+(a0) band 1 row == frozen D20 normalised: max diff 4.6e-15; sum 2w per band: [1.00000000000002  0.999999999999922 0.99999999999998 ]
+(a) 0.25-deg rule (script's)    : max|w - script| = 3.77e-14 (rel 3.4e-13); projected gradient 2.4e-17; min eig of reduced Hessian 5.01e-03 (>0 -> unique min)
+(a) Gauss-Legendre (continuous) : max|w - script| = 1.09e-04 (rel 9.8e-04); projected gradient 1.6e-17; min eig of reduced Hessian 5.01e-03 (>0 -> unique min)
+(c) full-drive normalisation: amax = 0.09956 at channel 7 f = 1000 Hz; on-axis vs D20 = -2.164 dB
+    channel c0 (elements {0,15}, |x| = 412.5 mm): max over f of drive vs D20 same channel =  -2.16 dB at      20 Hz ; at >=1.6 kHz max -11.80 dB
+    channel c1 (elements {1,14}, |x| = 357.5 mm): max over f of drive vs D20 same channel =  -0.09 dB at   20000 Hz ; at >=1.6 kHz max  -0.09 dB
+    channel c2 (elements {2,13}, |x| = 302.5 mm): max over f of drive vs D20 same channel =  +1.17 dB at   20000 Hz ; at >=1.6 kHz max  +1.17 dB
+    channel c3 (elements {3,12}, |x| = 247.5 mm): max over f of drive vs D20 same channel =  +0.55 dB at   20000 Hz ; at >=1.6 kHz max  +0.55 dB
+    channel c4 (elements {4,11}, |x| = 192.5 mm): max over f of drive vs D20 same channel =  -0.51 dB at    1330 Hz ; at >=1.6 kHz max  -0.54 dB
+    channel c5 (elements {5,10}, |x| = 137.5 mm): max over f of drive vs D20 same channel =  -0.76 dB at    1100 Hz ; at >=1.6 kHz max  -1.04 dB
+    channel c6 (elements {6,9}, |x| =  82.5 mm): max over f of drive vs D20 same channel =  -0.24 dB at    1025 Hz ; at >=1.6 kHz max  -1.02 dB
+    channel c7 (elements {7,8}, |x| =  27.5 mm): max over f of drive vs D20 same channel =  +0.00 dB at    1000 Hz ; at >=1.6 kHz max  -1.13 dB
+    -> to keep every channel <= D20 same channel: extra attenuation 1.169 dB -> on-axis -3.333 dB
+(d) per-channel L1 / max-sine gain ratio (dB): [ 5.74 10.93 11.45 11.63 12.3  11.92 10.98 10.36]
+    on-axis full-drive vs D20: sine convention -2.16 dB, L1 (worst-case transient) convention -12.65 dB  (FIR V1-128t: -1.77 / -6.76 dB, s7_fir_summary.csv)
+(e) all 3 bands free (7-band objective only): band-1 weights [ 0.166 -0.063  0.006  0.213  0.063  0.017  0.015  0.082]; max|W| = 0.213 -> on-axis full drive vs D20 -8.76 dB

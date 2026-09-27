@@ -139,6 +139,12 @@
   - Duran 的 Intellivox 与我们同构，也是 16 单元 / 8 通道，van Beuningen 2000 和 Start 2003 有描述。
   - 稳健设计公式：Doclo & Moonen 2003、Elliott 2012、Zhu 2017。
 - **桌面原型**：见 `S7_SIDE30_PERCH_FIR_DESIGN.md`，结论以该文和它的 critic 门为准。
+- **2026-09-28 增补：低阶 IIR 与延时 CBT 的桌面评估**，见 `S7_SIDE30_ALT_ALGOS.md`（critic R3f：CONDITIONAL → delta FAIL → 再修正 → mini-delta PASS；CTO 常识审待）：
+  - **共享同相分频结构**：单声道输入上的 3 段 Linkwitz–Riley 分频 + 8×3 增益矩阵。
+    - 在 1–4 kHz 的 7 个考核频段上，良率与 FIR V1-128 打平（U-flat 装好直接用 21.3% vs 20.4%，配对 + 微调 92.6% vs 92.1% [L2 on L4 spread]）；JY/T 单频点全一级；MAC 约为折叠 FIR 的 1/7 [L3]。
+    - **但瞬态余量明显差**：两段分频的公共全通相位让方波类信号在各路最多冲高 +7.4 dB（FIR ≤ +0.4 dB），需要一个联动限幅器（8 路同一增益；现有例外清单里的逐通道保护限幅器不适用，属新功能件，待 CTO 定）；另外 5 kHz 观察带只有 21.1 dB。
+    - PM 拟将它与 FIR 并列为本路线的两个候选，以联动限幅器为前提，**待 CTO 过目**。
+  - **不适合**：Duran DDC 原样（恒定波束宽，4 kHz 的 R90 掉到 8.5 dB）；Keele 直阵延时 CBT（在我们的阵上加延时比不加更差，这是本项目的 [L2] 结论，原文只在趋势上一致）。
 - **算力未证实**（critic R3b）：按核上 30–50 cyc/MAC 的项目规则估，128 阶从勉强够到超预算 2.5 倍；能否落地取决于 FIRA [L4]，须 bench 实测。帧预算 1.333 M cyc 假设 CCLK = 1 GHz，还要用板上读回的 CCLK 重算（DEC-S7-RULINGS-03）。
 
 ## 5. 竞品数据与文献证据的边界
@@ -170,6 +176,7 @@
   - `s7_nearfield_side.py`；
   - `s7_side30_r1_feasibility.py`：R1 版，分频段部分作废。
   - `s7_alt_tables.py`：Dolph 以外的固定表（§3.1），MC 与 FIR 原型同一批抽样；MATLAB 交叉核 `s7_alt_tables_xcheck.m`。
+  - `s7_alt_algos.py`：低阶 IIR 分频加权、DDC 原样、Keele 延时 CBT（`S7_SIDE30_ALT_ALGOS.md`）；MATLAB 交叉核 `s7_alt_algos_xcheck.m`。
   - 以上各附 `.log`。
 - **critic**：`sprint7/critic/CRITIC_G_SIDE30_R1_20260926.md`、`CRITIC_H_SIDE30_R2_20260926.md`，复核脚本在 `side30_r{1,2}_scripts/`。
 - **文献**：`S7_LIT_REGISTER_SIDE30.md`。

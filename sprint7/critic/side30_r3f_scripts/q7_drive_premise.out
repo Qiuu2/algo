@@ -1,0 +1,11 @@
+frozen D20 Q15 (c0..c7): [28404, 16525, 20371, 24031, 27287, 29934, 31802, 32768]
+  per-channel peak vs frozen D20 same channel, all f (1 Hz-24 kHz) : [-2.164 -0.089  1.169  0.549 -0.51  -0.761 -0.238  0.   ] dB
+  per-channel peak vs frozen D20 same channel, >= 1.6 kHz          : [-11.794  -0.089   1.169   0.549  -0.543  -1.043  -1.02   -1.126] dB
+  per-channel peak vs frozen D20 same channel, < 1.6 kHz           : [-2.164 -2.164 -0.835 -1.229 -0.51  -0.761 -0.238  0.   ] dB
+  full-drive normalisation amax = 0.099556 at c7, 1000 Hz
+  on-axis vs D20 (Q15 table): sine -2.164 dB ; keep every channel <= today: extra 1.169 dB -> -3.333 dB
+  with Q15-rounded band gains: c2 +1.169 dB, c3 +0.549 dB, worst +1.169 dB
+  worst-case (L1) per-channel peak vs today (dB): [ 3.58 10.84 12.62 12.18 11.79 11.16 10.74 10.36]
+  100 Hz square : per-channel output peak vs today's same channel (dB) [-0.76  3.59  4.12  3.8   3.1   2.64  2.16  2.04]
+  1 kHz square  : per-channel output peak vs today's same channel (dB) [-5.    4.27  6.38  5.85  5.26  4.49  3.9   3.57]
+  3 kHz square  : per-channel output peak vs today's same channel (dB) [-5.7   6.19  7.79  7.22  6.26  5.37  4.56  3.84]
