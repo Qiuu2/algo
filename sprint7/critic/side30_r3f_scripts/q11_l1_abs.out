@@ -1,0 +1,4 @@
+X3 L1 per channel re digital FS (dB): [ 2.34  4.89  8.49  9.48 10.2  10.37 10.48 10.36] -> max 10.48 dB at c6
+X3 L1 per channel vs today      (dB): [ 3.58 10.84 12.62 12.18 11.79 11.16 10.74 10.36]
+FIR L1 per channel vs today     (dB): [6.23 3.77 3.21 2.07 1.57 2.05 2.6  1.88] -> max +6.23
+FIR L1 per channel re digital FS(dB): [ 4.99 -2.18 -0.92 -0.62 -0.02  1.27  2.34  1.88]
