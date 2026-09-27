@@ -14,7 +14,7 @@
 
 1. 在仓库根目录执行 `git pull`，然后执行：
    ```
-   git merge-base --is-ancestor 42f38a0 HEAD && echo OK
+   git merge-base --is-ancestor 04e0e6a HEAD && echo OK
    ```
    - 打印 `OK` 才继续；没有打印就停下，把结果发回。
    - 若 `git pull` 提示 `local changes would be overwritten`，原样发回，**不要 reset**。
