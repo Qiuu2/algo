@@ -4,6 +4,9 @@
 > **依据**：PM 提议「……并在桌面评估 IIR 和延时 CBT 这两个变体」，CTO 2026-09-27 回复「我同意，你依次干吧」。本文是其中第二项；第一项（稳健扇区表）见 `S7_SIDE30_ANALYSIS.md` §3.1。
 > **L 级**：理想值与时域仿真 [L2]；良率 [L2 on L4 spread]；MAC [L3 手算]；核上周期 [L4 包络]：它是 MAC 乘以项目的 30–50 cyc/MAC 板证因子，而这个因子对递归 IIR 代码没有板上数据。**本文没有任何 L1，不改任何固件。**
 > **门**：critic R3f 第 1 轮 CONDITIONAL（1 MAJOR）→ 修正 → delta FAIL（1 BLOCKER、1 MAJOR，都出在修正稿新写的余量与限幅器措辞上）→ 再修正 → mini-delta **PASS**（`sprint7/critic/CRITIC_N_SIDE30_R3F_20260928.md`）。**CTO 常识审：待。**
+> **2026-09-29 补注**（正文保留）：
+> - 本文 §0 第 4 条（「若 CTO 不接受联动限幅器，FIR 更合适：它是线性相位，瞬态余量好，还能做逐通道相位校准」）与 §5 把每通道 FIR 当作不受限幅器问题影响的一方，这一点不准确。critic R3g F1 指出，DEC-S5-EQ-O1-01 的逐通道保护限幅器只在纯增益表下能保住加权比例，FIR 与 X3 一样须改为联动或另定阈值规则；这是整条改架构路线的待定项。R3f 当时只对 X3 指出了这一点。
+> - 省算力的候选已由 X3 改为 LPX3-b（共享线性相位分频，没有 X3 的方波冲高问题），见 `S7_SIDE30_HYBRID.md`，待 CTO 过目。
 > **出处**：`sprint7/sim/side30/s7_alt_algos.py`（附 `.log`、`s7_alt_algos_ideal.csv`、`s7_alt_algos_mc.csv`、`s7_alt_algos_params.csv`）；MATLAB 交叉核 `s7_alt_algos_xcheck.m`（附 `.log`）。
 > **可比性**：良率与 FIR 原型、稳健扇区表用的是**同一批随机抽样**，D20 / D35 的 140 行结果逐字复现 `fir/s7_fir_mc.csv`。
 

@@ -1,0 +1,24 @@
+(A) BAND GAINS re-derived (own null-space KKT) vs stored
+  control X3-LR4-700/1600-e0.1m35 vs s7_alt_algos_params.csv: max rel |diff| 3.34e-13
+  LPX3-a: max rel |diff| vs CSV 1.03e-13
+  LPX3-b: max rel |diff| vs CSV 5.33e-14
+  LPX4-a: max rel |diff| vs CSV 1.53e-13
+  LPX4-b: max rel |diff| vs CSV 3.16e-14
+  LPX4-a-cap: own bisection rho 4.6801e-03 (PM log 4.680e-03 / 4.557e-03); top max 0.10730 band-2 max 0.10730; max rel |diff| vs CSV 3.81e-13
+     bank taps identical to LPX4-a: True
+  LPX4-b-cap: own bisection rho 4.5567e-03 (PM log 4.680e-03 / 4.557e-03); top max 0.10792 band-2 max 0.10792; max rel |diff| vs CSV 3.09e-13
+     bank taps identical to LPX4-b: True
+
+(B) OWN MC, U-flat as-built (a~U(+-1 dB), phi~U(+-5 deg) flat per element; dx~U(+-0.5 mm)), paired draws, joint7 = all 7 bands >= 30 dB
+  D20         joint7   0.0% (1 sigma 0.0 pp) | median R90 per band  21.8  21.4  22.3  22.5  23.2  22.4  22.4
+  X3          joint7  23.1% (1 sigma 0.5 pp) | median R90 per band  31.7  31.8  32.0  32.2  32.1  33.0  31.8
+  LPX3-a      joint7  23.1% (1 sigma 0.5 pp) | median R90 per band  31.7  31.8  32.0  32.2  32.1  33.0  31.8
+  LPX3-b      joint7  23.1% (1 sigma 0.5 pp) | median R90 per band  31.7  31.9  32.0  32.2  32.1  33.0  31.8
+  LPX4-b-cap  joint7  21.0% (1 sigma 0.5 pp) | median R90 per band  31.6  31.8  31.9  32.1  32.0  33.0  31.7
+  FIR V1-128  joint7  22.0% (1 sigma 0.5 pp) | median R90 per band  32.0  32.1  31.7  31.8  31.7  32.9  31.7
+  paired LPX3-b - X3: -0.05 pp  (discordant 11/14, McNemar chi2 0.16)
+  paired LPX3-a - X3: -0.02 pp  (discordant 0/1, McNemar chi2 0.00)
+  paired LPX3-b - FIR V1-128: +1.02 pp  (discordant 410/349, McNemar chi2 4.74)
+  paired X3 - FIR V1-128: +1.07 pp  (discordant 408/344, McNemar chi2 5.28)
+  paired LPX4-b-cap - FIR V1-128: -1.02 pp  (discordant 293/354, McNemar chi2 5.56)
+  paired LPX4-b-cap - LPX3-b: -2.03 pp  (discordant 89/211, McNemar chi2 48.80)

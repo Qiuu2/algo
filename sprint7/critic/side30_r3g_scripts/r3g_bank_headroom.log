@@ -1,0 +1,102 @@
+(1) BANK CHECKS (own code, stored taps)
+  LPX3-a      N=255 D=127 | PR 8.7e-19 | band sym 0.0e+00 | chan sym 0.0e+00 | sum_c 2h_c - delta 2.2e-16 (|2 sum w - 1| 0.0e+00) | zero-phase imag 5.2e-17 | LR4 fit 0.0002 / 0.0001
+  LPX3-b      N=127 D=63 | PR 8.7e-19 | band sym 0.0e+00 | chan sym 0.0e+00 | sum_c 2h_c - delta 4.3e-18 (|2 sum w - 1| 0.0e+00) | zero-phase imag 5.1e-17 | LR4 fit 0.0131 / 0.0048
+  LPX4-a      N=255 D=127 | PR 3.5e-18 | band sym 0.0e+00 | chan sym 0.0e+00 | sum_c 2h_c - delta 2.2e-16 (|2 sum w - 1| 0.0e+00) | zero-phase imag 4.9e-17 | LR4 fit 0.0002 / 0.0001 / 0.0001
+  LPX4-b      N=127 D=63 | PR 3.5e-18 | band sym 0.0e+00 | chan sym 0.0e+00 | sum_c 2h_c - delta 2.2e-16 (|2 sum w - 1| 1.1e-16) | zero-phase imag 5.1e-17 | LR4 fit 0.0131 / 0.0048 / 0.0017
+  LPX4-a-cap  N=255 D=127 | PR 3.5e-18 | band sym 0.0e+00 | chan sym 0.0e+00 | sum_c 2h_c - delta 2.8e-17 (|2 sum w - 1| 2.2e-16) | zero-phase imag 4.9e-17 | LR4 fit 0.0002 / 0.0001 / 0.0001
+  LPX4-b-cap  N=127 D=63 | PR 3.5e-18 | band sym 0.0e+00 | chan sym 0.0e+00 | sum_c 2h_c - delta 1.4e-17 (|2 sum w - 1| 1.1e-16) | zero-phase imag 5.1e-17 | LR4 fit 0.0131 / 0.0048 / 0.0017
+  identity demo: random (asymmetric, non-lowpass) taps -> PR err 4.4e-16 (cannot fail)
+  TOPOLOGY: ideal LPX bands minus X3 bands, max |diff| low/mid/high = 0.0256 / 0.0256 / 0.0000 (= A1(1-A2), max at 1059 Hz)
+  LPX3-a: real bands minus X3 bands, max |diff| low/mid/high = 0.0256 / 0.0257 / 0.0001 ; real bands minus ideal-LPX bands = 0.0002 / 0.0002 / 0.0001
+    per-channel |W_LPX - W_X3| max over all f 0.00001, over 0.89-4.49 kHz 0.00001 (|W| max 0.0996); band gains max |w_LPX - w_X3| 0.00156
+  LPX3-b: real bands minus X3 bands, max |diff| low/mid/high = 0.0310 / 0.0328 / 0.0048 ; real bands minus ideal-LPX bands = 0.0131 / 0.0144 / 0.0048
+    per-channel |W_LPX - W_X3| max over all f 0.00068, over 0.89-4.49 kHz 0.00068 (|W| max 0.0996); band gains max |w_LPX - w_X3| 0.00159
+
+(2) HEADROOM (own conv; squares from silence, sign(sin) squares, own pink noise; dB vs today's same channel)
+  LPX3-a: amax 0.09956 at c7 999.9 Hz | on-axis sine -2.16 dB, L1-conv -3.04 dB
+     sq100         -1.80  -0.52  +0.93  +0.34  -0.77  -1.30  -0.95  -0.75   max  +0.93 (c2)
+     sq1000        -5.42  -0.20  +0.99  +0.40  -0.59  -0.55  +0.29  +0.71   max  +0.99 (c2)
+     sq3000       -10.62  +0.25  +1.33  +0.68  -0.57  -1.46  -1.84  -2.21   max  +1.33 (c2)
+     sgn100        -1.80  -0.52  +0.93  +0.34  -0.77  -1.30  -0.95  -0.75   max  +0.93 (c2)
+     sgn1000       -5.42  -0.20  +0.99  +0.40  -0.59  -0.55  +0.29  +0.71   max  +0.99 (c2)
+     sgn3000      -10.62  +0.25  +1.33  +0.68  -0.57  -1.46  -1.84  -2.21   max  +1.33 (c2)
+     pink          -4.19  -1.93  -1.31  -1.51  -1.69  -1.94  -2.09  -2.23   max  -1.31 (c2)
+     L1_vs_today   -1.43  +5.24  +3.98  +3.09  +0.65  -0.26  +0.49  +0.88   max  +5.24 (c1)
+     L1_vs_FS      -2.67  -0.70  -0.15  +0.39  -0.94  -1.04  +0.23  +0.88   max  +0.88 (c7)
+     drive(sine) all f -2.16 -0.09 +1.17 +0.55 -0.51 -0.76 -0.24 +0.00 | f>=1.6k -11.80 -0.09 +1.17 +0.55 -0.54 -1.04 -1.02 -1.13 | f<1.6k -2.16 -2.16 -0.83 -1.23 -0.51 -0.76 -0.24 +0.00
+     worst clean-square peak vs digital FS (no back-off): +0.71 dB
+  LPX3-b: amax 0.09991 at c7 1004.9 Hz | on-axis sine -2.19 dB, L1-conv -3.00 dB
+     sq100         -1.83  -0.54  +0.92  +0.34  -0.78  -1.32  -0.98  -0.77   max  +0.92 (c2)
+     sq1000        -5.49  -0.26  +0.98  +0.39  -0.66  -0.57  +0.26  +0.70   max  +0.98 (c2)
+     sq3000       -10.62  +0.23  +1.32  +0.68  -0.58  -1.48  -1.89  -2.27   max  +1.32 (c2)
+     sgn100        -1.83  -0.54  +0.92  +0.34  -0.78  -1.32  -0.98  -0.77   max  +0.92 (c2)
+     sgn1000       -5.49  -0.26  +0.98  +0.39  -0.66  -0.57  +0.26  +0.70   max  +0.98 (c2)
+     sgn3000      -10.62  +0.23  +1.32  +0.68  -0.58  -1.48  -1.89  -2.27   max  +1.32 (c2)
+     pink          -4.19  -1.93  -1.33  -1.53  -1.73  -1.98  -2.14  -2.29   max  -1.33 (c2)
+     L1_vs_today   -1.53  +5.11  +3.97  +3.06  +0.64  -0.30  +0.40  +0.81   max  +5.11 (c1)
+     L1_vs_FS      -2.77  -0.83  -0.15  +0.37  -0.95  -1.09  +0.14  +0.81   max  +0.81 (c7)
+     drive(sine) all f -2.14 -0.10 +1.17 +0.55 -0.58 -0.77 -0.26 +0.00 | f>=1.6k -11.86 -0.10 +1.17 +0.55 -0.58 -1.05 -1.04 -1.13 | f<1.6k -2.14 -2.12 -0.90 -1.25 -0.58 -0.77 -0.26 +0.00
+     worst clean-square peak vs digital FS (no back-off): +0.70 dB
+  LPX4-b: amax 0.13001 at c7 20718.8 Hz | on-axis sine -4.48 dB, L1-conv -8.08 dB
+     sq100         -4.19  -3.78  -2.35  -2.90  -3.24  -2.12  -1.32  -0.86   max  -0.86 (c7)
+     sq1000        -6.99  -5.94  -2.44  -2.98  -3.21  -1.97  -1.15  -0.65   max  -0.65 (c7)
+     sq3000       -12.34  -0.81  -0.58  -1.28  -2.45  -2.07  -1.27  -0.78   max  -0.58 (c2)
+     sgn100        -4.19  -3.78  -2.35  -2.90  -3.24  -2.12  -1.32  -0.86   max  -0.86 (c7)
+     sgn1000       -6.99  -5.94  -2.44  -2.98  -3.21  -1.97  -1.15  -0.65   max  -0.65 (c7)
+     sgn3000      -12.34  -0.81  -0.58  -1.28  -2.45  -2.07  -1.27  -0.78   max  -0.58 (c2)
+     pink          -6.48  -4.81  -4.15  -4.11  -4.12  -3.86  -3.73  -3.63   max  -3.63 (c7)
+     L1_vs_today   -3.94  +1.53  -0.13  -0.80  -2.09  +0.45  +2.49  +3.60   max  +3.60 (c7)
+     L1_vs_FS      -5.18  -4.41  -4.26  -3.50  -3.68  -0.34  +2.23  +3.60   max  +3.60 (c7)
+     drive(sine) all f -4.44 -2.98 -1.59 -2.04 -2.76 -1.72 -0.60 +0.00 | f>=1.6k -12.71 -2.98 -1.59 -2.04 -2.76 -1.72 -0.60 +0.00 | f<1.6k -4.44 -4.40 -2.51 -3.08 -3.14 -2.72 -2.73 -2.43
+     worst clean-square peak vs digital FS (no back-off): -0.65 dB
+  LPX4-b-cap: amax 0.10796 at c7 20669.9 Hz | on-axis sine -2.87 dB, L1-conv -5.21 dB
+     sq100         -2.55  -2.27  -1.91  -1.82  -1.77  -1.12  -0.69  -0.42   max  -0.42 (c7)
+     sq1000        -5.52  -5.37  -1.97  -1.86  -1.73  -0.92  -0.54  -0.24   max  -0.24 (c7)
+     sq3000       -10.34  -1.46  -0.84  -0.85  -1.14  -1.00  -0.61  -0.35   max  -0.35 (c7)
+     sgn100        -2.55  -2.27  -1.91  -1.82  -1.77  -1.12  -0.69  -0.42   max  -0.42 (c7)
+     sgn1000       -5.52  -5.37  -1.97  -1.86  -1.73  -0.92  -0.54  -0.24   max  -0.24 (c7)
+     sgn3000      -10.34  -1.46  -0.84  -0.85  -1.14  -1.00  -0.61  -0.35   max  -0.35 (c7)
+     pink          -4.70  -3.38  -2.74  -2.62  -2.55  -2.34  -2.27  -2.20   max  -2.20 (c7)
+     L1_vs_today   -2.29  +1.12  -0.55  -0.57  -0.72  +0.57  +1.60  +2.34   max  +2.34 (c7)
+     L1_vs_FS      -3.54  -4.82  -4.68  -3.26  -2.31  -0.22  +1.34  +2.34   max  +2.34 (c7)
+     drive(sine) all f -2.82 -2.79 -1.42 -1.29 -1.38 -0.96 -0.35 +0.00 | f>=1.6k -11.55 -3.06 -1.42 -1.29 -1.38 -0.96 -0.35 +0.00 | f<1.6k -2.82 -2.79 -2.03 -1.88 -1.67 -1.07 -1.10 -0.82
+     worst clean-square peak vs digital FS (no back-off): -0.24 dB
+  FIR V1-128: amax 0.09516 at c7 1709.5 Hz | on-axis sine -1.77 dB, L1-conv -6.76 dB
+     sq100         -0.18  +0.00  -0.50  -1.32  -0.77  -0.73  -0.65  -0.69   max  +0.00 (c1)
+     sq1000        -1.89  -1.62  -0.49  +0.41  +0.44  +0.02  -0.20  -0.02   max  +0.44 (c4)
+     sq3000        -2.86  -0.84  -0.91  -0.91  -0.30  -0.38  -0.00  +0.03   max  +0.03 (c7)
+     sgn100        -0.18  +0.00  -0.50  -1.32  -0.77  -0.73  -0.65  -0.69   max  +0.00 (c1)
+     sgn1000       -1.89  -1.62  -0.49  +0.41  +0.44  +0.02  -0.20  -0.02   max  +0.44 (c4)
+     sgn3000       -2.86  -0.84  -0.91  -0.91  -0.30  -0.38  -0.00  +0.03   max  +0.03 (c7)
+     pink          -1.69  -1.20  -1.24  -1.70  -1.72  -1.95  -1.84  -1.66   max  -1.20 (c1)
+     L1_vs_today   +6.23  +3.77  +3.21  +2.07  +1.57  +2.05  +2.60  +1.88   max  +6.23 (c0)
+     L1_vs_FS      +4.99  -2.18  -0.92  -0.62  -0.02  +1.27  +2.34  +1.88   max  +4.99 (c0)
+     drive(sine) all f -0.20 -0.47 +0.62 +0.84 +0.08 +0.02 +0.03 +0.00 | f>=1.6k -0.20 -0.70 +0.62 -0.44 -0.19 -0.02 +0.03 +0.00 | f<1.6k -0.32 -0.47 -0.29 +0.84 +0.08 +0.02 -0.14 -0.17
+     worst clean-square peak vs digital FS (no back-off): +0.03 dB
+  summary: design | worst clean square vs today | pink | no-clip back-off (L1 vs FS) | on-axis L1-conv | L1 vs today (max) | sine drive premise
+     LPX3-a       +1.33 |  -1.31 |  +0.88 |  -3.04 |  +5.24 |  +1.17
+     LPX3-b       +1.32 |  -1.33 |  +0.81 |  -3.00 |  +5.11 |  +1.17
+     LPX4-b       -0.58 |  -3.63 |  +3.60 |  -8.08 |  +3.60 |  +0.00
+     LPX4-b-cap   -0.24 |  -2.20 |  +2.34 |  -5.21 |  +2.34 |  +0.00
+     FIR V1-128   +0.44 |  -1.20 |  +4.99 |  -6.76 |  +6.23 |  +0.84
+  max |critic - PM headroom CSV| over squares + L1 rows, 5 designs: 5.0e-05 dB
+
+(4) LPX4 DIAGNOSIS: global max |W_c(f)| over 0..24 kHz (own FFT grid), band max weights
+  LPX3-b      max 0.09991 at c7   1004.9 Hz (max over <=20 kHz 0.09991); band max weights 0.07760 0.11292 0.07805; sine on-axis -2.19 dB
+     max over f<4.47 kHz 0.09991 ; top-band contribution at 20 kHz c7: 0
+  LPX4-a      max 0.12994 at c7  24000.0 Hz (max over <=20 kHz 0.12993); band max weights 0.07760 0.11197 0.08247 0.12994; sine on-axis -4.48 dB
+     max over f<4.47 kHz 0.09786 ; top-band contribution at 20 kHz c7: 0
+  LPX4-b      max 0.13001 at c7  20718.8 Hz (max over <=20 kHz 0.13000); band max weights 0.07760 0.11255 0.08296 0.12994; sine on-axis -4.48 dB
+     max over f<4.47 kHz 0.09823 ; top-band contribution at 20 kHz c7: 0
+  LPX4-a-cap  max 0.10730 at c7  24000.0 Hz (max over <=20 kHz 0.10730); band max weights 0.07760 0.10730 0.07853 0.10730; sine on-axis -2.81 dB
+     max over f<4.47 kHz 0.09784 ; top-band contribution at 20 kHz c7: 0
+  LPX4-b-cap  max 0.10796 at c7  20669.9 Hz (max over <=20 kHz 0.10796); band max weights 0.07760 0.10792 0.07852 0.10792; sine on-axis -2.87 dB
+     max over f<4.47 kHz 0.09825 ; top-band contribution at 20 kHz c7: 0
+
+(5) COMPUTE arithmetic
+  LPX3-a: folded 216 MAC/sample = 13824 /frame ; direct 406 MAC/sample = 25984 /frame ; ratios vs FIR-128x8 folded 32768: 2.37x ; direct/direct 65536: 2.52x ; folded-LPX vs direct-FIR 4.74x ; latency 127 samples = 2.646 ms
+  LPX3-b: folded 120 MAC/sample = 7680 /frame ; direct 214 MAC/sample = 13696 /frame ; ratios vs FIR-128x8 folded 32768: 4.27x ; direct/direct 65536: 4.79x ; folded-LPX vs direct-FIR 8.53x ; latency 63 samples = 1.312 ms
+  LPX4-a: folded 256 MAC/sample = 16384 /frame ; direct 477 MAC/sample = 30528 /frame ; ratios vs FIR-128x8 folded 32768: 2.00x ; direct/direct 65536: 2.15x ; folded-LPX vs direct-FIR 4.00x ; latency 127 samples = 2.646 ms
+  LPX4-b: folded 144 MAC/sample = 9216 /frame ; direct 253 MAC/sample = 16192 /frame ; ratios vs FIR-128x8 folded 32768: 3.56x ; direct/direct 65536: 4.05x ; folded-LPX vs direct-FIR 7.11x ; latency 63 samples = 1.312 ms
+  X3 4416 -> LPX3-b 7680 = +74% ; M2 830903/1333333 = 0.6232 ; 830903/463273 = 1.7935
+  cycles L4: LPX3-b 7680 x 30..50 = 230400 .. 384000 ; X3 4416 x 30..50 = 132480 .. 220800 ; FIR 32768x30 = 983040, 65536x50 = 3276800

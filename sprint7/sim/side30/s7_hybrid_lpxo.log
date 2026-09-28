@@ -1,0 +1,145 @@
+S7 side-30 HYBRID: shared LINEAR-PHASE crossover + 8xK band gains [L2; yields L2 on L4; MAC L3; cycles L4]  anchors A5_max_abs_diff_csv_vs_chebwin=0, A1_bw6_1k_deg=29.269, A2_bw6_2k_deg=14.5147, A3_sll_1k_db=-20, A3_sll_2k_db=-20, A4_uniform_sll_1k_db=-13.1468, A6_q15_bw_shift_deg=6.62399e-05, A6_q15_sll_shift_db=3.78301e-05, A7_di_closed_1k_db=7.15529, A7_di_numeric_1k_db=7.15529, A8_bw3_1k_deg=21.2219
+
+=== linear-phase bank checks on the REAL taps. PR (sum of bands == delta[n-D]) is a CONSTRUCTION IDENTITY, shown only for completeness (it cannot fail). Gated checks (any failure -> SystemExit): exact symmetry; zero-phase imag <= 1e-9; each low-pass within 0.02 of its LR4 target (catches a failed firls design); on-axis sum_c 2 h_c == delta[n-D] from the DESIGNED per-channel taps (<= 1e-12); KKT checks in design_bands
+  LPX3-a: xo (700.0, 1600.0) taps (255, 127) delay D = 127 samples (2.65 ms) | [identity] PR err 1.3e-18 | zero-phase imag 8.3e-14 | symmetric True | max |A - LR4| per split 0.0002 / 0.0001 | on-axis |sum 2h_c - delta| 2.2e-16  -> PASS
+  LPX3-b: xo (700.0, 1600.0) taps (127, 63) delay D = 63 samples (1.31 ms) | [identity] PR err 1.5e-18 | zero-phase imag 4.2e-14 | symmetric True | max |A - LR4| per split 0.0131 / 0.0048 | on-axis |sum 2h_c - delta| 2.2e-16  -> PASS
+  LPX4-a: xo (700.0, 1600.0, 4470.0) taps (255, 127, 63) delay D = 127 samples (2.65 ms) | [identity] PR err 3.5e-18 | zero-phase imag 8.3e-14 | symmetric True | max |A - LR4| per split 0.0002 / 0.0001 / 0.0001 | on-axis |sum 2h_c - delta| 2.1e-17  -> PASS
+  LPX4-b: xo (700.0, 1600.0, 4470.0) taps (127, 63, 31) delay D = 63 samples (1.31 ms) | [identity] PR err 3.5e-18 | zero-phase imag 4.2e-14 | symmetric True | max |A - LR4| per split 0.0131 / 0.0048 / 0.0017 | on-axis |sum 2h_c - delta| 6.9e-18  -> PASS
+
+=== POST-HOC (added after the first run showed LPX4 on-axis ~2.3 dB below LPX3): diagnosis and a capped variant
+  LPX3-a: band max/sum 0.1552 0.2252 0.1556 (D20 0.1552); global max |W_c(f)| 0.0996 at c7, 999 Hz
+  LPX3-b: band max/sum 0.1552 0.2258 0.1561 (D20 0.1552); global max |W_c(f)| 0.0999 at c7, 1004 Hz
+  LPX4-a: band max/sum 0.1552 0.2239 0.1649 0.2599 (D20 0.1552); global max |W_c(f)| 0.1299 at c7, 24000 Hz
+  LPX4-b: band max/sum 0.1552 0.2251 0.1659 0.2599 (D20 0.1552); global max |W_c(f)| 0.1300 at c7, 20716 Hz
+  LPX4-a-cap: top-band extra loading rho = 4.680e-03; band max/sum 0.1552 0.2146 0.1571 0.2146; top max 0.10730 <= band-2 max 0.10730
+  LPX4-b-cap: top-band extra loading rho = 4.557e-03; band max/sum 0.1552 0.2158 0.1570 0.2158; top max 0.10792 <= band-2 max 0.10792
+
+=== IDEAL [L2] (JY/T single frequency; [in-band minimum]); R90 = 1/3-oct band power avg at +-90 deg   (*-cap = POST-HOC variants)
+  D20q                       R90 min7  22.2 [22.7 22.2 23.1 23.2 24.1 22.7 23.0] | 5k  22.9 | BW1k  29.3 BW@500  60.7 | 1k/30  23.10 [ 20.04] 500/30  5.86 [ 4.52] | JY/T worst grade 2 (g1 margin -1.99) | on-axis -0.00 dB
+  D35q                       R90 min7  36.9 [36.9 38.5 38.1 37.8 39.0 37.8 37.8] | 5k  37.8 | BW1k  37.4 BW@500  79.7 | 1k/30  17.11 [ 12.73] 500/30  3.54 [ 2.78] | JY/T worst grade 2 (g1 margin -1.46) | on-axis -2.47 dB
+  X3-LR4-700/1600-e0.1m35    R90 min7  44.4 [44.9 47.0 47.8 51.4 48.8 48.8 44.4] | 5k  21.1 | BW1k  36.1 BW@500  64.3 | 1k/30  18.69 [ 14.29] 500/30  5.22 [ 4.21] | JY/T worst grade 1 (g1 margin +0.22) | on-axis -2.16 dB
+  LPX3-a                     R90 min7  44.4 [44.9 47.0 47.8 51.4 48.8 48.8 44.4] | 5k  21.1 | BW1k  36.1 BW@500  64.3 | 1k/30  18.69 [ 14.29] 500/30  5.22 [ 4.20] | JY/T worst grade 1 (g1 margin +0.22) | on-axis -2.16 dB
+  LPX3-b                     R90 min7  44.5 [45.0 47.2 47.6 51.1 49.0 48.5 44.5] | 5k  21.0 | BW1k  36.2 BW@500  64.4 | 1k/30  18.54 [ 14.28] 500/30  5.21 [ 4.18] | JY/T worst grade 1 (g1 margin +0.21) | on-axis -2.19 dB
+  LPX4-a                     R90 min7  43.6 [43.6 46.3 48.8 51.4 52.1 52.8 47.0] | 5k  38.1 | BW1k  35.6 BW@500  64.2 | 1k/30  19.47 [ 14.67] 500/30  5.25 [ 4.22] | JY/T worst grade 1 (g1 margin +0.25) | on-axis -4.48 dB
+  LPX4-b                     R90 min7  43.7 [43.7 46.7 48.2 51.2 52.1 52.3 47.2] | 5k  38.0 | BW1k  35.7 BW@500  64.3 | 1k/30  19.33 [ 14.67] 500/30  5.23 [ 4.19] | JY/T worst grade 1 (g1 margin +0.23) | on-axis -4.48 dB
+  LPX4-a-cap                 R90 min7  43.7 [43.7 46.2 48.3 53.0 58.8 57.7 46.0] | 5k  36.0 | BW1k  35.6 BW@500  64.0 | 1k/30  19.51 [ 14.93] 500/30  5.28 [ 4.23] | JY/T worst grade 1 (g1 margin +0.28) | on-axis -2.81 dB
+  LPX4-b-cap                 R90 min7  43.7 [43.7 46.5 47.8 52.9 58.8 57.5 46.2] | 5k  36.1 | BW1k  35.7 BW@500  64.0 | 1k/30  19.37 [ 14.92] 500/30  5.26 [ 4.21] | JY/T worst grade 1 (g1 margin +0.26) | on-axis -2.87 dB
+  FIR V1-128 (taps)          R90 min7  43.1 [44.5 44.0 43.1 43.4 43.3 48.2 44.9] | 5k  35.9 | BW1k  32.4 BW@500  61.4 | 1k/30  42.29 [ 17.44] 500/30  5.72 [ 4.66] | JY/T worst grade 1 (g1 margin +0.72) | on-axis -1.77 dB
+
+=== MONTE CARLO [L2 on L4 spread]: 1000 arrays/cell, same seeds/draws as s7_fir_mc.csv; JOINT7 = all 7 bands >= 30 dB   (*-cap = POST-HOC variants)
+  [U-flat|asbuilt ] seed 20261926 done (  2.5s)
+  [U-flat|amp     ] seed 20261927 done (  3.2s)
+  [U-flat|pair    ] seed 20261928 done (  3.7s)
+  [U-flat|cplx    ] seed 20261929 done (  3.3s)
+  [U-flat|paircplx] seed 20261930 done (  3.7s)
+  [G-p0.5|asbuilt ] seed 20262926 done (  6.7s)
+  [G-p0.5|amp     ] seed 20262927 done (  7.2s)
+  [G-p0.5|pair    ] seed 20262928 done (  7.8s)
+  [G-p0.5|cplx    ] seed 20262929 done (  7.2s)
+  [G-p0.5|paircplx] seed 20262930 done (  7.7s)
+  MC ANCHOR: 140 anchor rows reproduce s7_fir_mc.csv exactly -> PASS
+
+=== SUMMARY joint7 % (U-flat / G)      as-built       +trim  +pair+trim       +cplx  +pair+cplx   (cplx = ideal per-channel complex calibration, i.e. an extra per-channel calibration filter)
+  X3-LR4-700/1600-e0.1m35     21.3/ 25.1  54.2/ 46.2  92.6/ 80.8  87.5/ 70.0 100.0/ 99.7
+  LPX3-a                      21.3/ 25.1  54.2/ 46.2  92.6/ 80.8  87.5/ 70.0 100.0/ 99.7
+  LPX3-b                      21.2/ 24.9  54.0/ 46.2  92.6/ 80.9  87.5/ 69.9 100.0/ 99.7
+  LPX4-a                      22.6/ 24.7  55.4/ 46.5  91.8/ 81.5  87.5/ 70.0 100.0/ 98.6
+  LPX4-b                      22.4/ 24.7  55.4/ 46.4  92.7/ 80.5  87.6/ 70.1 100.0/ 99.0
+  LPX4-a-cap                  19.9/ 23.0  51.0/ 42.8  91.2/ 80.6  83.8/ 66.5 100.0/ 98.7
+  LPX4-b-cap                  19.8/ 22.8  50.9/ 43.0  91.3/ 80.8  84.0/ 66.6 100.0/ 98.8
+  FIR V1-128 (s7_fir_mc.csv)  20.4/ 22.0  50.8/ 45.4  92.1/ 79.5  82.5/ 66.7 100.0/ 98.9
+
+=== HEADROOM [L2 time domain]: per-channel output PEAK vs today's same channel (D20, pure gain), full-scale input, steady-sine full-drive normalisation; squares start from silence (onset included); c0..c7, dB   (*-cap = POST-HOC)
+  X3-LR4-700/1600-e0.1m35:
+     square 100 Hz   -0.76  +3.59  +4.12  +3.80  +3.10  +2.64  +2.16  +2.04   max  +4.12
+     square 1000 Hz  -2.13  +5.54  +7.38  +6.92  +6.42  +5.76  +5.27  +4.82   max  +7.38
+     square 3000 Hz  -6.69  +5.16  +6.63  +6.05  +4.97  +4.04  +3.18  +2.45   max  +6.63
+     pink noise      -4.43  -2.04  -1.29  -1.53  -1.89  -2.20  -2.41  -2.59   max  -1.29
+     L1 bound        +3.58 +10.84 +12.62 +12.18 +11.79 +11.16 +10.74 +10.36   max +12.62
+     L1 abs vs FS    +2.34  +4.89  +8.49  +9.48 +10.20 +10.37 +10.48 +10.36   max +10.48
+     on-axis full drive vs D20 in the L1 convention: -12.65 dB
+  LPX3-a:
+     square 100 Hz   -1.80  -0.52  +0.93  +0.34  -0.77  -1.30  -0.95  -0.75   max  +0.93
+     square 1000 Hz  -5.42  -0.20  +0.99  +0.40  -0.59  -0.55  +0.29  +0.71   max  +0.99
+     square 3000 Hz -10.62  +0.25  +1.33  +0.68  -0.57  -1.46  -1.84  -2.21   max  +1.33
+     pink noise      -4.43  -1.82  -1.14  -1.36  -1.68  -1.98  -2.23  -2.43   max  -1.14
+     L1 bound        -1.43  +5.24  +3.98  +3.09  +0.65  -0.26  +0.49  +0.88   max  +5.24
+     L1 abs vs FS    -2.67  -0.70  -0.15  +0.39  -0.94  -1.04  +0.23  +0.88   max  +0.88
+     on-axis full drive vs D20 in the L1 convention: -3.04 dB
+  LPX3-b:
+     square 100 Hz   -1.83  -0.54  +0.92  +0.34  -0.78  -1.32  -0.98  -0.77   max  +0.92
+     square 1000 Hz  -5.49  -0.26  +0.98  +0.39  -0.66  -0.57  +0.26  +0.70   max  +0.98
+     square 3000 Hz -10.62  +0.23  +1.32  +0.68  -0.58  -1.48  -1.89  -2.27   max  +1.32
+     pink noise      -4.43  -1.82  -1.16  -1.38  -1.71  -2.02  -2.28  -2.49   max  -1.16
+     L1 bound        -1.53  +5.11  +3.97  +3.06  +0.64  -0.30  +0.40  +0.81   max  +5.11
+     L1 abs vs FS    -2.77  -0.83  -0.15  +0.37  -0.95  -1.09  +0.14  +0.81   max  +0.81
+     on-axis full drive vs D20 in the L1 convention: -3.00 dB
+  LPX4-a:
+     square 100 Hz   -4.19  -3.71  -2.35  -2.91  -3.25  -2.11  -1.30  -0.85   max  -0.85
+     square 1000 Hz  -6.94  -5.87  -2.43  -2.99  -3.22  -1.95  -1.11  -0.64   max  -0.64
+     square 3000 Hz -12.32  -0.76  -0.58  -1.31  -2.47  -2.06  -1.25  -0.77   max  -0.58
+     pink noise      -6.77  -5.73  -4.78  -4.45  -4.13  -3.82  -3.69  -3.58   max  -3.58
+     L1 bound        -3.89  +1.71  -0.12  -0.83  -2.11  +0.52  +2.56  +3.62   max  +3.62
+     L1 abs vs FS    -5.13  -4.24  -4.25  -3.52  -3.70  -0.27  +2.30  +3.62   max  +3.62
+     on-axis full drive vs D20 in the L1 convention: -8.09 dB
+  LPX4-b:
+     square 100 Hz   -4.19  -3.78  -2.35  -2.90  -3.24  -2.12  -1.32  -0.86   max  -0.86
+     square 1000 Hz  -6.99  -5.94  -2.44  -2.98  -3.21  -1.97  -1.15  -0.65   max  -0.65
+     square 3000 Hz -12.34  -0.81  -0.58  -1.28  -2.45  -2.07  -1.27  -0.78   max  -0.58
+     pink noise      -6.75  -5.71  -4.79  -4.46  -4.13  -3.84  -3.71  -3.59   max  -3.59
+     L1 bound        -3.94  +1.53  -0.13  -0.80  -2.09  +0.45  +2.49  +3.60   max  +3.60
+     L1 abs vs FS    -5.18  -4.41  -4.26  -3.50  -3.68  -0.34  +2.23  +3.60   max  +3.60
+     on-axis full drive vs D20 in the L1 convention: -8.08 dB
+  LPX4-a-cap:
+     square 100 Hz   -2.51  -2.18  -1.90  -1.80  -1.74  -1.08  -0.64  -0.39   max  -0.39
+     square 1000 Hz  -5.43  -5.27  -1.96  -1.83  -1.69  -0.88  -0.48  -0.21   max  -0.21
+     square 3000 Hz -10.26  -1.44  -0.85  -0.88  -1.13  -0.96  -0.56  -0.32   max  -0.32
+     pink noise      -4.93  -3.95  -2.93  -2.69  -2.47  -2.27  -2.19  -2.13   max  -2.13
+     L1 bound        -2.19  +1.27  -0.54  -0.62  -0.70  +0.64  +1.66  +2.31   max  +2.31
+     L1 abs vs FS    -3.43  -4.67  -4.67  -3.32  -2.29  -0.15  +1.40  +2.31   max  +2.31
+     on-axis full drive vs D20 in the L1 convention: -5.12 dB
+  LPX4-b-cap:
+     square 100 Hz   -2.55  -2.27  -1.91  -1.82  -1.77  -1.12  -0.69  -0.42   max  -0.42
+     square 1000 Hz  -5.52  -5.37  -1.97  -1.86  -1.73  -0.92  -0.54  -0.24   max  -0.24
+     square 3000 Hz -10.34  -1.46  -0.84  -0.85  -1.14  -1.00  -0.61  -0.35   max  -0.35
+     pink noise      -4.95  -3.98  -2.99  -2.75  -2.53  -2.33  -2.25  -2.19   max  -2.19
+     L1 bound        -2.29  +1.12  -0.55  -0.57  -0.72  +0.57  +1.60  +2.34   max  +2.34
+     L1 abs vs FS    -3.54  -4.82  -4.68  -3.26  -2.31  -0.22  +1.34  +2.34   max  +2.34
+     on-axis full drive vs D20 in the L1 convention: -5.21 dB
+  FIR V1-128 (taps):
+     square 100 Hz   -0.18  +0.00  -0.50  -1.32  -0.77  -0.73  -0.65  -0.69   max  +0.00
+     square 1000 Hz  -1.89  -1.62  -0.49  +0.41  +0.44  +0.02  -0.20  -0.02   max  +0.44
+     square 3000 Hz  -2.86  -0.84  -0.91  -0.91  -0.30  -0.38  -0.00  +0.03   max  +0.03
+     pink noise      -1.89  -1.17  -1.17  -1.60  -1.95  -2.11  -2.11  -1.72   max  -1.17
+     L1 bound        +6.23  +3.77  +3.21  +2.07  +1.57  +2.05  +2.60  +1.88   max  +6.23
+     L1 abs vs FS    +4.99  -2.18  -0.92  -0.62  -0.02  +1.27  +2.34  +1.88   max  +4.99
+     on-axis full drive vs D20 in the L1 convention: -6.76 dB
+  summary: design | worst square (vs today) | pink noise | L1 bound vs today (max) | no-clip back-off = max abs L1 vs FS | on-axis L1 level
+     X3-LR4-700/1600-e0.1m35     +7.38 |  -1.29 | +12.62 | +10.48 dB | -12.65 dB
+     LPX3-a                      +1.33 |  -1.14 |  +5.24 |  +0.88 dB |  -3.04 dB
+     LPX3-b                      +1.32 |  -1.16 |  +5.11 |  +0.81 dB |  -3.00 dB
+     LPX4-a                      -0.58 |  -3.58 |  +3.62 |  +3.62 dB |  -8.09 dB
+     LPX4-b                      -0.58 |  -3.59 |  +3.60 |  +3.60 dB |  -8.08 dB
+     LPX4-a-cap                  -0.21 |  -2.13 |  +2.31 |  +2.31 dB |  -5.12 dB
+     LPX4-b-cap                  -0.24 |  -2.19 |  +2.34 |  +2.34 dB |  -5.21 dB
+     FIR V1-128 (taps)           +0.44 |  -1.17 |  +6.23 |  +4.99 dB |  -6.76 dB
+
+=== DRIVE PREMISE (steady sine): per-channel peak gain vs D20 same channel over all f, c0..c7 (dB) and the back-off needed to keep every channel <= today
+  LPX3-a     -2.16 -0.09 +1.17 +0.55 -0.51 -0.76 -0.24 +0.00  -> back-off 1.17 dB
+  LPX3-b     -2.14 -0.10 +1.17 +0.55 -0.58 -0.77 -0.26 +0.00  -> back-off 1.17 dB
+  LPX4-a     -4.48 -2.93 -1.60 -2.06 -2.77 -1.70 -0.58 +0.00  -> back-off 0.00 dB
+  LPX4-b     -4.44 -2.98 -1.59 -2.04 -2.76 -1.72 -0.60 +0.00  -> back-off 0.00 dB
+  LPX4-a-cap -2.81 -2.81 -1.42 -1.29 -1.35 -0.92 -0.32 +0.00  -> back-off 0.00 dB
+  LPX4-b-cap -2.82 -2.79 -1.42 -1.29 -1.38 -0.96 -0.35 +0.00  -> back-off 0.00 dB
+  FIR V1-128 -0.20 -0.47 +0.62 +0.84 +0.08 +0.02 +0.03 +0.00  -> back-off 0.84 dB   (critic R3g F5: FIR needs a similar ~1 dB back-off for the steady-sine premise)
+
+=== COMPUTE [MAC L3; cycles L4 = MAC x 30-50 cyc/MAC] and LATENCY; frame = 64 samples, 1.333 M cyc at 1 GHz
+  LPX3-a     taps (255, 127): folded 216 MAC/sample = 13824 MAC/frame ->   415-  691 k cyc/frame (0.31-0.52 of frame); direct 406 MAC/sample = 25984 MAC/frame | latency 127 samples = 2.65 ms | vs FIR-128x8: folded 2.4x fewer, direct 2.5x fewer
+  LPX3-b     taps (127, 63): folded 120 MAC/sample =  7680 MAC/frame ->   230-  384 k cyc/frame (0.17-0.29 of frame); direct 214 MAC/sample = 13696 MAC/frame | latency 63 samples = 1.31 ms | vs FIR-128x8: folded 4.3x fewer, direct 4.8x fewer
+  LPX4-a     taps (255, 127, 63): folded 256 MAC/sample = 16384 MAC/frame ->   492-  819 k cyc/frame (0.37-0.61 of frame); direct 477 MAC/sample = 30528 MAC/frame | latency 127 samples = 2.65 ms | vs FIR-128x8: folded 2.0x fewer, direct 2.1x fewer
+  LPX4-b     taps (127, 63, 31): folded 144 MAC/sample =  9216 MAC/frame ->   276-  461 k cyc/frame (0.21-0.35 of frame); direct 253 MAC/sample = 16192 MAC/frame | latency 63 samples = 1.31 ms | vs FIR-128x8: folded 3.6x fewer, direct 4.0x fewer
+  LPX4-a-cap taps (255, 127, 63): folded 256 MAC/sample = 16384 MAC/frame ->   492-  819 k cyc/frame (0.37-0.61 of frame); direct 477 MAC/sample = 30528 MAC/frame | latency 127 samples = 2.65 ms | vs FIR-128x8: folded 2.0x fewer, direct 2.1x fewer
+  LPX4-b-cap taps (127, 63, 31): folded 144 MAC/sample =  9216 MAC/frame ->   276-  461 k cyc/frame (0.21-0.35 of frame); direct 253 MAC/sample = 16192 MAC/frame | latency 63 samples = 1.31 ms | vs FIR-128x8: folded 3.6x fewer, direct 4.0x fewer
+  references: X3-LR4 69 MAC/sample = 4416 MAC/frame (latency: all-pass, 0.92 ms @ DC); FIR-128 x 8 = 32768 (folded) / 65536 (direct) MAC/frame, latency 63 samples = 1.31 ms; frozen tree C-count 169344 MAC/frame (polyphase zero-skip 44352)
+
+runtime 67s ; outputs s7_hybrid_lpxo.log / _ideal.csv / _mc.csv / _params.csv / _headroom.csv

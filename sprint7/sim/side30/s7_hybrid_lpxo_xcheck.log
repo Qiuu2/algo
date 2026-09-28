@@ -1,0 +1,7 @@
+s7_hybrid_lpxo_xcheck.m  MATLAB 26.1.0.3251617 (R2026a) Update 2  [L2 cross-check]
+(1) LPX3-b: N = 127, D = 63, [identity] PR err 8.7e-19, symmetric 1, on-axis |sum 2h_c - delta| 8.7e-19 -> PASS
+(1) LPX4-b-cap: N = 127, D = 63, [identity] PR err 3.5e-18, symmetric 1, on-axis |sum 2h_c - delta| 2.8e-17 -> PASS
+(2) LPX3-b band gains re-derived by MATLAB: max relative |diff| = 3.08e-14 -> PASS
+(3) 32 values (8 R90 incl. 5 kHz + 8 JY/T per design, 2 designs): max|MATLAB - numpy CSV| = 4.94e-04 dB -> PASS
+(4) LPX3-b squares 100 Hz / 1 kHz / 3 kHz and L1 bound, 8 channels: max|MATLAB - numpy CSV| = 4.97e-05 dB -> PASS
+OVERALL PASS

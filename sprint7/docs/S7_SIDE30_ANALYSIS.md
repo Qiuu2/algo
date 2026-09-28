@@ -144,7 +144,13 @@
     - 在 1–4 kHz 的 7 个考核频段上，良率与 FIR V1-128 打平（U-flat 装好直接用 21.3% vs 20.4%，配对 + 微调 92.6% vs 92.1% [L2 on L4 spread]）；JY/T 单频点全一级；MAC 约为折叠 FIR 的 1/7 [L3]。
     - **但瞬态余量明显差**：两段分频的公共全通相位让方波类信号在各路最多冲高 +7.4 dB（FIR ≤ +0.4 dB），需要一个联动限幅器（8 路同一增益；现有例外清单里的逐通道保护限幅器不适用，属新功能件，待 CTO 定）；另外 5 kHz 观察带只有 21.1 dB。
     - PM 拟将它与 FIR 并列为本路线的两个候选，以联动限幅器为前提，**待 CTO 过目**。
+    - （↑注 2026-09-29：省算力的候选已改为 LPX3-b，见下一条；逐通道保护限幅器须改为联动这一点对 FIR 同样成立，critic R3g F1。）
   - **不适合**：Duran DDC 原样（恒定波束宽，4 kHz 的 R90 掉到 8.5 dB）；Keele 直阵延时 CBT（在我们的阵上加延时比不加更差，这是本项目的 [L2] 结论，原文只在趋势上一致）。
+- **2026-09-29 增补：hybrid（共享线性相位分频 + 每通道频段增益）**，见 `S7_SIDE30_HYBRID.md`（critic R3g：CONDITIONAL → delta PASS_WITH_MINOR；CTO 常识审待）：
+  - 把 X3 的 IIR 分频换成线性相位 FIR（只在单声道输入上算一次）：良率与 X3 相同，即与 FIR V1-128 打平；方波在各路最多只高 +1.3 dB，保证不削顶只需固定退 0.8 dB（FIR 为 5.0 dB，X3 为 10.5 dB），为削顶不必另加限幅器。
+  - 但逐通道保护限幅器（DEC-S5-EQ-O1-01）只在纯增益表下保得住加权比例，LPX3-b 与 FIR 都须改为联动：这是整条路线的待定项，待 CTO 定。
+  - 精简版 LPX3-b：7,680（折叠）/ 13,696（直接）MAC/帧，与 FIR-128 × 8 比少 4.3 / 4.8 倍 [L3]；延迟 1.31 ms。拆树后总负载升降要等 S-B 与台架，不能跨口径推断。5 kHz 仍弱（21 dB），加第 4 段可修（事后修正版 5 kHz 36 dB、轴向 −2.87 dB）；不能做逐通道相位校准。
+  - PM 拟以 LPX3-b 取代 X3，与 FIR 并列候选，**待 CTO 过目**。
 - **算力未证实**（critic R3b）：按核上 30–50 cyc/MAC 的项目规则估，128 阶从勉强够到超预算 2.5 倍；能否落地取决于 FIRA [L4]，须 bench 实测。帧预算 1.333 M cyc 假设 CCLK = 1 GHz，还要用板上读回的 CCLK 重算（DEC-S7-RULINGS-03）。
 
 ## 5. 竞品数据与文献证据的边界
@@ -177,6 +183,7 @@
   - `s7_side30_r1_feasibility.py`：R1 版，分频段部分作废。
   - `s7_alt_tables.py`：Dolph 以外的固定表（§3.1），MC 与 FIR 原型同一批抽样；MATLAB 交叉核 `s7_alt_tables_xcheck.m`。
   - `s7_alt_algos.py`：低阶 IIR 分频加权、DDC 原样、Keele 延时 CBT（`S7_SIDE30_ALT_ALGOS.md`）；MATLAB 交叉核 `s7_alt_algos_xcheck.m`。
+  - `s7_hybrid_lpxo.py`：hybrid——共享线性相位分频 + 每通道频段增益（`S7_SIDE30_HYBRID.md`）；MATLAB 交叉核 `s7_hybrid_lpxo_xcheck.m`。
   - 以上各附 `.log`。
 - **critic**：`sprint7/critic/CRITIC_G_SIDE30_R1_20260926.md`、`CRITIC_H_SIDE30_R2_20260926.md`，复核脚本在 `side30_r{1,2}_scripts/`。
 - **文献**：`S7_LIT_REGISTER_SIDE30.md`。
