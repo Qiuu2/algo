@@ -3,6 +3,11 @@
 > 日期 2026-09-27 ｜ 作者 dsp-algorithm teammate ｜ 包：`sprint7/dsp/firbench/`（文件清单与 md5 见其 `README.md` §0）
 > **目的**：DEC-S7-SIDE30-01 ③"每通道滤波器"路线的算力 go/no-go。设计文档 `S7_SIDE30_PERCH_FIR_DESIGN.md` §5 只有 [L3 MAC × 30–50 cyc/MAC] 的估算（128 抽头放核上从"勉强"到"超预算约 2.5×"），能否落地取决于 FIRA [L4]。本单让测试员在 ADSP-21569 板上**实测**：8 路 FIR、每帧 64 样点、63/127/255 抽头（64/128/256 档），FIRA 三种任务组织 + 核两种写法，每一格都带逐通道 golden 门。
 > **状态**：包已过桌面自动检查（[L2]，README §4）。独立 critic R3d（2026-09-27）判 **CONDITIONAL**（0 BLOCKER / 2 MAJOR / 4 MINOR / 1 INFO），A-1…A-7 已整改（README §7），**待 delta 复审**；**CTO_OK 未取得**——两者到位前不上板（§1）。
+> **2026-09-29 状态更新**（上一行原文保留）：
+> - critic R3d 的 delta 与 mini-delta 两轮对本包均判 **PASS**（`sprint7/critic/CRITIC_L_SIDE30_R3D_20260927.md` A 部分），本包已入库（commit `0ef46c4`）；
+> - **CTO_OK 已给**：CTO 2026-09-29 原话「恩，我同意sfirb可以」。
+> - §1 第 1 条的两个条件至此都已满足；§1 第 2–4 条（板与版本确认、上电与 JTAG 顺序、只做 JTAG Load）照旧。
+> - 加入本段后本单的 md5 已变，新值见 `sprint7/dsp/firbench/README.md` §0（本单不在测试员第 2 步要核的文件之列）。
 > **L 级总则**：本单**不写任何板上预期读数**，所有 cycle 格留空。表里给出的"应为"只有代码/数据常量（帧数、版本号、CRC 常量），不是测量预期。板上读回的 cycle = [L1 bench]；由它算出的占帧比/余量 = [L1 推导]；外推 = [L3 on L1]。
 
 ---

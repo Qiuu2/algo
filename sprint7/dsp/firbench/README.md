@@ -3,6 +3,7 @@
 > dsp-algorithm teammate，2026-09-27。上游：`sprint7/docs/S7_SIDE30_PERCH_FIR_DESIGN.md` §5/§6-3/§7-6（算力开放问题）；DEC-S7-SIDE30-01 ③④（`sprint2/docs/decisions_log.md` 末尾）。测试员操作单：`sprint7/docs/S7_FIRBENCH_RUNBOOK.md`。
 > **诚实声明**：本机无 cc21k、无板。本目录的一切 "PASS" 都是桌面 gcc / numpy **[L2]**；FIRA 路径在桌面上只跑在自写的**行为模型**上（`host/fb_fira_emu_host.c`）= **[L2 emulated plumbing]**，证明的是"编排代码与所假设的 Legacy 行为自洽"，**不是芯片证据**。真正的编译门 = 测试员 CCES build；cycle 只能上板得到，**本目录一个板上数字都不填**。
 > **状态**：独立 critic R3d（2026-09-27）判 **CONDITIONAL**（0 BLOCKER / 2 MAJOR / 4 MINOR / 1 INFO；§12 各门 FG1/FG2/IO1/IO2/ST1 判 PASS，golden 24/24 由 critic 独立复现）→ A-1…A-7 已整改（§7），**待 delta 复审**；未 commit、未获 CTO_OK（DEC-S7-SIDE30-01 ④ 逐包先例）。三道关（自动 verify → 独立 critic → CTO 常识审）第二道未闭合。
+> **2026-09-29 状态更新**（上一行原文保留）：R3d 的 delta 与 mini-delta 两轮对本包均判 PASS，已入库（`0ef46c4`）；CTO_OK 已给（CTO 2026-09-29 原话「恩，我同意sfirb可以」）。
 
 ## 0. 文件清单与指纹
 
@@ -18,7 +19,7 @@
 | `run_firbench_host.sh` | 桌面构建 + 运行 R0/R1/H1–H4（§4） | `9a78bec66386240f8005688ba1c95700` |
 | `run_firbench_guard_check.sh` | 桌面守卫检查 (A)–(G)（§4） | `17f0e7ac546cb493781219f19d88057e` |
 | `bench_main_firbench.diff` | bench 接线补丁**文本**（不直接改 `bench_main.c`，由测试员应用） | `f7ad667bba47533685b930bfc44535b0` |
-| `sprint7/docs/S7_FIRBENCH_RUNBOOK.md` | 测试员操作单（中文） | `19e2e702a29565860ff144509d689d07` |
+| `sprint7/docs/S7_FIRBENCH_RUNBOOK.md` | 测试员操作单（中文） | `adc1a9e09b3ee20940e15c1614494a7b`（2026-09-29 页头加状态更新后；R3d 审定版为 `19e2e702a29565860ff144509d689d07`） |
 
 只读输入指纹（本包未改动任何既有文件；守卫检查 (G) 每次核）：`chirp_input.h` `f38270f3b963265129bdf45c34ad2b6f`｜`dolph_w8_q15.h` `ef2b75235a15b69b63b445ecffd8cf7f`｜`bench_main.c`（补丁基线）`25090f2c29d6729443bef5ed1feb5d31`｜`fira_tree.c` `7616c41102946c357e9c70fafcd51da3`（未调用，仅证未动）｜`s7_fir_coeffs_127tap.csv` `93792b2473b01eb959afb50d0b644e19`｜`s7_fir_robust_design.py` `e2938a9eb0e8872e23fe493fc759d119`｜`s7_common.py` `f68a834fd08ba184fc8aad6aeed7e24e`｜探针补丁 `bench_main_s7.diff` `0b1e7252f0b20344aa65a8a08ef87ef8`。
 打补丁后 `bench_main.c` 的 md5（桌面 `patch -p1` 实得）：只打本补丁 `d003d326da30a673dc33d7900aba5a51`；本补丁与探针补丁叠加（两种顺序结果逐字节相同）`5b3b459894e9d1949fce5b087418549c`。
