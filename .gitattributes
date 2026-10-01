@@ -7,3 +7,5 @@
 *.dxe   binary
 *.doj   binary
 *.elf   binary
+*.wav   binary
+sprint7/signals/**/MANIFEST.md5 -text

@@ -1,0 +1,8 @@
+  500 Hz  B= 115.8 Hz | multisine 10s range 0.353 std 0.087, 30s range 0.119 | Gaussian(8 seeds) 10s range 0.255..0.448 (mean std 0.083), 30s range 0.026..0.105 | theory std(10s)=4.34/sqrt(BT)=0.128
+        crest multisine 13.94 dB
+ 1000 Hz  B= 231.6 Hz | multisine 10s range 0.251 std 0.063, 30s range 0.050 | Gaussian(8 seeds) 10s range 0.154..0.437 (mean std 0.067), 30s range 0.023..0.039 | theory std(10s)=4.34/sqrt(BT)=0.090
+        crest multisine 13.69 dB
+ 3150 Hz  B= 729.4 Hz | multisine 10s range 0.114 std 0.034, 30s range 0.018 | Gaussian(8 seeds) 10s range 0.082..0.342 (mean std 0.040), 30s range 0.013..0.029 | theory std(10s)=4.34/sqrt(BT)=0.051
+        crest multisine 14.51 dB
+ 6300 Hz  B=1458.8 Hz | multisine 10s range 0.135 std 0.034, 30s range 0.012 | Gaussian(8 seeds) 10s range 0.081..0.158 (mean std 0.032), 30s range 0.009..0.027 | theory std(10s)=4.34/sqrt(BT)=0.036
+        crest multisine 14.11 dB

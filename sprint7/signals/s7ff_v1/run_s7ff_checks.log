@@ -1,0 +1,15 @@
+== s7ff_v1 gate | 2026-10-02T01:35:53+08:00 | python 3.14.6 numpy 2.5.3
+[PASS] 1 determinism: regenerated files byte-identical to wav/
+[PASS] 2 md5sum -c MANIFEST.md5 (wav)
+[PASS] 3 s7ff_check.py (wav): files checked: 61 | FAIL items: 0 | OVERALL PASS
+[PASS] 4 ffprobe headers: 61 files, 0 mismatches
+[PASS] 5 falsifiers: falsifiers: 24 cases | OVERALL PASS (every falsifier failed as targeted; control passed)
+[PASS] 6 gate self-test: one flipped byte -> core checks FAIL as required
+    selftest> [FAIL] 2 md5sum -c MANIFEST.md5 (/tmp/s7ff_gate_LDdub0/farm) (exit 1)
+    selftest>   s7ff_v1_3150Hz_m30dB.wav: 失败
+    selftest>   md5sum: 警告：1 个校验和不匹配
+    selftest> [FAIL] 3 s7ff_check.py (/tmp/s7ff_gate_LDdub0/farm): files checked: 61 | FAIL items: 2 | OVERALL FAIL (exit 1)
+    selftest> [PASS] 4 ffprobe headers: 61 files, 0 mismatches
+    selftest> FAIL s7ff_v1_3150Hz_m30dB.wav: C: out-of-band residual peaks at 134.4 LSB > 8 (click / dropout / abrupt start / step)
+    selftest> FAIL s7ff_v1_3150Hz_m30dB.wav: M: md5 differs from MANIFEST.md5
+== OVERALL PASS

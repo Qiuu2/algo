@@ -34,7 +34,7 @@
 |---|---|---|---|---|---|---|---|
 | ① | **S-B** 板测 | 4 个 build 的自检与读数；Debug/开优化对照 build；读回 CCLK | `S7_TESTER_RUNBOOK_SB.md`，外加 `S7_B63_WALLCLOCK_GAP.md` 的对照 build 部分 | critic 已过（CRITIC_D/E/F）；CTO 已在 RULINGS-02/03 中据此裁定 | 板、JTAG、CCES；功放断电或调到最小音量 | 无；可以和 ② 同一天做 | 回填表 A/B/C/D、`.map`、截图、听感一句话 |
 | ② | **S-POL** 自家阵列极性 QA | 电池法逐只定极性，375 Hz 成对复验，**实测通道→位置映射** | `S7_POLARITY_QA_RUNBOOK.md` | critic 已过（3567aae）；**CTO 过目：待** | 1.5 V / 9 V 电池、`M2_STATIC_TXTEST` 系列 build、声级计 | 做电池测试时功放必须断电、不接 | 极性表、映射表、照片。发回后由 **CTO 裁定 D8**（是否开通道映射修正） |
-| ③ | **S-FF** 现装配远场基线 | 室外按 1/3 倍频程测正面和 ±60°、±90°，**拆任何东西之前做** | `S7_SIDE30_FARFIELD_TEST.md` | critic 已过（R3c，db301ef）；**CTO 过目：待** | 室外空旷场地（半径 ≥8 m）、三脚架、测量器材（方案 A/B，见该执行单） | CTO 已填 `V_FF_MAX`；器材到位；② 已完成且 **CTO 已裁 D8** | 原值表、本底、距离不变性检查、现场条件记录卡 |
+| ③ | **S-FF** 现装配远场基线 | 室外按 1/3 倍频程测正面和 ±60°、±90°，**拆任何东西之前做** | `S7_SIDE30_FARFIELD_TEST.md` | critic 已过（R3c，db301ef）；**CTO 过目：待** | 室外空旷场地（半径 ≥8 m）、三脚架、测量器材（方案 A/B，见该执行单）、信号文件包 `sprint7/signals/s7ff_v1/`（先看其 README §0；包的过门状态：critic R1 CONDITIONAL → delta PASS_WITH_MINOR，CTO 过目：待，过目前不算已交付） | CTO 已填 `V_FF_MAX`；器材到位；② 已完成且 **CTO 已裁 D8** | 原值表、本底、距离不变性检查、现场条件记录卡 |
 | ④ | **S-WTBL** 板上切表 A/B | 同一场地、同一麦位，只改 `g_m2_wtbl_sel`（0 → 3 → 4 → 5 → 0 → 2 → 0；sel 4/5 为 2026-09-28 新增的稳健扇区表） | `S7_TESTER_RUNBOOK_WTBL.md` | critic 已过（R3a，7686c05 / 42f38a0）；sel 4/5 增补：critic 已过（R3e，CONDITIONAL → delta PASS_WITH_MINOR）；**CTO 过目：待** | `M2_WTBL_SEL` build，外加 ③ 的全套 | ② 的映射已发回、**CTO 已裁 D8**；**CTO 已填 `V_FF_MAX`**；可以和 ③ 同一天做 | `applied_sum` 等读数、各表各频段原值 |
 | ⑤ | **S-DRV** 逐只测喇叭 | 喇叭装进治具，逐只测灵敏度和相位（1–4 kHz） | `S7_DRIVER_MATCHING_RUNBOOK.md` | critic 已过（R3c，db301ef）；**CTO 过目：待** | 治具、测量话筒 + 声卡 + REW（手机分贝计不够）、万用表、温度计 | CTO 已填 `V_JIG_MAX`；**CTO 已签拆装 C10 清单**；③ 已完成（或有 CTO 书面豁免，见该执行单 C10-0） | REW 导出文件、每只的记录、照片。PM 用配对工具出方案 |
 | ⑥ | **S-FIRB** FIR 算力 bench | 在 bench 工程里测 8 路 FIR 的周期数 | `S7_FIRBENCH_RUNBOOK.md` | critic 已过（R3d，`0ef46c4`）；**CTO_OK 已给（2026-09-29）**，可以执行 | 板、JTAG、CCES bench 工程 | 执行单 §1 第 2–4 条（板与版本确认、上电与 JTAG 顺序、只做 JTAG Load） | 按该执行单的发回清单，包括周期表、每通道 golden 标志、CGU 表与截图、`.map` |
@@ -62,3 +62,4 @@
 
 1. **30° 测量由谁出单、何时做**：`S7_VERIFICATION_PLAN.md` §5.3 把 30° 定为切表实验的主判角，这一条没有被任何文件取代（远场测试单 §0.3 只取代 §8.1 的侧抑部分），但目前没有对应的执行单。**选表之前必须做**，因为稳健扇区表恰恰在 30° 付出代价。范围是 §5.3 的 30° 主判角实验，加上 JY/T 口径 500/1k/2k/4k 的 30° 点。
 2. **是否保留 sel 5（RS-B）**：它是 PM 追加的第二张表。CTO 若不要，PM 删表、重新生成，并同步修改切表执行单。
+3. **信号文件包 `s7ff_v1` 里 PM 拟的几条做法**（2026-10-02 新增）：开测前用 3150 Hz 文件检查板上输入电平、Leq 取 20 秒、切表时停止播放而不动音量、去室外前的室内试放、用真有效值万用表设 `V_FF_MAX`、同一会话只用一种本底测法，以及几条操作细节（拉完查 `git status`、Leq 没测完就重放重测、启停有咔哒即停、R10 卡记播放器名称和版本）。详见该包 README §0 和 §2；CTO 同意之前不写进测试员步骤。

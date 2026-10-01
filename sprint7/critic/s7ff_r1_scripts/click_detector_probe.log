@@ -1,0 +1,7 @@
+delivered 60 files: worst max|residual| = 3.48 LSB
+G1 click +0.25FS                         max|residual| =    2035363.4 LSB
+G2 5-sample dropout                      max|residual| =     730339.7 LSB
+G3 1 ms dropout                          max|residual| =     693818.4 LSB
+G4 hard start @20ms                      max|residual| =     251368.5 LSB
+G5 junction step                         max|residual| =    1214034.8 LSB
+G1b click of only 64 LSB (-102 dBFS)     max|residual| =         61.7 LSB

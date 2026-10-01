@@ -1,0 +1,71 @@
+P0 untouched 1000 Hz 0 dB (positive control)     expect (none) got -                      OK
+F1 + white noise at -45 dB re in-band            expect E1     got C,E1,F,W               OK
+      F: first/last sample 4/-940 LSB (click at start/stop)
+      C: out-of-band residual peaks at 18163.8 LSB > 8 (click / dropout / abrupt start / step)
+      E1: E1_far_energy_dB = -45.3 dB > -50 dB
+F2 level +0.5 dB                                 expect R      got R                      OK
+      R: steady RMS -22.5000 dB, want -23.00 +/- 0.01
+F3 1250 Hz content named 1000 Hz                 expect B      got B,C,E2,P2,S,W          OK
+      C: out-of-band residual peaks at 23.7 LSB > 8 (click / dropout / abrupt start / step)
+      S: in-band slope -0.69 dB/decade, want -10.0 +/- 0.5 (pink)
+      B: in-band energy fraction 0.034287 < 0.999
+F4 +15 dB, clipped at full scale                 expect P      got B,C,E1,P,P1,R,W        OK
+      R: steady RMS -8.0940 dB, want -23.00 +/- 0.01
+      P: peak 0.000 dB re FS > -3.0
+      P: sample on a rail
+F5 no fade-in/fade-out                           expect F      got C,F                    OK
+      F: first/last sample 831854/386612 LSB (click at start/stop)
+      F: first/last 10 ms only 0.3/-2.3 dB below steady (no fade)
+      C: out-of-band residual peaks at 260879.4 LSB > 8 (click / dropout / abrupt start / step)
+F6 -40 dB file re-quantised to 16 bit            expect E1     got C,E1,W                 OK
+      C: out-of-band residual peaks at 185.7 LSB > 8 (click / dropout / abrupt start / step)
+      E1: E1_far_energy_dB = -38.4 dB > -50 dB
+      W: W_far_energy_dB = -38.4 dB > -50 dB
+F7 header sample rate 44100                      expect H      got H                      OK
+      H: fmt tag/ch/rate/bits = 1/1/44100/24, want 1/1/48000/24
+      H: block align 3 / byte rate 132300, want 3 / 144000
+F8 truncated to 30 s                             expect H      got H                      OK
+      H: data 4320000 bytes = 30.0000 s, want 5184000 bytes = 36.000 s
+F9 flat (white) in band, not pink                expect S      got S                      OK
+      S: in-band slope -0.00 dB/decade, want -10.0 +/- 0.5 (pink)
+F11 '-10 dB' file at -9.5 dB                     expect L      got L,R                    OK
+      R: steady RMS -32.5000 dB, want -33.00 +/- 0.01
+      L: residual vs 0 dB file x 10^(-10/20) = 11037.46 LSB RMS > 1 (not the same waveform)
+      L: steady RMS step -9.5000 dB, want -10 +/- 0.01
+F13 stereo (2 channels)                          expect H      got H                      OK
+      H: fmt tag/ch/rate/bits = 1/2/48000/24, want 1/1/48000/24
+      H: block align 6 / byte rate 288000, want 3 / 144000
+      H: data 10368000 bytes = 72.0000 s, want 5184000 bytes = 36.000 s
+F16 20 ms silence then abrupt full-level start   expect C      got C                      OK
+      C: out-of-band residual peaks at 177955.3 LSB > 8 (click / dropout / abrupt start / step)
+F17 5 ms dropout mid-file                        expect C      got C                      OK
+      C: out-of-band residual peaks at 430422.5 LSB > 8 (click / dropout / abrupt start / step)
+F18 single 64-LSB click mid-file                 expect C      got C                      OK
+      C: out-of-band residual peaks at 62.1 LSB > 8 (click / dropout / abrupt start / step)
+F19 step at the fade-in / steady junction        expect C      got C                      OK
+      C: out-of-band residual peaks at 477248.3 LSB > 8 (click / dropout / abrupt start / step)
+F20 3 kHz tone at -52 dB (P1 targeted, E1 passes) expect P1     got C,F,P1,W               OK
+      F: first/last sample 0/-807 LSB (click at start/stop)
+      C: out-of-band residual peaks at 2111.1 LSB > 8 (click / dropout / abrupt start / step)
+      P1: P1_far_psd_dB = -47.7 dB > -50 dB
+F21 adjacent-centre tone at -35 dB (P2 targeted, E2 passes) expect P2     got C,F,P2,W               OK
+      F: first/last sample 0/10986 LSB (click at start/stop)
+      F: first/last 10 ms only -35.0/-35.0 dB below steady (no fade)
+      C: out-of-band residual peaks at 7765.4 LSB > 8 (click / dropout / abrupt start / step)
+F22 noise just above the band edge at -25 dB (E2 targeted) expect E2     got B,E2,F,R               OK
+      R: steady RMS -22.9863 dB, want -23.00 +/- 0.01
+      F: first/last sample -5256/-1345 LSB (click at start/stop)
+      F: first/last 10 ms only -26.6/-35.6 dB below steady (no fade)
+F23 broadband noise only inside the fade-in (W targeted) expect W      got C,W                    OK
+      C: out-of-band residual peaks at 270401.5 LSB > 8 (click / dropout / abrupt start / step)
+      W: W_far_energy_dB = -48.3 dB > -50 dB
+F10 one LSB flipped in a file (md5)              expect M      got M                      OK
+      FAIL s7ff_v1_2000Hz_m20dB.wav: M: md5 differs from MANIFEST.md5
+F12 one file missing                             expect N      got N                      OK
+      FAIL (directory): N: missing ['s7ff_v1_4000Hz_m30dB.wav'] extra []
+F14 silence file with one non-zero sample        expect Z      got M,Z                    OK
+      FAIL s7ff_v1_silence.wav: Z: silence file has non-zero samples
+      FAIL s7ff_v1_silence.wav: M: md5 differs from MANIFEST.md5
+F15 manifest missing one entry                   expect M      got M                      OK
+      FAIL (manifest): M: manifest does not list exactly the 61 expected files
+falsifiers: 24 cases | OVERALL PASS (every falsifier failed as targeted; control passed)

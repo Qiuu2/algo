@@ -1,0 +1,11 @@
+G0 control (1000 Hz 0 dB unchanged)                        -> PASS(!)        E1far=-129.6 P1far=-147.4 P2adj=-149.4 E2adj=-148.5 Wfar=-119.1 Wfar=-123.3 Wadj=-113.8
+G1 one-sample click +0.25 FS mid-steady                    -> PASS(!)        E1far=-54.6 P1far=-74.4 P2adj=-74.4 E2adj=-73.4 Wfar=-58.6 Wfar=-78.4 Wadj=-78.4
+G2 5-sample dropout mid-steady                             -> PASS(!)        E1far=-57.2 P1far=-68.5 P2adj=-68.6 E2adj=-67.7 Wfar=-61.1 Wfar=-72.4 Wadj=-72.5
+G3 1 ms dropout mid-steady                                 -> PASS(!)        E1far=-55.2 P1far=-62.9 P2adj=-52.3 E2adj=-51.5 Wfar=-59.2 Wfar=-66.5 Wadj=-56.3
+G4 silent 20 ms then HARD start at full level (no fade)    -> PASS(!)        E1far=-129.6 P1far=-147.4 P2adj=-149.4 E2adj=-148.5 Wfar=-119.0 Wfar=-123.1 Wadj=-113.9
+G5 fade-in from wrong segment (junction step)              -> PASS(!)        E1far=-129.6 P1far=-147.4 P2adj=-149.4 E2adj=-148.5 Wfar=-51.4 Wfar=-56.6 Wadj=-44.6
+G6 300 Hz tone at -55 dB energy (far region)               -> F,P1,W         E1far=-55.0 P1far=-40.7 P2adj=-149.4 E2adj=-148.5 Wfar=-55.0 Wfar=-33.5 Wadj=-113.8
+G7 tone at fc*2^(1/3) at -33 dB energy                     -> F,P2,W         E1far=-88.3 P1far=-96.8 P2adj=-24.9 E2adj=-33.0 Wfar=-118.7 Wfar=-123.3 Wadj=-24.9
+G8 DC offset 0.5 % FS                                      -> B,E1,F,R,W     E1far=-26.0 P1far=-147.4 P2adj=-149.4 E2adj=-148.5 Wfar=-26.0 Wfar=-4.0 Wadj=-113.8
+G9 -40 dB file + one-sample click 0.01 FS                  -> E1,W           E1far=-42.6 P1far=-62.4 P2adj=-62.4 E2adj=-61.4 Wfar=-46.6 Wfar=-66.3 Wadj=-66.4
+G10 '-10 dB' file at -10.005 dB (alone, no L ref)          -> PASS(!)        E1far=-119.2 P1far=-136.7 P2adj=-138.8 E2adj=-138.0 Wfar=-116.3 Wfar=-123.0 Wadj=-113.8

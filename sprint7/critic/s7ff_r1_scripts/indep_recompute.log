@@ -1,0 +1,44 @@
+file                         tag   ch   rate bits balgn     nsamp |    rms_dB   peak_dB     E1_dB  P2adj_dB     E2_dB  mean_lsb  Lres_lsb
+0500Hz_0dB.wav                 1    1  48000   24     3   1728000 |  -20.0000   -6.0588   -129.43   -152.33   -151.53   -0.0001       nan
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -20 peak -6.05882 E1 -129.432 P2 -152.334 E2 -151.535 L  | diffs rms 2.0e-09 peak 9.2e-07 E1 1.4e-04 P2 4.4e-04 E2 9.2e-06
+     junction max|dx| 33556 / 33712 LSB vs steady max|dx| 274907 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+0630Hz_0dB.wav                 1    1  48000   24     3   1728000 |  -20.0000   -7.4405   -129.47   -151.33   -150.43   -0.0000       nan
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -20 peak -7.44053 E1 -129.47 P2 -151.324 E2 -150.434 L  | diffs rms 9.3e-10 peak 1.8e-06 E1 1.3e-04 P2 4.2e-03 E2 1.3e-07
+     junction max|dx| 73704 / 65316 LSB vs steady max|dx| 290014 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+1000Hz_m40dB.wav               1    1  48000   24     3   1728000 |  -60.0000  -46.3123    -89.60   -109.40   -108.41    0.0002     0.289
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -60 peak -46.3123 E1 -89.5998 P2 -109.399 E2 -108.406 L 0.288858 | diffs rms 5.6e-08 peak 3.3e-05 E1 2.5e-05 P2 4.0e-04 E2 8.1e-05
+     junction max|dx| 1784 / 1558 LSB vs steady max|dx| 5410 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+1600Hz_m10dB.wav               1    1  48000   24     3   1728000 |  -30.0000  -17.1138   -119.82   -137.24   -136.39   -0.0000     0.303
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -30 peak -17.1138 E1 -119.817 P2 -137.202 E2 -136.385 L 0.302921 | diffs rms 1.7e-09 peak 6.5e-06 E1 9.0e-05 P2 3.5e-02 E2 4.2e-04
+     junction max|dx| 56781 / 64640 LSB vs steady max|dx| 249060 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+2000Hz_m20dB.wav               1    1  48000   24     3   1728000 |  -40.0000  -27.0799   -109.97   -126.44   -125.37   -0.0002     0.292
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -40 peak -27.0799 E1 -109.968 P2 -126.41 E2 -125.372 L 0.291622 | diffs rms 2.8e-08 peak 4.0e-05 E1 4.0e-04 P2 3.2e-02 E2 3.0e-04
+     junction max|dx| 20633 / 20633 LSB vs steady max|dx| 98723 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+3150Hz_0dB.wav                 1    1  48000   24     3   1728000 |  -20.0000   -5.4927   -130.43   -144.50   -143.42    0.0004       nan
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -20 peak -5.49275 E1 -130.433 P2 -144.479 E2 -143.425 L  | diffs rms 1.4e-09 peak 3.5e-06 E1 4.6e-04 P2 2.0e-02 E2 5.0e-04
+     junction max|dx| 197406 / 197406 LSB vs steady max|dx| 1799984 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+6300Hz_0dB.wav                 1    1  48000   24     3   1728000 |  -20.0000   -5.8926   -132.04   -141.35   -140.44   -0.0000       nan
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -20 peak -5.89264 E1 -132.035 P2 -141.349 E2 -140.444 L  | diffs rms 4.4e-09 peak 1.2e-06 E1 2.4e-04 P2 4.2e-04 E2 9.2e-05
+     junction max|dx| 1182107 / 1182107 LSB vs steady max|dx| 3318840 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+6300Hz_m40dB.wav               1    1  48000   24     3   1728000 |  -60.0000  -45.8925    -92.04   -101.35   -100.43    0.0001     0.289
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -60 peak -45.8925 E1 -92.0443 P2 -101.345 E2 -100.433 L 0.288656 | diffs rms 1.5e-07 peak 4.1e-05 E1 2.3e-05 P2 1.5e-03 E2 3.2e-04
+     junction max|dx| 11821 / 11821 LSB vs steady max|dx| 33188 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+5000Hz_m40dB.wav               1    1  48000   24     3   1728000 |  -60.0000  -46.2766    -91.30   -102.35   -101.45   -0.0002     0.289
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -60 peak -46.2766 E1 -91.3043 P2 -102.336 E2 -101.445 L 0.288696 | diffs rms 9.6e-08 peak 2.4e-05 E1 4.0e-05 P2 1.7e-02 E2 4.7e-04
+     junction max|dx| 3094 / 3815 LSB vs steady max|dx| 25918 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+0500Hz_m40dB.wav               1    1  48000   24     3   1728000 |  -60.0000  -46.0588    -89.43   -112.28   -111.48    0.0001     0.289
+     header: riff_size+8=5184044 file_len=5184044 fmt_size=16 chunks=[('fmt ', 16), ('data', 5184000)] data_off=44 end=5184044 brate=144000
+     CSV   : rms -60 peak -46.0588 E1 -89.4307 P2 -112.28 E2 -111.48 L 0.288667 | diffs rms 7.2e-08 peak 3.8e-06 E1 4.6e-05 P2 4.9e-04 E2 2.4e-04
+     junction max|dx| 336 / 337 LSB vs steady max|dx| 2749 | fade==periodic-continuation max err in/out 1/1 LSB | first/last 0/0
+
+silence: tag 1 ch 1 rate 48000 bits 24 n 1728000 nonzero 0
+manifest entries 61, wav files 61, md5 mismatches 0, manifest md5 4021749df3aad20a5724d0dc9e8c7392, CRLF in manifest: False
