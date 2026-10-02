@@ -511,6 +511,8 @@ lesson_library:
         DOC-AUDIT-SIM-001 暴露系统性缺陷：纸面/仿真数被措辞成"实测"，当成不可逆决策依据。
         典型 PF-1——算力裕量 27×/49× 是 L3 纸面解析值（树形 C 从未落地），却 LOCKED 芯片选型
         并触发不可逆采购；真实树形 C 实算为 17×/33×（纸面低估 1.6×）。
+        〔注 2026-10-02，不改原文：17×/33× 本身也是桌面 [L2] 值，2026-06-03 被板上 [L1] 推翻——06-03 R1 8ch core-only 实测 1.32× [L1-derived]、06-04 产品核路径 0.92× [L1-derived]（两者口径不同、不可直比），
+        靠 FIRA 才到 2.878×（DEC-S4-R1-8CH-01 / DEC-S4-F7-CLOSE-01）。引用本 LESSON 时不要把 17×/33× 当成真实余量。〕
         强制制度（POLICY-PROV-001）：四级来源 L1 实测 / L2 仿真 / L3 解析估算 / L4 占位假设；
         数字后紧跟标签如"33× [L2 仿真/桌面树形C]"；按可逆性限制决策权重。
         三铁律：① L4 占位严禁作不可逆决策（采购/选型/流片）唯一依据；
@@ -619,6 +621,8 @@ lesson_library:
         且平面口径假设（阵列波束平面=表9水平面，依赖音柱水平安装）已显式声明 + 竖装失效条件诚实标注。
         Critic 独立 Python(scipy chebwin) 复算 R8=5.8574dB（一级裕量+0.857dB）与 2k/90°=23.01dB（仅二级）逐点吻合到 0.001dB，确认三轨一致非编造。
         A1/A2/A3（静态加权/FIB/决策）复核：A2 一处 PF-9 复发（撤回竞品 19.1° 称'实测'作锚点）被 C7 第五次主动评审当场抓出并修复——**C7 实战首次"抓到 BLOCKER"，印证门禁有效（非走过场）**；子带标量加深零成本关 R10 主张独立验证成立。
+        〔注 2026-10-02，不改原文：该主张在冻结树上不可实现（DEC-S7-RETRACT-SUBBAND-01，[L2 host 复算] 实际分界 3k/6k/12k，1 kHz 与 2 kHz 同在 SB0 通带内，
+        detail 带是未对齐梳状残差）。当时的"独立验证"只复算了单频阵因子，没有验"架构能把 1k 和 2k 分开加权"这个前提——这本身是一条复核教训。〕
 
     - id: "LESSON-013"
       date: "2026-05-30"
@@ -663,6 +667,7 @@ lesson_library:
       wording_redline_examples:   # 措辞红线正反示例（与 §11 C9 / 铁律八 并列，CTO 指定纳入）
         negative_wrong: "❌ '算力裕量 33× + FIRA offload 进一步提升，选型按提升后算'（FIRA 收益未实测却计入选型依据 = C9② BLOCKER）"
         positive_correct: "✅ '纯核裕量 33×(8ch)[L1待实测，dsp_8ch_report.md §4.3]；FIRA offload 为上板后优化空间，收益未实测[L4/待验证]，不计入选型依据（见 R14）'"
+        note_2026_10_02: "〔注，不改原文〕两例里的 33× 是桌面 [L2] 值，2026-06-03 已被板上 [L1] 推翻（06-03 R1 8ch core-only 1,006,935 cyc → 1.32× [L1-derived]；06-04 产品核路径 0.92×、FIRA 2.878× [L1-derived]，两类口径不可直比，DEC-S4-R1-8CH-01 / DEC-S4-F7-CLOSE-01）；R14 已于 2026-06-04 CLOSED、C9 RELEASED，引用 2.878× 须连体 §8 未计入清单（43–379 MCPS，DEC-S4-C9-RELEASE-01）。示例只示范措辞结构，数字勿照抄。"
       triggered_by: "fira_assessment_HIGH_risks_lived_only_in_one_doc_not_in_Rlist_or_sprint4_input (PF-9-class warning-loss)"
       cto_emphasis: true
       preventive_non_punitive: true

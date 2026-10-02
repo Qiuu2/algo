@@ -302,6 +302,7 @@ optimization_tips:
 > - ✅ `category: 浮点DSP` / `float_support` = **对**。21569 **确有硬件浮点**（IEEE 32/40/64-bit，ds.txt:9）。
 > - ⚠️ `定点化非必须` = **路线选择问题，非硬件强制**。芯片虽支持浮点，但项目 **LOCKED 走定点**（DEC-S3-PROC-01，MCPS 效率）；FIRA 硬件**定点+浮点双模式都支持**（见 `sprint3/audit/fira_fit_assessment.md` §3），故定点路线合法可保留。**全部 PF-4 定点闭环工作有效。**
 > - 17×(16ch)/33×(8ch) 桌面算力 [L2] 按**单核定点纯软件**算，**不含 FIRA offload**（fira 评估 §4.3 已确认）→ R1 上板实测口径不变。
+> - 〔注 2026-10-02，不改原文〕上句的 17×/33× 已被板上实测推翻：06-03 R1 8ch core-only 1,006,935 cyc/帧 → 1.32× [L1-derived]（旧求和语义）；06-04 产品核路径 1,451,030 cyc/帧 → 0.92× [L1-derived]（纯核做不到实时），加 FIRA 后 8ch 463,273 cyc/帧 → 2.878× [L1-derived]，官方加速比 3.07×（DEC-S4-R1-8CH-01 / DEC-S4-F7-CLOSE-01；1.32× 与 0.92× 口径不同、不可直比；引用 2.878× 须连体 F7_R14_RULING_MATERIAL.md §8 未计入清单 43–379 MCPS）。桌面按理想 MAC 记账，高估约 25×（decisions_log R1 行；折合每个桌面 MAC 约 16.5 cycle [L3 推算]；桌面 33× 按峰值 1500 MMAC/s 算，即每 cycle 1.5 个 MAC，所以 25 ≈ 16.5 × 1.5）。R1 行写的"~30–50 cycle/MAC"后来被定为 FIRA 编排类的保守预算包络，不是直接测量；首个直接测的 FIR 核是 8.51 cyc/MAC [L1-derived]（DEC-S5-BUDGET-L1-01）。
 > 出处：`sprint3/audit/fira_fit_assessment.md` §5（critic PASS_WITH_MINOR→PASS）。下方 yaml 红线项已就地标注。
 
 ```yaml

@@ -12,6 +12,7 @@
 - **产品**：相控阵线阵定向音柱（DAS + 4 子带波束形成），跑在 ADI **ADSP-21569**（SHARC+ 单核 1GHz）。场景：博物馆/车站/商场分区广播，**水平安装**（SC-S3-GEOM-02）。
 - **几何基线（单一，LOCKED）**：**N=16 / d=55mm[L1 拆机实测] / L=825mm / Dolph-Cheby −20dB / broadside-only**（DEC-S3-GEOM-01）。8 路 A/B 对称串联驱 16 喇叭（每路 2 只串联 15Ω[L1]，单只 7.4Ω/3W[L1]）。
 - **DSP**：4 子带（500-1k/1k-2k/2k-4k/4k-8k）/ dyadic 树形半带 FIR / 48kHz / 8ch TDM（BCLK 12.288MHz）；算力裕量桌面实算 **17×(16ch)/33×(8ch)[L2]**（待 EZKIT cycle 实测[L1]）；端到端延迟 **12.53ms[L3 仿真]**（规格 <30ms，待 EZKIT）。
+  - ⚠【补标 2026-10-02，不改原文】① 子带：本行"500-1k/1k-2k/2k-4k/4k-8k"是设计标签，[L2 host 复算] 冻结树实际分界 3k/6k/12k，detail 带是未对齐梳状残差、不能按子带分别加权（DEC-S7-RETRACT-SUBBAND-01，`sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md`）。② 算力：本行 17×/33× 已被板上实测推翻——06-03 R1 8ch core-only 1.32× [L1-derived]（旧求和语义），06-04 产品核路径 0.92× [L1-derived]，加 FIRA 2.878× [L1-derived]（DEC-S4-R1-8CH-01 / DEC-S4-F7-CLOSE-01；1.32× 与 0.92× 口径不同；引用 2.878× 须连体 43–379 MCPS 未计入清单）。
 - **标准目标**：JY/T 表9 **二级保底（锁定承诺）+ 一级冲刺（待实测，非承诺）**；强指向上限 **6kHz(对内)/5kHz(对外)**（栅瓣 6.2-8k 降级）。
 
 ---
@@ -65,6 +66,8 @@
 - 任务（按 R 优先）：① **R9 180° 后向实测**（标准达标决定性，含 R13 后腔无吸音真实后向）；② R5 BW@1k 裁超指向去留（DEC-S3-DSP-06）；③ R6 栅瓣 6.2-8k 对标；④ R10 2k/90°（PF-6 可能自然达一级 ≥25dB → 关 R10；否则启用子带标量加深 A3 选项1.5 零成本）；⑤ R11 4k/30° 高频；⑥ 垂直/俯仰 balloon；⑦ 绝对 SPL 校准（对标竞品 0° 106-111dB）；⑧ 不均匀度/STIPA（表10）。
 - teammate：testing + acoustic-simulation + critic；归档 sprint3/audit/anechoic_*.md；实测标 [L1-消声室]；**禁从 SPL 反推 BW（PF-9/C7）**。
 ```
+
+> ⚠【勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01｜补标 2026-10-02，不改原文】上面启动 prompt 的任务④"否则启用子带标量加深 A3 选项1.5 零成本"**作废**：[L2 host 复算] 冻结树实际分界 3k/6k/12k，1 kHz 与 2 kHz 同在 SB0 通带内，不能只加深 2 kHz 段。任务②"R5 BW@1k 裁超指向去留"里的超指向兜底按 DEC-S2-013 是子带级实现（SB0/SB1），在冻结树上没有现成实现路径，**待核**。见 `sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md`
 
 ### 触发 F：COMSOL 立项（Q-④箱体宽深到位后）→ 有限障板/箱体衍射
 ```
@@ -136,6 +139,8 @@ LESSON-006 反推让位实测 / 007 分级制度 / 008 半角误读 / **009 PF-8
 | R11 | 中 | 4k/30° 一级 +1.01dB 且 isotropic 乐观 |
 | R12 | 待评估 | 表10 应备SPL/不均匀度/STIPA/GB3096 未评估 |
 | **R13** | 中（加剧 R9）| 后腔无吸音棉 → 后向辐射乐观 5-10dB |
+
+> ⚠【勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01｜补标 2026-10-02】上表 R10 行的"子带标量加深零成本兜底（A3 选项1.5）"已不成立：[L2 host 复算] 冻结树实际分界 3k/6k/12k，1 kHz 与 2 kHz 同在 SB0 通带内，不能只加深 2 kHz 段。见 `sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md`
 
 ---
 

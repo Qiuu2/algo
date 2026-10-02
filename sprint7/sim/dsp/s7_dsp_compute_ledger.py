@@ -11,6 +11,10 @@ Every number carries an L grade. Nothing here is measured; the script only ADDS 
 Run:  /usr/bin/python3 s7_dsp_compute_ledger.py
 """
 
+# ⚠ 勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01（补标 2026-10-02）：B4 "subband-level weights" 及其组合行
+# （B1+B4、B2+B4、B1+B2+B4）作废——[L2 host 复算] 冻结树分界 3k/6k/12k，detail 带是未对齐梳状残差，
+# 不能按子带分别加权。数值不改，以便复现旧表。见 sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md
+
 FS_HZ        = 48000
 FRAME        = 64
 FPS          = FS_HZ / FRAME                      # 750 frames/s

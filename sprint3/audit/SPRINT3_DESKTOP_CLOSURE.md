@@ -55,6 +55,7 @@ R1(算力 EZKIT)/R3(SPL T/S)/R5(BW@1k 压线)/R6(栅瓣 6.2-8k)/R7(PRD 6-8k 边�
 ## 7. Sprint 3 → Sprint 4 / EZKIT 移交
 - **EZKIT 到货即启动**：见 `sprint3/pf8/L1_test_window_tasklist.md`（T1-T4 触发器 DAG），命门 R1 优先。
 - **Sprint 4 战略储备**：FIB（A2 桌面预研就绪）；差异化专利（DEFERRED）；竖装场景（SC-S3-GEOM-02 留）。
+  - ⚠【勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01｜补标 2026-10-02，不改原文】"FIB（A2 桌面预研就绪）"依据的"每子带独立加权"在冻结树上不成立（[L2 host 复算] 实际分界 3k/6k/12k，detail 带是未对齐梳状残差），A2 预研结论作废；频率相关加权现走 DEC-S7-SIDE30-01 ③ 的每通道滤波器路径。见 `sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md`
 - **当前**：Agent Team 待命，零自动推进；外部数据到位 → ESCALATE 通报 CTO 定节奏。
 
 ---

@@ -32,6 +32,8 @@
 | SC-S3-GEOM-01/02 | 不新增 6-8k 强指向 / 水平安装 | bootstrap §2.1 表 + sim_audit PF-8 | ✅ 属实 |
 | DEC-S3-PROC-01 | 量产芯片采购冻结待 EZKIT | decisions_log + skill 链 | ✅ 属实 |
 
+> ⚠【勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01｜补标 2026-10-02】上表 R10 行的"A3 选项1.5 兜底"已不成立：选项 1.5（子带标量加深）在冻结树上不可实现（[L2 host 复算] 实际分界 3k/6k/12k，1 kHz 与 2 kHz 同在 SB0 通带内）。见 `sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md`
+
 ### 3. self-contained — PASS
 Part 0（一句话 + 几何/系统基线）+ Part 2（全工作记忆）+ Part 3（门禁 + 文件索引）使下次"只读本文件即可接手"：几何基线、芯片、算力 17×/33×、延迟 12.53ms、标准目标、R1–R13、撤回值黑名单、C1–C8 红线、三轨工具路径均在文内。需深挖时 Part 3 给出精确文件索引。判定 self-contained 成立。
 

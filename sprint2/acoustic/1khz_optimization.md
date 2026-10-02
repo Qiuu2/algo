@@ -125,6 +125,8 @@ WNG 衡量阵列对阵元自噪声/幅相误差的抑制能力，**越负越差*
 
 相对 SHARC+ 1GHz（~数千 MMAC/s 量级）算力增量极小（<0.5%）。⚠️ **需 DSP agent 复核**。
 
+> ⚠【勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01｜补标 2026-10-02，不改原文】本节按设计子带"SB0 (500–1k) 3 kHz / SB1 低端 6 kHz"估算，即子带级超指向。[L2 host 复算] 冻结树实际分界 3k/6k/12k，detail 带是未对齐梳状残差，子带级加权在现树上没有实现路径；超指向兜底**待核**（见 decisions_log DEC-S2-013 ↑注）。见 `sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md`
+
 ### 3.2 延迟增量
 
 | 子带 | FIR 群延迟 | 备注 |

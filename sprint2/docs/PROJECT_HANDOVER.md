@@ -91,6 +91,7 @@
 
 - 芯片 **ADSP-21569**（SHARC+ 单核 1GHz）— LOCKED 但量产采购冻结，21565 vs 21569 重评窗口开启（DEC-S3-PROC-01）
 - 4 子带（500-1k/1k-2k/2k-4k/4k-8k）/ dyadic 树形半带 FIR / 48kHz / 8ch TDM（BCLK 12.288MHz）
+  - ⚠【勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01｜补标 2026-10-02，不改原文】"500-1k/…/4k-8k"是设计标签，[L2 host 复算] 冻结树实际分界 3k/6k/12k，detail 带是未对齐梳状残差、不能按子带分别加权。见 `sprint7/docs/S7_RETRACTION_SUBBAND_EDGES.md`
 - 端到端延迟规格 **<30ms**（DEC-S2-012，放宽自 <5ms）
 - 1kHz 温和超指向 ε=0.01：保持**降级 / 可选 fallback**，去留待消声室实测裁定
 

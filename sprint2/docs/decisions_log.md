@@ -1,11 +1,11 @@
-# ITC 定向音柱项目 — 决策日志（Sprint 1 + Sprint 2）
+# ITC 定向音柱项目 — 决策日志（Sprint 1 起，现覆盖至 Sprint 7）
 
 **文档 ID**：DOC-DEC-002  
-**版本**：v2.0（PF-8 几何统一修正：新增 DEC-S3-GEOM-01 撤销 d=30→统一 d=55；DEC-S2-006 作废标记；R4 关闭/R5 升主风险/新增 R6 栅瓣·R7 PRD 边界）  
+**版本**：v2.0 是最后一个编号版本（2026-05-29，PF-8 几何统一修正：新增 DEC-S3-GEOM-01 撤销 d=30→统一 d=55；DEC-S2-006 作废标记；R4 关闭/R5 升主风险/新增 R6 栅瓣·R7 PRD 边界）。此后的条目按日期追加，未再编版本号，最新条目 2026-10-02。2026-10-02 只做了：表头更正、若干条目下追加 ↑注（锁定基线一览、DEC-S2-002/-009/-013、DEC-S3-DSP-06、DEC-S3-P0-01 详节与汇总表、DEC-S5-V1-SCOPE-01、R 表）和 v2.0 文末注；原文未改  
 **前版本**：v1.9（PF-4 定点化桌面闭环：DEC-S3-PF4-01 正面案例 + 节点① 饱和缺陷修复工单）  
-**作者**：项目文档专家 Agent  
-**日期**：2026-05-26  
-**状态**：Gate 1 PASSED / Gate 2 CLOSED，阵列基线已全部锁定
+**作者**：项目文档专家 Agent（≤v2.0）；之后由各轮 PM / teammate 追加，以条目内署名为准  
+**日期**：原表头日期 2026-05-26（含义未注）；v2.0 2026-05-29；最新条目 2026-10-02  
+**状态**：Gate 1 PASSED / Gate 2 CLOSED，阵列基线已全部锁定（原表头状态，当时基线 d=30；2026-05-29 起统一为 d=55，见 DEC-S3-GEOM-01。现状按各主题的最新条目，条目有的插在中间各节）
 
 ---
 
@@ -99,6 +99,7 @@
 - **决策方**：DSP 算法 Agent，经 Critic Agent 审核  
 - **决策时间**：Sprint 2  
 - **状态**：✅ LOCKED（算法路线锁定，实现待 Sprint 3 完成）
+- ↑ **[注 2026-10-02，DEC-S7-RETRACT-SUBBAND-01，不改原文]**：「4 子带（500-1k/1k-2k/2k-4k/4k-8k）」是设计标签。[L2 host 复算] 冻结实现是 3 级 dyadic 半带差分金字塔：实际分界 3k/6k/12k，每帧子带样本 8/16/32/64（子带率 6/12/24/48 kHz，sb3 未抽取），detail 带是未对齐梳状残差、不是隔离带通，"满足子带隔离需求"不适用于冻结树。设计与实现的不一致见 DEC-S2-009 ↑注。
 
 ---
 
@@ -198,6 +199,7 @@
 - **决策方**：CTO（总工）  
 - **决策时间**：2026-05-26  
 - **状态**：✅ LOCKED
+- ↑ **[注 2026-10-02，DEC-S7-RETRACT-SUBBAND-01，不改原文]**：本条 LOCKED 的子带划分与冻结实现不一致——[L2 host 复算] 冻结树实际分界 3k/6k/12k，SB0 抽取 8×（设计为 16×），sb3 未抽取，detail 带是未对齐梳状残差。PRD §3.3"子带数量 4（500-1k…）｜CCES 代码实现确认"在冻结代码上不成立。是修订本条与 PRD §3.3、承认冻结树结构，还是挂到 DEC-S7-SIDE30-01 ③ 改架构，**待 CTO 裁定**（撤回登记 §5 第 4 条）。
 
 ---
 
@@ -245,6 +247,10 @@
 | **R12**（标准 JY/T 表10，新维度盲区） | 待评估 | **表10 其他声学指标尚未评估**：应备 SPL ≤75dB(A) 空场 / 稳态不均匀度 1k·4k 覆盖区 ≤10dB / STIPA ≥0.50 / 噪声限值 GB3096 | 排入 Task B PRD 重写 + 后续桌面/实测；应备 SPL 关联 R3（SPL 占位待 T/S）|
 | **R13**（新增，硬件 KB-HW-002 Q-⑥） | 中（加剧 R9 后向） | **后腔连通无吸音棉**（仅预留空间）[L1 硬件]→ 真实后向辐射比"假设有吸音"乐观 **5–10dB**；直接**加剧 R9（180° 后向标准达标，门限最高 8–20dB）**——现 isotropic 已不可评，物理上后腔无吸音使后向更强 | COMSOL 障板建模须含"后腔无吸音"边界；消声室实测后向；若后向超标可评估加吸音棉（已预留空间）|
 | **R14**（新增，FIRA 适配评估第3项，CTO 拍板 2026-06-02） | 🔴 **HIGH** | **FIRA 定点 bit-exact 映射(Q15↔Q31)结果偏差**——FIRA 版 FIR 若与桌面 MATLAB 定点验证非 bit-exact，可能致 Dolph-Chebyshev -20dB 旁瓣 / WNG 指标漂移，危及 JY/T 指向性达标 | 待 EZKIT L1 实测（bit-exact 逐位回归）；**不影响纯核选型**（R1 纯核口径已坐实 `dsp_8ch_report.md §4.3`），仅影响 FIRA offload 落地可行性；详见下「R14 完整字段登记」|
+
+> ↑ **[注 2026-10-02，DEC-S7-RETRACT-SUBBAND-01，不改原文]**：上表 R5 的"1kHz 温和超指向"兜底按 DEC-S2-013 是子带级实现（SB0/SB1）。[L2 host 复算] 冻结树实际分界 3k/6k/12k、detail 带是未对齐梳状残差，子带级加权在现树上没有实现路径（与 S7 B4 同机制）；该兜底**待核**，只能走 DEC-S7-SIDE30-01 ③ 的每通道滤波器路径。
+
+> ↑ **[注 2026-10-02，不改原文]**：上表 R1 行把桌面高估约 25× 归因于"MMAC 计数未计真实 ~30-50 cycle/MAC + cache/中断"。其中 30–50 后来被定为 FIRA 编排类的保守预算包络，不是直接测量（DEC-S5-BUDGET-L1-01）；按本行自己的 1.32×，25× 高估折合每个桌面 MAC 约 16.5 cycle [L3 推算]（桌面 33× 按峰值 1500 MMAC/s 算，即每 cycle 1.5 个 MAC，所以 25 ≈ 16.5 × 1.5）；首个直接测的 FIR 核为 8.51 cyc/MAC [L1-derived]。
 
 ### R14 完整字段登记（POLICY-PROV-001 decisions_log 字段规范，CTO 拍板 2026-06-02）
 - **编号**：R14
@@ -304,6 +310,7 @@
 - **决策方**：CTO（总工）
 - **决策时间**：2026-05-26
 - **状态**：📋 APPROVED-IN-PRINCIPLE（4 项补充评估通过后于 Sprint 3 正式立项）
+- ↑ **[注 2026-10-02，DEC-S7-RETRACT-SUBBAND-01，不改原文]**：本条增量按 SB0/SB1 子带实现估算（延迟 SB0≈5.3/SB1≈2.7ms），即子带级超指向。[L2 host 复算] 冻结树实际分界 3k/6k/12k、detail 带是未对齐梳状残差，子带级加权在现树上没有实现路径（与 S7 B4 同机制）；1 kHz 超指向若要启用，须走 DEC-S7-SIDE30-01 ③ 的每通道滤波器路径，**待核**。
 
 ---
 
@@ -427,6 +434,7 @@
 - **决策方**：CTO（总工）
 - **决策时间**：2026-05-28
 - **状态**：✅ RESOLVED（超指向保持降级/fallback，待消声室实测裁定；2 项 MINOR 已闭环）
+- ↑ **[注 2026-10-02，不改原文]**：决策内容 3"实测超 30° 或余量不足 → 启用超指向"的启用路径是子带级超指向（DEC-S2-013），在冻结树上没有实现路径，**待核**（见 DEC-S2-013 ↑注）。另：DEC-S7-SIDE30-01 ② 拟把"BW@1k ≤ 30°"降为工程参考（PM 拟、待 CTO 过目），"超 30° 即启用"这一触发条件也随之待定。
 
 ### DEC-S3-AC-01：4kHz 竞品反常 — 记录存疑，暂不专项实测
 - **决策内容**：竞品 4kHz≈19.2° [插值派生/部分系 ITC 自仿张冠李戴·已撤回·非实测]（宽于 2kHz 的 竞品 BW≈14.9° [L2/L3 4点插值派生·F-AC-01 已撤回·非 L1 实测]，违反"频率越高波束越窄"）记录为**竞品特性存疑项**，**暂不专项排期消声室实测**，待后续有档期顺带测。
@@ -514,6 +522,7 @@
   2. **DEC-S2-002 的 56.4 MMAC/s/27×、DEC-S3-DSP-03 的 49× 均为纸面乐观值，以本条 88.7/45.7、17×/33× 为准**（历史 Sprint 2 报告未逐一回改，引用以本条为权威）；
   3. DEC-S2-013 条件④关闭；超指向 d=55 成本画像更新（喂入 DEC-S3-DSP-06 待消声室实测做最终去留）；
   4. DEC-S3-PROC-01 采购冻结仍有效，待 EZKIT 实测。
+  - ↑ **[注 2026-10-02，不改原文]**：第 2 条"以本条 88.7/45.7、17×/33× 为准……引用以本条为权威"已被板上实测取代：06-03 R1 8ch core-only 1,006,935 cyc/帧 → 1.32× [L1-derived]（旧求和语义，DEC-S4-R1-8CH-01）；06-04 产品核路径 0.92×、FIRA 2.878× [L1-derived]（DEC-S4-F7-CLOSE-01；两类口径不同、不可直比；引用 2.878× 须连体 F7_R14_RULING_MATERIAL.md §8 未计入清单 43–379 MCPS）。引用算力以后者为权威。
 - **仍待做（Critic 列）**：EZKIT cycle MCPS 实测 / SHARC 定点 SNR / COMSOL 障板衍射 / T/S→SPL / 子带倍频程边界(12k/6k/3k/1.5k)与规格 8k/4k/2k/1k 声学对齐（F-2，桌面可做）/ 垂直面 balloon / 温漂 / 超指向最终去留。
   - ↑ ⚠【勘误 2026-09-26 · DEC-S7-RETRACT-SUBBAND-01，不改原文】F-2 中"12k/6k/3k/1.5k"实为 3k/6k/12k（SB0≈0–3k），1 kHz 在 SB0 内部、不在交叠区；F-2 对齐项本身仍成立。
 - **决策方**：CTO（总工） | **决策时间**：2026-05-28 | **状态**：✅ 记录归档（v2 可信清单见 `simulation_coverage_audit.md`）
@@ -729,12 +738,16 @@
 | **🔴 F-SRU-1 确定未生效（softcfg 全 5 写失败）** | 🔴 **板上重跑确诊：5 步 TWI 写全失败 → codec 靠载板默认 → F-SRU-1 是 no-op，产品换板确定哑（非 OPEN，确定）**（2026-06-09，critic R48）| **R48 确诊（推翻 R44/PM/CTO 的 bWaitFlag 框架）**：dsp 读**安装版 [L1] 头**（/opt/analog/cces/2.12.1，critic 独立复读逐字证）：adi_twi_Write 是**阻塞**、第 4 参=**bRestart（I2C repeated-start）非 bWaitFlag**、非阻塞是另一函数 adi_twi_SubmitTxBuffer（M1 没调）。⇒「非阻塞提交码误判」前提全 moot。ADI_TWI_SUCCESS=0u+14 错码，阻塞写无良性非 0 → 板上 `g_m1_softcfg_rc[0..4] 全=1` = **5 写全真失败**（open/addr=0=U6 API 层可达）。**(I) F-SRU-1 生效 OUT；(II) codec 靠载板默认、F-SRU-1 未生效、换板确定哑 = 确诊**（从 [L1] 语义定非「音频通了」推；全 5 失败含 codec-critical W0/W3/W4，按 R44 拆分确定触发 II）。**ALT 对照**：ALT 用相同 blocking `adi_twi_Write(...,2,false)`+同 buffer 复用+期望 SUCCESS 且 ALT 工作 → M1 调用形式对，**全 5 fail 是运行时 bus/外设条件**（root-cause 指 prescale/bitrate/timing/U6，非 API 用法）。**修法 NOT bRestart flip**（已 blocking，flip 插错 repeated-start 更糟）。下一步：apply obs-only block A（`return (int)adi_twi_Write` 命名 14 码里哪个，已落 a4e653b 后续 commit）→ 板上重跑读命名码（如全=11 PERIPHERAL_ERROR=bus NACK / =6 BAD_ADDRESS）→ CTO-gated logic 修（block B，按命名码定，不盲猜）。**F-SRU-1 修复前不得宣称换板安全**〔R55 判据已替换：板实为 AD-EXKIT 硬连线使能，F-SRU-1 不适用，见 DEC-S6-FSRU1-RESCOPE-01〕。详见 M1_SOFTCFG_ALL5_RC1_ADJUDICATION.md。reviewer: critic R48 @ claude-opus-4-8 / 2026-06-09。〔R44 行存史下文，OPEN→R48 确诊；R48 终判本身已被 R55 re-scope 取代存史〕 |
 | **⚠ F-SRU-1 未确认（softcfg_rc=1）〔R44 存史，已被 R48 确诊取代〕** | 🟡 **OPEN 风险：M1 板上 softcfg_rc=1=真写失败；F-SRU-1 codec 软件使能链是否生效未确认，换板可能静默无声**（2026-06-08，critic R44）| M1 PASS 但 `g_m1_softcfg_rc=1`（非 0）。**裁定（反假绿·硬件使能版，同 R27/R42）**：rc=1=真 TWI 写失败（m1_softconfig.c:53 `==ADI_TWI_SUCCESS?0:1` 无「非 0=成功」路径；ADI 约定 !=SUCCESS=失败 KB 一致）。rc 是 5 写的 `rc|=` OR，**看不出哪个失败**。codec-critical 拆分（对 R39 SoftConfig 位图逐位核）：W0(IODIRA)/W3(GPIOA 0x25)/W4(GPIOA 0x05)=驱 ~ADAU_EN(Port A b7/b6) critical；W1(IODIRB)/W2(GPIOB)=Port B jack/eth 非 critical。**「音频通了」不能推 F-SRU-1 生效**——path-sw(软件驱~EN) 与 path-default(载板默认使能) 在此板都产 working audio，只在「默认=codec OFF 的板」分叉（软件路通/默认路哑）。**结论：F-SRU-1=NOT CONFIRMED，换板 swap-silence 风险=OPEN**。lean (III) 须 per-write 板上重跑定位。**critic 强烈建议**：apply per-write instrumentation（g_m1_softcfg_rc[5]，行为同/guard-check RC=0/未 apply 实源）+ 一次板上重跑：rc[1]/rc[2] only→(I)F-SRU-1 生效无风险；rc[0]/rc[3]/rc[4] 或 open/addr_rc=1→(II)载板默认须修。**per-write 结果出来前不得宣称「F-SRU-1 works」/不得据此 ship**。CTO 拍是否 apply+重跑。详见 sprint6/dsp/audio/M1_SOFTCFG_RC_ADJUDICATION.md。reviewer: critic @ claude-opus-4-8 / 2026-06-08 |
 
+> ↑ **[注 2026-10-02，不改原文]**：上表 DEC-S3-P0-01 行的"MCPS 纠正 88.7/45.7（17×/33×）"是桌面 [L2] 值，已被板上实测推翻（见该条详节下的 ↑注与 DEC-S4-R1-8CH-01 / DEC-S4-F7-CLOSE-01 两行）。
+
 ### 锁定基线一览（2026-05-29 几何统一修正后更新）
 > **自研基线（单一，d=55 统一，DEC-S3-GEOM-01）**：N = 16 / d = 55mm / L = 825mm / Dolph-Chebyshev -20dB（d=30 已撤销 ⚠️PF-8；自研与竞品几何统一，受 SC-S3-GEOM-01 永久边界约束）
 >
 > **竞品工程基准（拆机真值，与自研同几何）**：N = 16 / d = 55mm / L = 825mm / 8 路 A/B 对称串联 / broadside-only（DEC-S3-003）
 >
 > **DSP**：ADSP-21569 / 4 子带（500-1k/1k-2k/2k-4k/4k-8k）/ dyadic 树形 FIR / 48kHz / 8 通道 TDM（BCLK 12.288MHz）/ 算力裕量 **33×(8ch)/17×(16ch)**（P0-2 树形 C 实算，纠正纸面 49×；待 EZKIT 实测；芯片 21565 vs 21569 重评见 DEC-S3-PROC-01）
+>
+> ↑ **[注 2026-10-02，不改原文]**：① 算力：33×/17× 是桌面 [L2] 值，已被板上实测推翻——06-03 R1 8ch core-only 1,006,935 cyc/帧 → 1.32× [L1-derived]（旧求和语义，DEC-S4-R1-8CH-01）；06-04 产品核路径 1,451,030 cyc/帧 → 0.92× [L1-derived]，加 FIRA 后 8ch 463,273 cyc/帧 → 2.878× [L1-derived]（DEC-S4-F7-CLOSE-01；1.32× 与 0.92× 口径不同、不可直比；引用 2.878× 须连体 F7_R14_RULING_MATERIAL.md §8 未计入清单 43–379 MCPS，DEC-S4-C9-RELEASE-01）。② 子带：「500-1k/…/4k-8k」是设计标签，[L2 host 复算] 冻结树实际分界 3k/6k/12k，detail 带是未对齐梳状残差（DEC-S7-RETRACT-SUBBAND-01）。
 >
 > **延迟规格**：端到端 <30ms（DEC-S2-012，12.53ms 系 scipy 解析/仿真、**非硬件实测**，待 EZKIT 实测）
 >
@@ -872,6 +885,7 @@
 - **验收指标 = PRD OPEN ITEM（不臆造 X）**：建议口径「**高频近场净隔离 ≥ X dB @ 消声室 L1**」（扣除 1/r 几何扩散后
   只认聚焦净贡献，efficacy:140 归因纪律）。**X 由 CTO/PRD 定**；efficacy 自由场上界参考 ~3.9dB@6k 近距（混响后更低）。
 - **状态**：v1=近场高频展区分区锁定；车站 zoning 剔除；角度偏转仍独立项（DEC-S5-STEER-V1-01）。
+- ↑ **[注 2026-10-02，不改原文]**：① 本条与 DEC-S5-STEER-V1-01 引的聚焦增量 86–144 MCPS [L4] / margin 2.04–2.31x 已被 DEC-S5-BUDGET-L1-01（49.03 MCPS [L1]，整系统残余 1.46–2.14x [L4]）取代。② v1"现板可做聚焦"的实现前提（逐子带分数延时）与 S7 B2 同样**待核**：detail 带是未对齐梳状残差，逐通道逐子带延时可能出梳状失真（DEC-S7-RETRACT-SUBBAND-01，撤回登记 §2.3）。
 
 ### DEC-S5-EQ-O1-01：item-3 = O1（LEAN master-bus EQ + 保护限幅 REQUIRED）
 - **裁定（substance 逐字）**：EQ 取 O1。
@@ -1008,6 +1022,7 @@ Re 层级关系（critic R22 裁 CLEAN，防口径错挂）：**Re 7.600Ω = 单
 *Sprint 3 Phase 1-2：DEC-S3-003 竞品借鉴策略+合法性边界已归档；基线 d=55/L=825/8 路对称*  
 *2026-05-27 评审后：DEC-S3-DSP-03（broadside 接受，关闭 R-S3-DSP-03）/ DEC-S3-DSP-04（超指向降级）/ DEC-S3-DSP-05（SPL 预测降级）已拍板归档*  
 *2026-05-28：AC-WP01 初版结论（numpy 因子-2 bug / BW@1k=14.63°）经 DSP 审计 + 主 Claude MATLAB 独立复算 + Critic 独立阵因子复算（REV-S3-BWANGLE，PASS/HIGH）**三方推翻**——14.63° 系半角，正确全角=29.28°（=numpy 29.3°），numpy 无 bug；脚本根因=`max` 选中 ±180° 端瓣；CTO 重审拍板：超指向保持降级/fallback、待消声室实测裁定（DEC-S3-DSP-06 RESOLVED）；DEC-S3-AC-01（4kHz 存疑）保留；TASK-S3-NUMPY-AUDIT：历史 BW 全部正确、零污染（36.6/18.1/9.0° 口径溯源 + 全项目 −6dB 口径统一为 MINOR，派 teammate 清）*
+*（2026-10-02 注：以上 7 行是 v2.0 时代的文末版本记录。2026-06 起的条目一部分插在上方各节（如 DEC-S4-*、DEC-S5-*），一部分从 2026-06-10 起追加在下面，都没有再编版本号。）*
 *2026-06-10 团队模型 re-tier（change-control，CTO 会话内批准）：lead claude-opus-4-8 → `claude-fable-5[1m]`（会话切换）；critic / dsp-algorithm claude-opus-4-8 → `claude-fable-5`（NEXT SPAWN 起；既有 Opus 实例 ac22…/a3f8…/a9e2… 可续用但不换血）。理由：Fable 5（2026-06-09 发布）软件工程/核验能力超 Opus 4.8，Max 免费窗口至 06-22；之后按用量计价（2×Opus）届时 CTO 复议。`fable` 别名已进 Agent 工具枚举；新 spawn 默认省略 model 继承会话。表：.claude/team_config.md。*
 *2026-06-11 **DEC-S6-FSRU1-RESCOPE-01**（CTO 采纳；critic R54 CONDITIONAL→修正→增量过门，@claude-fable-5[1m]）：板身份坐实=第三方 AD-EXKIT V2.1+ADSP-21569-SOM REV 1.1（非官方 EV-SOMCRR-EZKIT；1A 板读数[L1]×原理图亲读[L1/vendor-schematic]双轨）。①F-SRU-1 对本载板**不适用**（codec 复位硬连线 SYS_HWRST#/ADM6315，不经扩展器；0x22 无器件，rc=11×5=永久预期）；②0x21=SOM 自带系统管理扩展器 U13（MCP23017：LED/flash/UART0 开关，零 codec 位）→ **override build 取消**（盲写会拨 UART0_EN#）；③判据替换：~~rc 全 0 前不得宣称换板安全~~→换同款 AD-EXKIT=安全、换官方 SOMCRR 才需 U6@0x22 代码；④codec 寄存器级软配置(0x04/0x11)仍必做；⑤R51 探测安全 gate 闭合（0x20-0x27 唯一器件=真 MCP23017）；⑥载板 flag 跳过使能序列=CTO-gated defer（BATCH_PLAN §4B item 11）。C7 传播已执行（runbook/batch_plan/SWEEP/NACK_ROOTCAUSE/MEMORY）。R48/R44 行存史不动。撞名警告：SOM 实物 U6=Si5356A(0x70)，文档「U6 扩展器」=SOMCRR-U6。详见 sprint6/dsp/audio/M1_SOFTCFG_BOARD_RESCOPE.md。*
 *2026-06-16 **DEC-S6-ALIGN-LEFT-01**（SPORT 样本对齐悬案 OPENING-5 闭合；板测 1A [L1] 三重证据）：物理板 SPORT 字 = **左对齐（24-bit 在 bit31..bit8，低 8 位硬 0）** → M2 RX/TX 转换 = **IDENTITY（零移位零掩码）**，M1 透传已 bit-for-bit 跑此通路。证据：①1A dump `s_m1_rx_buf[0][0..7]`（0xFABBED00/0x063B4800/0x035AD500/0x06141D00/0x01EF0100/0x0156E900/0x0409CE00/0x02EA8200）**8 个低字节全 0x00** ②`g_m1_max_abs_sample=0x42C92C00 > 0x00800000`（右对齐符号扩展数学上界，标量判据独立证左）③真 M1 build 旁证（fira_inloop=0；rx/tx 在 Block0 0x243d00/0x243f00 未 pin，map_1A 归档 board_artifacts/）。**推论**：预建宏 `M2_RX_RIGHT_ALIGNED`（R57）**用不上**，保持默认关作官方载板兼容；1B M2 build（已 commit，identity）即正确对齐 build。桌面 bit-exact CRC（survey §3）仍是逐子带正确性门，与本放置闭合独立。详见 M2_Q_BOUNDARY_SURVEY.md §2.3。reviewer: critic @ claude-opus-4-8 (R59 ran on Opus=Fable-529-fallback; CONDITIONAL->PASS) / 2026-06-16。*
